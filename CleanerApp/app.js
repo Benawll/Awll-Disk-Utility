@@ -924,6 +924,7 @@
         const fCount = c.fileCount ?? c.FileCount ?? 0;
         const lastMod = c.lastModified || c.LastModified || '';
         const isSanct = c.isSanctuarized ?? c.IsSanctuarized ?? false;
+        const isPersonalSub = c.isPersonalSubItem ?? c.IsPersonalSubItem ?? false;
         const isProt = c.isProtected ?? c.IsProtected ?? false;
         const barAccent = idx < 8 ? TREEMAP_COLORS[idx % TREEMAP_COLORS.length].bg : 'bg-slate-500';
 
@@ -944,6 +945,7 @@
                   ${isFolder ? `<span class="text-[10px] text-slate-500 font-mono">${fCount.toLocaleString('fr-FR')} fichiers</span>` : ''}
                   ${lastMod ? `<span class="text-[10px] text-slate-500">${escapeHtml(lastMod)}</span>` : ''}
                   ${isSanct ? `<span title="Dossier système ou personnel protégé par défaut" class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">🔒 Protégé (Système / Perso)</span>` : ''}
+                  ${!isSanct && isPersonalSub ? `<span title="Situé dans Documents/Vidéos (protégé de l'audit auto, suppression manuelle autorisée)" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-white/[0.1]">📁 Dossier Perso</span>` : ''}
                   ${isProt ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">🛡️ Protégé</span>` : ''}
                 </div>
               </div>
@@ -1277,11 +1279,12 @@
 
     function executeSelectedClean() {
       const selected = pendingDirectDeleteItems || allItems.filter(x => selectedDeleteIds.has(x.id || x.Id));
+      const allowManualPersonalChild = pendingDirectDeleteItems !== null;
       const useRecycleBin = document.getElementById('clean-mode-recycle')?.checked ?? false;
       const btn = document.getElementById('btn-confirm-delete');
       btn.disabled = true;
       btn.innerText = "Nettoyage en cours...";
-      postToBridge({ action: 'executeClean', items: selected, useRecycleBin });
+      postToBridge({ action: 'executeClean', items: selected, useRecycleBin, allowManualPersonalChild });
     }
 
     function onCleanCompleted(res) {

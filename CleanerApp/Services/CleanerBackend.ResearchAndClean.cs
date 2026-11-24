@@ -1057,7 +1057,7 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
             return false;
         }
 
-        public static CleanResult DeleteItem(CleanerItem item, bool useRecycleBin = false)
+        public static CleanResult DeleteItem(CleanerItem item, bool useRecycleBin = false, bool allowManualPersonalChild = false)
         {
             // Vérification de la Liste Protégée (choix explicite de l'utilisateur)
             if (IsProtected(item.Path, item.Name))
@@ -1072,7 +1072,14 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
                 };
             }
 
-            // Vérification de la sanctuarisation universelle
+            // Vérification de la sanctuarisation universelle (les sous-éléments de Documents/Vidéos peuvent être supprimés manuellement depuis Explorateur/Doublons)
+            var docsRoot = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments).TrimEnd('\\');
+            var videosRoot = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos).TrimEnd('\\');
+            var itemTrim = (item.Path ?? "").TrimEnd('\\');
+            bool isPersonalChild = allowManualPersonalChild &&
+                ((!string.IsNullOrEmpty(docsRoot) && itemTrim.StartsWith(docsRoot + @"\", StringComparison.OrdinalIgnoreCase)) ||
+                 (!string.IsNullOrEmpty(videosRoot) && itemTrim.StartsWith(videosRoot + @"\", StringComparison.OrdinalIgnoreCase)));
+            if (!isPersonalChild)
             foreach (var sp in GetSanctuarizedRoots())
             {
                 if (item.Path.StartsWith(sp, StringComparison.OrdinalIgnoreCase))

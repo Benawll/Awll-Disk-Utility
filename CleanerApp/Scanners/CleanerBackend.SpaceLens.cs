@@ -34,18 +34,23 @@ namespace CleanerApp
                 var progX86Dir = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86).TrimEnd('\\');
                 var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile).TrimEnd('\\');
 
-                bool CheckSanctOrProtected(string p, string n, out bool isProt)
+                var docsDir = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments).TrimEnd('\\');
+                var videosDir = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos).TrimEnd('\\');
+                bool CheckSanctOrProtected(string p, string n, out bool isProt, out bool isPersonalSub)
                 {
                     isProt = protectedList.Any(x => (!string.IsNullOrEmpty(p) && x.Path.Equals(p, StringComparison.OrdinalIgnoreCase)) ||
                                                     (!string.IsNullOrEmpty(n) && x.Name.Equals(n, StringComparison.OrdinalIgnoreCase)));
                     string pTrim = p.TrimEnd('\\');
                     bool isCriticalRoot = pTrim.Equals(winDir, StringComparison.OrdinalIgnoreCase) ||
                                           pTrim.EndsWith(@"System32", StringComparison.OrdinalIgnoreCase);
+                    isPersonalSub = (!string.IsNullOrEmpty(docsDir) && pTrim.StartsWith(docsDir + @"\", StringComparison.OrdinalIgnoreCase)) ||
+                                    (!string.IsNullOrEmpty(videosDir) && pTrim.StartsWith(videosDir + @"\", StringComparison.OrdinalIgnoreCase));
+                    if (isPersonalSub) return isCriticalRoot;
                     return IsPathSanctuarized(p) || isCriticalRoot;
                 }
 
                 var rootInfo = new DirectoryInfo(normalized);
-                bool rootSanct = CheckSanctOrProtected(normalized, rootInfo.Name, out bool rootProt);
+                bool rootSanct = CheckSanctOrProtected(normalized, rootInfo.Name, out bool rootProt, out bool rootPersonalSub);
 
                 var rootNode = new FolderNode
                 {
@@ -53,7 +58,7 @@ namespace CleanerApp
                     Path = normalized,
                     IsFolder = true,
                     LastModified = rootInfo.Exists ? rootInfo.LastWriteTime.ToString("dd/MM/yyyy") : "",
-                    IsSanctuarized = rootSanct,
+                    IsSanctuarized = rootSanct, IsPersonalSubItem = rootPersonalSub,
                     IsProtected = rootProt
                 };
 
@@ -77,7 +82,7 @@ namespace CleanerApp
                                 return;
                             }
                             var (bytes, fCount, lw) = GetDirectoryStatsSafe(sub.FullName);
-                            bool sct = CheckSanctOrProtected(sub.FullName, sub.Name, out bool prt);
+                            bool sct = CheckSanctOrProtected(sub.FullName, sub.Name, out bool prt, out bool pSub);
                             childrenBag.Add(new FolderNode
                             {
                                 Name = sub.Name,
@@ -88,7 +93,7 @@ namespace CleanerApp
                                 IsFolder = true,
                                 FileCount = fCount,
                                 LastModified = lw.ToString("dd/MM/yyyy"),
-                                IsSanctuarized = sct,
+                                IsSanctuarized = sct, IsPersonalSubItem = pSub,
                                 IsProtected = prt
                             });
                             int cur = System.Threading.Interlocked.Increment(ref doneDirs);
@@ -108,7 +113,7 @@ namespace CleanerApp
                         try
                         {
                             long bytes = fi.Length;
-                            bool sct = CheckSanctOrProtected(fi.FullName, fi.Name, out bool prt);
+                            bool sct = CheckSanctOrProtected(fi.FullName, fi.Name, out bool prt, out bool pSub);
                             childrenBag.Add(new FolderNode
                             {
                                 Name = fi.Name,
@@ -119,7 +124,7 @@ namespace CleanerApp
                                 IsFolder = false,
                                 FileCount = 1,
                                 LastModified = GetFileEffectiveActivityDate(fi).ToString("dd/MM/yyyy"),
-                                IsSanctuarized = sct,
+                                IsSanctuarized = sct, IsPersonalSubItem = pSub,
                                 IsProtected = prt
                             });
                         }

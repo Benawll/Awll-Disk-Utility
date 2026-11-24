@@ -113,6 +113,7 @@ namespace CleanerApp
         public string LastModified { get; set; } = "";
         public bool IsSanctuarized { get; set; }
         public bool IsProtected { get; set; }
+        public bool IsPersonalSubItem { get; set; }
         public List<FolderNode> Children { get; set; } = new();
     }
 
@@ -126,6 +127,7 @@ namespace CleanerApp
         public double SizeMB { get; set; }
         public string LastModified { get; set; } = "";
         public bool IsSanctuarized { get; set; }
+        public bool IsPersonalSubItem { get; set; }
         public bool IsProtected { get; set; }
         public bool SuggestedDelete { get; set; }
     }
