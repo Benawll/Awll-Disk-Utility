@@ -21,8 +21,8 @@ namespace CleanerApp
         {
             var list = new List<string>
             {
-                Environment.GetFolderPath(Environment.SpecialFolder.MyVideos),
-                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                // Conservés uniquement pour les runtimes/pilotes critiques (aucun dossier personnel bloqué)
+                // (Documents accessibles librement par l'utilisateur)
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "NVIDIA", "NGX"),
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Java"),
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Java")
@@ -186,6 +186,7 @@ namespace CleanerApp
                 // 6. Découverte Dynamique des Dossiers Racines atypiques sur tous les disques (jeux portables, émulateurs, caches...)
                 progressCallback?.Invoke("Analyse dynamique des dossiers racines multi-disques...", 86);
                 AuditDriveRootsDynamic(recommendedItems, extraItems, seenPaths, targetDrives, runningProcs);
+                AuditPersonalFolders(extraItems, seenPaths, targetDrives);
 
                 // 6b. Normalisation & déduplication globale (règles appliquées uniformément à tous les scanners)
                 NormalizeAuditItemsGlobal(recommendedItems, extraItems, runningProcs);

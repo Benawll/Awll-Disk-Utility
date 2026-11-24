@@ -13,6 +13,7 @@
     let sortAsc = true;
     let mainExpanded = true;
     let extraExpanded = false;
+    let personalExpanded = false;
     let currentSettings = { geminiApiKey: '', enableAI: true };
     let activeResearchItem = null;
     let aiReportCache = {};
@@ -513,10 +514,11 @@
         return;
       }
 
-      const mainItems = sortItemsArray(filtered.filter(x => !(x.isExtra ?? x.IsExtra)));
-      const extraItems = sortItemsArray(filtered.filter(x => (x.isExtra ?? x.IsExtra)));
+      const mainItems = sortItemsArray(filtered.filter(x => !(x.isExtra ?? x.IsExtra) && !(x.isPersonal ?? x.IsPersonal)));
+      const personalItems = sortItemsArray(filtered.filter(x => (x.isPersonal ?? x.IsPersonal)));
+      const extraItems = sortItemsArray(filtered.filter(x => (x.isExtra ?? x.IsExtra) && !(x.isPersonal ?? x.IsPersonal)));
 
-      updateSidebarSectionsUI(mainItems.length, extraItems.length);
+      updateSidebarSectionsUI(mainItems.length, extraItems.length, personalItems.length);
 
       let html = '';
       if (mainItems.length > 0) {
@@ -563,20 +565,47 @@
         `;
       }
 
+      if (personalItems.length > 0) {
+        const personalTotalGB = personalItems.reduce((acc, x) => acc + getItemSizeGB(x), 0);
+        html += `
+          <div class="mt-4 pt-4 border-t border-white/[0.06]">
+            <button onclick="togglePersonalSection()" class="surface-card hover:bg-slate-800/70 border border-amber-500/20 w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all text-left">
+              <div class="flex items-center gap-2.5">
+                <span class="text-xs font-mono text-amber-300">${personalExpanded ? '▼' : '▶'}</span>
+                <div>
+                  <span class="text-xs font-bold text-amber-200">📁 Fichiers Personnels (Documents / Vidéos)</span>
+                  <span class="text-[11px] text-slate-400 ml-2">(${personalItems.length} éléments • ${personalTotalGB.toFixed(1)} Go)</span>
+                </div>
+              </div>
+              <span class="text-[11px] text-amber-400 font-semibold">${personalExpanded ? 'Replier' : 'Déplier'}</span>
+            </button>
+            <div class="${personalExpanded ? 'mt-2.5 space-y-2' : 'hidden'}">
+              ${personalItems.map(renderCardHtml).join('')}
+            </div>
+          </div>
+        `;
+      }
+
       container.innerHTML = html;
     }
 
-    function updateSidebarSectionsUI(mainCount, extraCount) {
+    function updateSidebarSectionsUI(mainCount, extraCount, personalCount = 0) {
       const mCnt = document.getElementById('side-main-count');
       const eCnt = document.getElementById('side-extra-count');
+      const pCnt = document.getElementById('side-personal-count');
       const mArr = document.getElementById('side-main-arrow');
       const eArr = document.getElementById('side-extra-arrow');
+      const pArr = document.getElementById('side-personal-arrow');
       const mBtn = document.getElementById('btn-side-main');
       const eBtn = document.getElementById('btn-side-extra');
+      const pBtn = document.getElementById('btn-side-personal');
       if (mCnt) mCnt.innerText = mainCount;
       if (eCnt) eCnt.innerText = extraCount;
+      if (pCnt) pCnt.innerText = personalCount;
       if (mArr) mArr.innerText = mainExpanded ? '▼' : '▶';
       if (eArr) eArr.innerText = extraExpanded ? '▼' : '▶';
+      if (pArr) pArr.innerText = personalExpanded ? '▼' : '▶';
+      if (pBtn) pBtn.className = `w-full flex items-center justify-between px-2.5 py-2 rounded-xl border text-xs transition-all ${personalExpanded ? 'border-amber-500/35 bg-amber-950/20 text-amber-100' : 'border-white/[0.07] bg-slate-900/50 text-slate-400'}`;
       if (mBtn) mBtn.className = `w-full flex items-center justify-between px-2.5 py-2 rounded-xl border text-xs transition-all ${mainExpanded ? 'border-blue-500/35 bg-blue-950/25 text-slate-100' : 'border-white/[0.07] bg-slate-900/50 text-slate-400'}`;
       if (eBtn) eBtn.className = `w-full flex items-center justify-between px-2.5 py-2 rounded-xl border text-xs transition-all ${extraExpanded ? 'border-blue-500/35 bg-blue-950/25 text-slate-100' : 'border-white/[0.07] bg-slate-900/50 text-slate-400'}`;
     }
@@ -590,6 +619,12 @@
     function toggleExtraSection() {
       if (currentView !== 'audit') switchView('audit');
       extraExpanded = !extraExpanded;
+      renderItems();
+    }
+
+    function togglePersonalSection() {
+      if (currentView !== 'audit') switchView('audit');
+      personalExpanded = !personalExpanded;
       renderItems();
     }
 

@@ -1006,6 +1006,82 @@ namespace CleanerApp
             }
         }
 
+        private static void AuditPersonalFolders(List<CleanerItem> extraItems, HashSet<string> seenPaths, HashSet<string>? targetDrives)
+        {
+            const long minSizeBytes = 150L * 1024 * 1024;
+            var videoExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm" };
+            var personalRoots = new (string Path, string Label, bool IsVideoFolder)[]
+            {
+                (Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Documents", false),
+                (Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Vidéos", true)
+            };
+
+            foreach (var (root, label, isVideoRoot) in personalRoots)
+            {
+                if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) continue;
+                if (!IsDriveSelected(root, targetDrives)) continue;
+
+                try
+                {
+                    foreach (var dir in Directory.GetDirectories(root))
+                    {
+                        if (!seenPaths.Add(dir)) continue;
+                        var di = new DirectoryInfo(dir);
+                        if ((di.Attributes & FileAttributes.ReparsePoint) != 0) continue;
+
+                        double bytes = GetDirectorySizeSafe(dir);
+                        if (bytes < minSizeBytes) continue;
+
+                        var last = GetLastWriteTimeSafe(di);
+                        int daysAgo = Math.Max(0, (int)(DateTime.Now - last).TotalDays);
+                        int risk = isVideoRoot ? 65 : (daysAgo >= 365 ? 35 : 55);
+
+                        var item = CreateItem(
+                            $"Dossier Perso ({label}) : {di.Name}",
+                            dir,
+                            "system",
+                            bytes,
+                            risk,
+                            $"Dossier dans {label} ({FormatAgeText(daysAgo)}, {last:dd/MM/yyyy}). Vérifiez avant suppression.",
+                            lastModified: last,
+                            isExtra: true
+                        );
+                        item.IsPersonal = true;
+                        extraItems.Add(item);
+                    }
+
+                    foreach (var file in Directory.GetFiles(root))
+                    {
+                        if (!seenPaths.Add(file)) continue;
+                        var fi = new FileInfo(file);
+                        if (fi.Length < minSizeBytes) continue;
+
+                        var effDate = GetFileEffectiveActivityDate(fi);
+                        int daysAgo = Math.Max(0, (int)(DateTime.Now - effDate).TotalDays);
+                        bool isVideoFile = videoExts.Contains(fi.Extension);
+                        int risk = (isVideoRoot && isVideoFile) ? 75 : (daysAgo >= 365 ? 30 : 50);
+
+                        var item = CreateItem(
+                            $"Fichier Perso ({label}) : {fi.Name}",
+                            file,
+                            "system",
+                            fi.Length,
+                            risk,
+                            isVideoRoot && !isVideoFile
+                                ? $"Fichier non-vidéo dans {label} ({FormatAgeText(daysAgo)}, {effDate:dd/MM/yyyy})."
+                                : $"Fichier dans {label} ({FormatAgeText(daysAgo)}, {effDate:dd/MM/yyyy}).",
+                            lastModified: effDate,
+                            isFolder: false,
+                            isExtra: true
+                        );
+                        item.IsPersonal = true;
+                        extraItems.Add(item);
+                    }
+                }
+                catch { }
+            }
+        }
+
         #endregion
 
     }

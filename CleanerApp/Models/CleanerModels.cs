@@ -49,6 +49,7 @@ namespace CleanerApp
         public bool IsFolder { get; set; }
         public bool IsSanctuarized { get; set; }
         public bool IsProtected { get; set; }
+        public bool IsPersonal { get; set; }
         public bool IsExtra { get; set; }
     }
 

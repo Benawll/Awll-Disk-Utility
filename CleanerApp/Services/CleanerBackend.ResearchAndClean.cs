@@ -591,7 +591,7 @@ namespace CleanerApp
                 item.RiskPct = Math.Clamp(item.RiskPct, 0, 100);
                 item.RiskLevel = GetRiskLevelLabel(item.RiskPct);
 
-                bool forceExtra = item.IsExtra || sanct || isCore || isRunning || item.RiskPct > 35;
+                bool forceExtra = item.IsExtra || item.IsPersonal || sanct || isCore || isRunning || item.RiskPct > 35;
                 item.IsExtra = forceExtra;
                 if (forceExtra) normalizedExtra.Add(item);
                 else normalizedRec.Add(item);

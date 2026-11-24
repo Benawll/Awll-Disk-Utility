@@ -36,7 +36,8 @@ namespace CleanerApp
                 ExtractEmbeddedAsset("CleanerApp.app.js", Path.Combine(assetsFolder, "app.js"));
                 ExtractEmbeddedAsset("CleanerApp.tailwindcss.min.js", Path.Combine(assetsFolder, "tailwindcss.min.js"));
 
-                var effectiveAssetsDir = File.Exists(Path.Combine(appDir, "index.html")) ? appDir : assetsFolder;
+                // Toujours utiliser le dossier Assets fraîchement extrait de l'exécutable
+                var effectiveAssetsDir = assetsFolder;
 
                 var env = await CoreWebView2Environment.CreateAsync(null, userDataFolder);
                 await webView.EnsureCoreWebView2Async(env);
