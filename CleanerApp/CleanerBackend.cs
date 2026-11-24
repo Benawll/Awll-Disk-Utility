@@ -679,7 +679,7 @@ namespace CleanerApp
                                 }
                                 else if (!string.IsNullOrEmpty(iconFile) && File.Exists(iconFile))
                                 {
-                                    lastActivity = File.GetLastWriteTime(iconFile);
+                                    lastActivity = GetFileEffectiveActivityDate(new FileInfo(iconFile));
                                     hasKnownDate = true;
                                 }
                             }
@@ -1489,7 +1489,8 @@ namespace CleanerApp
                 {
                     var fi = new FileInfo(f);
                     var ext = fi.Extension.ToLowerInvariant();
-                    int daysAgo = Math.Max(0, (int)(DateTime.Now - fi.LastWriteTime).TotalDays);
+                    var effDate = GetFileEffectiveActivityDate(fi);
+                    int daysAgo = Math.Max(0, (int)(DateTime.Now - effDate).TotalDays);
 
                     if (ext == ".exe" || ext == ".msi" || ext == ".appimage" || ext == ".msix")
                     {
@@ -1502,9 +1503,9 @@ namespace CleanerApp
                                 "downloads",
                                 fi.Length,
                                 risk,
-                                $"Installeur téléchargé {FormatAgeText(daysAgo)} ({fi.LastWriteTime:dd/MM/yyyy}). Inutile dès que le logiciel est installé.",
+                                $"Installeur téléchargé {FormatAgeText(daysAgo)} ({effDate:dd/MM/yyyy}). Inutile dès que le logiciel est installé.",
                                 isFolder: false,
-                                lastModified: fi.LastWriteTime
+                                lastModified: effDate
                             ));
                         }
                     }
@@ -1524,10 +1525,10 @@ namespace CleanerApp
                             risk,
                             isPersonal
                                 ? "Sauvegarde / archive personnelle. Recommandé de conserver !"
-                                : $"Archive téléchargée {FormatAgeText(daysAgo)} ({fi.LastWriteTime:dd/MM/yyyy}). Suppression sûre si déjà extraite.",
+                                : $"Archive téléchargée {FormatAgeText(daysAgo)} ({effDate:dd/MM/yyyy}). Suppression sûre si déjà extraite.",
                             isFolder: false,
                             isSanctuarized: isPersonal,
-                            lastModified: fi.LastWriteTime
+                            lastModified: effDate
                         ));
                     }
                 }
@@ -2984,14 +2985,16 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
         {
             try
             {
-                DateTime latest = di.LastWriteTime;
                 DateTime nowLimit = DateTime.Now.AddDays(1);
+                DateTime latest = (di.CreationTime > di.LastWriteTime && di.CreationTime <= nowLimit) ? di.CreationTime : di.LastWriteTime;
                 foreach (var f in di.EnumerateFiles("*", SafeRecurseOpts))
                 {
                     try
                     {
                         var lw = f.LastWriteTime;
-                        if (lw > latest && lw <= nowLimit) latest = lw;
+                        var ct = f.CreationTime;
+                        var eff = (ct > lw && ct <= nowLimit) ? ct : lw;
+                        if (eff > latest && eff <= nowLimit) latest = eff;
                     }
                     catch { }
                 }

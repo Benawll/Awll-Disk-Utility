@@ -544,9 +544,9 @@
             <input type="password" id="input-api-key" placeholder="AIzaSy..." class="w-full bg-slate-950 border border-white/[0.1] rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 font-mono pr-16" />
             <button type="button" onclick="toggleApiKeyVisibility()" class="absolute right-2 text-slate-400 hover:text-white text-[11px] px-2 py-0.5 rounded bg-slate-800">Voir</button>
           </div>
-          <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-purple-400 hover:text-purple-300 text-[11px] underline inline-flex items-center gap-1 pt-1">
+          <button type="button" onclick="openExternalUrl('https://aistudio.google.com/app/apikey')" class="text-purple-400 hover:text-purple-300 text-[11px] underline inline-flex items-center gap-1 pt-1">
             🔗 Obtenir une clé API gratuite sur Google AI Studio
-          </a>
+          </button>
         </div>
 
         <div class="flex items-center justify-between pt-1">
@@ -1659,6 +1659,10 @@
 
     function openFolder(encPath) {
       postToBridge({ action: 'openFolder', path: decodeURIComponent(encPath) });
+    }
+
+    function openExternalUrl(url) {
+      postToBridge({ action: 'openUrl', url });
     }
 
     // ================= AI SETTINGS =================

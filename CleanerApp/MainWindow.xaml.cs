@@ -47,6 +47,14 @@ namespace CleanerApp
                 );
 
                 webView.CoreWebView2.WebMessageReceived += CoreWebView2_WebMessageReceived;
+                webView.CoreWebView2.NewWindowRequested += (s, args) =>
+                {
+                    if (!string.IsNullOrEmpty(args.Uri) && (args.Uri.StartsWith("https://", StringComparison.OrdinalIgnoreCase) || args.Uri.StartsWith("http://", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        args.Handled = true;
+                        try { Process.Start(new ProcessStartInfo { FileName = args.Uri, UseShellExecute = true }); } catch { }
+                    }
+                };
 
                 // Navigation vers la page d'accueil de l'application
                 webView.CoreWebView2.Navigate("https://cleaner.app/index.html");
@@ -295,6 +303,16 @@ namespace CleanerApp
                             deletedPaths,
                             errors
                         });
+                        break;
+                    }
+
+                    case "openUrl":
+                    {
+                        var url = root.TryGetProperty("url", out var uProp) ? (uProp.GetString() ?? "") : "";
+                        if (url.StartsWith("https://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+                        {
+                            try { Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true }); } catch { }
+                        }
                         break;
                     }
 
