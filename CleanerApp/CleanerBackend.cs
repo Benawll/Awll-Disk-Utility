@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -18,6 +20,12 @@ namespace CleanerApp
         public double FreeGB { get; set; }
         public double UsedGB { get; set; }
         public double PctUsed { get; set; }
+    }
+
+    public class AppSettings
+    {
+        public string GeminiApiKey { get; set; } = "";
+        public bool EnableAI { get; set; } = true;
     }
 
     public class CleanerItem
@@ -63,6 +71,8 @@ namespace CleanerApp
         public int RiskPct { get; set; }
         public bool IsRunning { get; set; }
         public string LastAccessDate { get; set; } = "";
+        public bool IsAiEnriched { get; set; }
+        public string AiModelUsed { get; set; } = "";
     }
 
     public class CleanResult
@@ -428,6 +438,52 @@ namespace CleanerApp
 
             return list;
         }
+
+        #region PARAMÈTRES DE L'APPLICATION (MODE IA & CONFIG)
+
+        private static string GetSettingsFilePath()
+        {
+            var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CleanerApp");
+            Directory.CreateDirectory(folder);
+            return Path.Combine(folder, "settings.json");
+        }
+
+        public static AppSettings GetSettings()
+        {
+            try
+            {
+                var file = GetSettingsFilePath();
+                if (!File.Exists(file))
+                {
+                    var envKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? "";
+                    return new AppSettings { GeminiApiKey = envKey, EnableAI = !string.IsNullOrEmpty(envKey) };
+                }
+                var json = File.ReadAllText(file);
+                var s = JsonSerializer.Deserialize<AppSettings>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new AppSettings();
+                if (string.IsNullOrEmpty(s.GeminiApiKey))
+                {
+                    s.GeminiApiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? "";
+                }
+                return s;
+            }
+            catch
+            {
+                return new AppSettings();
+            }
+        }
+
+        public static void SaveSettings(AppSettings settings)
+        {
+            try
+            {
+                var file = GetSettingsFilePath();
+                var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(file, json);
+            }
+            catch { }
+        }
+
+        #endregion
 
         #region GESTION DE LA LISTE PROTÉGÉE (PERSISTANTE SUR DISQUE)
 
@@ -1414,6 +1470,139 @@ namespace CleanerApp
             }
             catch { }
             return null;
+        }
+
+        public static async Task<ResearchReport> ResearchItemWithAIAsync(string name, string path, int initialRisk = 5, string? customApiKey = null)
+        {
+            var report = ResearchItem(name, path, initialRisk);
+
+            var settings = GetSettings();
+            string apiKey = !string.IsNullOrWhiteSpace(customApiKey)
+                ? customApiKey.Trim()
+                : (!string.IsNullOrWhiteSpace(settings.GeminiApiKey) ? settings.GeminiApiKey.Trim() : (Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? "").Trim());
+
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                report.AiModelUsed = "Clé API non configurée";
+                return report;
+            }
+
+            try
+            {
+                using var http = new HttpClient();
+                http.Timeout = TimeSpan.FromSeconds(20);
+
+                var prompt = $@"Tu es un expert système Windows et rétro-ingénierie logicielle. Un utilisateur analyse son PC avec un logiciel de nettoyage et souhaite comprendre exactement ce qu'est cet élément détecté sur son disque :
+
+- Nom affiché : {name}
+- Emplacement : {path}
+- Dernière modification : {report.LastAccessDate}
+- Analyse locale préalable : {report.Definition}
+- Processus en mémoire : {(report.IsRunning ? "OUI, processus lié actif" : "NON, aucun processus lié actif")}
+
+Effectue une analyse précise (cherche s'il s'agit d'un jeu, d'un outil, d'un cache applicatif, d'un pilote, d'un installeur, d'un mod, d'un émulateur, etc.).
+Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette structure exacte :
+{{
+  ""definition"": ""Explication claire et accessible de ce qu'est cet élément et son rôle technique exact."",
+  ""origin"": ""Pourquoi et par quoi il a été installé ou téléchargé (nom du logiciel parent, contexte, etc.)."",
+  ""usageActivity"": ""Analyse de son utilisation récente ou de son abandon dans le temps."",
+  ""safetyImpact"": ""Impact exact sur Windows ou sur vos logiciels si supprimé. Recommandation claire : SUPPRESSION CONSEILLÉE ou CONSERVATION RECOMMANDÉE."",
+  ""riskPct"": 0
+}}";
+
+                var payload = new
+                {
+                    contents = new[]
+                    {
+                        new
+                        {
+                            parts = new[]
+                            {
+                                new { text = prompt }
+                            }
+                        }
+                    },
+                    generationConfig = new
+                    {
+                        temperature = 0.2,
+                        responseMimeType = "application/json"
+                    }
+                };
+
+                var jsonPayload = JsonSerializer.Serialize(payload);
+                using var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+
+                string url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={apiKey}";
+                var response = await http.PostAsync(url, content);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var respJson = await response.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(respJson);
+                    var candidates = doc.RootElement.GetProperty("candidates");
+                    if (candidates.GetArrayLength() > 0)
+                    {
+                        var text = candidates[0].GetProperty("content").GetProperty("parts")[0].GetProperty("text").GetString() ?? "";
+
+                        using var parsedAi = JsonDocument.Parse(text);
+                        var root = parsedAi.RootElement;
+
+                        if (root.TryGetProperty("definition", out var defProp) && !string.IsNullOrWhiteSpace(defProp.GetString()))
+                            report.Definition = "✨ [IA Gemini] " + defProp.GetString();
+
+                        if (root.TryGetProperty("origin", out var origProp) && !string.IsNullOrWhiteSpace(origProp.GetString()))
+                            report.Origin = "✨ [IA Gemini] " + origProp.GetString();
+
+                        if (root.TryGetProperty("usageActivity", out var useProp) && !string.IsNullOrWhiteSpace(useProp.GetString()))
+                            report.UsageActivity = "✨ [IA Gemini] " + useProp.GetString();
+
+                        if (root.TryGetProperty("safetyImpact", out var safeProp) && !string.IsNullOrWhiteSpace(safeProp.GetString()))
+                            report.SafetyImpact = "✨ [IA Gemini] " + safeProp.GetString();
+
+                        if (root.TryGetProperty("riskPct", out var riskProp) && riskProp.TryGetInt32(out int aiRisk))
+                            report.RiskPct = aiRisk;
+
+                        report.IsAiEnriched = true;
+                        report.AiModelUsed = "gemini-2.5-flash";
+                    }
+                }
+                else
+                {
+                    report.AiModelUsed = $"Erreur API HTTP {(int)response.StatusCode}";
+                }
+            }
+            catch (Exception ex)
+            {
+                report.AiModelUsed = $"Erreur : {ex.Message}";
+            }
+
+            return report;
+        }
+
+        public static async Task<bool> TestGeminiApiKeyAsync(string apiKey)
+        {
+            if (string.IsNullOrWhiteSpace(apiKey)) return false;
+            try
+            {
+                using var http = new HttpClient();
+                http.Timeout = TimeSpan.FromSeconds(10);
+                var payload = new
+                {
+                    contents = new[]
+                    {
+                        new { parts = new[] { new { text = "ping" } } }
+                    }
+                };
+                var json = JsonSerializer.Serialize(payload);
+                using var content = new StringContent(json, Encoding.UTF8, "application/json");
+                string url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={apiKey.Trim()}";
+                var res = await http.PostAsync(url, content);
+                return res.IsSuccessStatusCode;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         public static CleanResult DeleteItem(CleanerItem item)

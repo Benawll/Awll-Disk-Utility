@@ -42,6 +42,13 @@
 
       <!-- Action buttons in header -->
       <div class="flex items-center gap-3">
+        <!-- Mode IA Gemini Settings -->
+        <button id="btn-ai-header" onclick="openAiSettingsModal()" title="Paramètres du Mode IA Gemini" class="px-3 py-2 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 text-purple-300 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-all shadow-sm active:scale-95">
+          <span class="text-sm">✨</span>
+          <span id="ai-header-label">Mode IA</span>
+          <span id="ai-header-indicator" class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+        </button>
+
         <!-- Scan Unique avec Liste Déroulante Complète -->
         <button id="btn-smart-scan" onclick="startAudit()" title="Lancer l'audit de nettoyage et l'inventaire complet de vos disques" class="px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-md shadow-blue-600/30 transition-all flex items-center gap-2 active:scale-95">
           <span>🔍</span>
@@ -148,6 +155,9 @@
         <div class="flex items-center gap-2">
           <span class="text-xl">🔍</span>
           <h3 class="text-sm font-bold text-white" id="res-title">Enquête sur l'Élément</h3>
+          <span id="res-ai-badge" class="hidden text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1">
+            <span>✨</span> Enrichi par Gemini IA
+          </span>
         </div>
         <button onclick="closeResearchModal()" class="text-slate-400 hover:text-white text-xs px-2 py-1 rounded bg-slate-800">✕ Fermer</button>
       </div>
@@ -198,7 +208,12 @@
         </div>
       </div>
 
-      <div class="flex justify-end pt-2 border-t border-slate-800">
+      <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+        <button id="btn-ai-deep-research" onclick="askAiDeepResearch()" title="Interroger Gemini 2.5 Flash pour une explication approfondie en direct" class="px-3 py-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 text-purple-300 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-all active:scale-95">
+          <span id="ai-spinner" class="hidden animate-spin">⏳</span>
+          <span id="ai-icon">✨</span>
+          <span id="ai-deep-label">Approfondir avec l'IA</span>
+        </button>
         <button onclick="closeResearchModal()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs">J'ai compris</button>
       </div>
     </div>
@@ -240,20 +255,78 @@
     </div>
   </div>
 
+  <!-- ================= AI SETTINGS MODAL ================= -->
+  <div id="modal-ai-settings" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+          <span>✨</span> Configuration du Mode IA (Gemini)
+        </h3>
+        <button onclick="closeAiSettingsModal()" class="text-slate-400 hover:text-white text-xs px-2 py-1 rounded bg-slate-800">✕ Fermer</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <p class="text-slate-300">
+          Le <strong>Mode IA</strong> utilise l'API Google Gemini (modèle <em class="text-purple-300 font-mono">gemini-2.5-flash</em>) pour analyser en direct les logiciels inconnus, identifier leur origine exacte et évaluer précisément les risques.
+        </p>
+
+        <div class="space-y-1.5">
+          <label class="block text-slate-400 text-[11px] font-medium">Clé API Google Gemini (Gratuite) :</label>
+          <div class="relative flex items-center">
+            <input type="password" id="input-api-key" placeholder="AIzaSy..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 font-mono pr-16" />
+            <button type="button" onclick="toggleApiKeyVisibility()" class="absolute right-2 text-slate-400 hover:text-white text-[11px] px-1.5 py-0.5 rounded bg-slate-800">Voir</button>
+          </div>
+          <div class="flex items-center justify-between pt-1">
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-purple-400 hover:text-purple-300 text-[11px] underline flex items-center gap-1">
+              <span>🔗</span> Obtenir une clé API gratuite sur Google AI Studio
+            </a>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-2">
+          <button id="btn-test-api" onclick="testApiKey()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 flex items-center gap-1.5 transition-all">
+            <span id="test-spinner" class="hidden animate-spin">⏳</span>
+            <span>Tester la connexion</span>
+          </button>
+          <span id="api-test-status" class="text-[11px] font-medium"></span>
+        </div>
+
+        <div class="bg-purple-950/20 border border-purple-500/20 rounded-lg p-2.5 space-y-1 text-[11px] text-purple-200">
+          <div class="font-semibold flex items-center gap-1">
+            <span>💡</span> Fonctionnement 100% sécurisé :
+          </div>
+          <p class="text-slate-400">
+            Votre clé est stockée localement sur votre machine dans <code class="text-purple-300 text-[10px]">%LOCALAPPDATA%\CleanerApp\settings.json</code>. L'audit et le nettoyage restent 100% fonctionnels même hors-ligne.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+        <button onclick="closeAiSettingsModal()" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs">Annuler</button>
+        <button onclick="saveAiSettings()" class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-medium text-xs shadow-md shadow-purple-600/30 active:scale-95 flex items-center gap-1.5">
+          <span>💾</span> Enregistrer
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- ================= LOGIC & WEBVIEW2 BRIDGE ================= -->
   <script>
     let allItems = [];
     let protectedItems = [];
     let currentTab = 'all';
     let currentScanType = 'smart';
+    let currentSettings = { geminiApiKey: '', enableAI: true };
+    let activeResearchItem = null;
 
     // 1. Initialisation de la communication WebView2
     window.addEventListener('DOMContentLoaded', () => {
       if (window.chrome && window.chrome.webview) {
         window.chrome.webview.addEventListener('message', onBridgeMessage);
-        // Demande initiale de l'état des disques et de la liste protégée
+        // Demande initiale de l'état des disques, de la liste protégée et des réglages
         postToBridge({ action: 'getDrives' });
         postToBridge({ action: 'getProtected' });
+        postToBridge({ action: 'getSettings' });
       }
     });
 
@@ -295,6 +368,11 @@
         showResearchModal(data.report || data.Report);
       } else if (type === 'cleanResult') {
         onCleanCompleted(data);
+      } else if (type === 'appSettings') {
+        currentSettings = data.settings || data.Settings || { geminiApiKey: '', enableAI: true };
+        updateAiHeaderUI();
+      } else if (type === 'apiKeyTestResult') {
+        handleApiKeyTestResult(data.success);
       }
     }
 
@@ -718,11 +796,18 @@
     function askResearch(id) {
       const item = allItems.find(x => (x.id || x.Id) === id);
       if (!item) return;
-      postToBridge({
-        action: 'researchItem',
+      activeResearchItem = {
+        id: item.id || item.Id,
         name: item.name || item.Name || '',
         path: item.path || item.Path || '',
         riskPct: item.riskPct ?? item.RiskPct ?? 0
+      };
+      resetAiDeepButton();
+      postToBridge({
+        action: 'researchItem',
+        name: activeResearchItem.name,
+        path: activeResearchItem.path,
+        riskPct: activeResearchItem.riskPct
       });
     }
 
@@ -736,6 +821,7 @@
       const origin = rep.origin || rep.Origin || '';
       const act = rep.usageActivity || rep.UsageActivity || '';
       const safety = rep.safetyImpact || rep.SafetyImpact || '';
+      const isAi = rep.isAiEnriched || rep.IsAiEnriched || false;
 
       document.getElementById('res-title').innerText = title;
       document.getElementById('res-path').innerText = path;
@@ -747,7 +833,107 @@
       document.getElementById('res-origin').innerText = origin;
       document.getElementById('res-activity').innerText = act;
       document.getElementById('res-safety').innerText = safety;
+
+      const aiBadge = document.getElementById('res-ai-badge');
+      if (aiBadge) {
+        if (isAi) {
+          aiBadge.classList.remove('hidden');
+        } else {
+          aiBadge.classList.add('hidden');
+        }
+      }
+
+      resetAiDeepButton();
       document.getElementById('modal-research').classList.remove('hidden');
+    }
+
+    function resetAiDeepButton() {
+      const spin = document.getElementById('ai-spinner');
+      const label = document.getElementById('ai-deep-label');
+      const btn = document.getElementById('btn-ai-deep-research');
+      if (spin) spin.classList.add('hidden');
+      if (label) label.innerText = "Approfondir avec l'IA";
+      if (btn) btn.disabled = false;
+    }
+
+    function askAiDeepResearch() {
+      if (!activeResearchItem) return;
+      const spin = document.getElementById('ai-spinner');
+      const label = document.getElementById('ai-deep-label');
+      const btn = document.getElementById('btn-ai-deep-research');
+      if (spin) spin.classList.remove('hidden');
+      if (label) label.innerText = "Analyse Gemini en cours...";
+      if (btn) btn.disabled = true;
+
+      postToBridge({
+        action: 'researchItemAI',
+        name: activeResearchItem.name,
+        path: activeResearchItem.path,
+        riskPct: activeResearchItem.riskPct,
+        apiKey: currentSettings.geminiApiKey || ''
+      });
+    }
+
+    function openAiSettingsModal() {
+      const input = document.getElementById('input-api-key');
+      input.value = currentSettings.geminiApiKey || '';
+      document.getElementById('api-test-status').innerText = '';
+      document.getElementById('modal-ai-settings').classList.remove('hidden');
+    }
+
+    function closeAiSettingsModal() {
+      document.getElementById('modal-ai-settings').classList.add('hidden');
+    }
+
+    function toggleApiKeyVisibility() {
+      const input = document.getElementById('input-api-key');
+      input.type = input.type === 'password' ? 'text' : 'password';
+    }
+
+    function testApiKey() {
+      const key = document.getElementById('input-api-key').value.trim();
+      if (!key) {
+        document.getElementById('api-test-status').innerHTML = '<span class="text-amber-400">Veuillez saisir une clé.</span>';
+        return;
+      }
+      document.getElementById('test-spinner').classList.remove('hidden');
+      document.getElementById('api-test-status').innerHTML = '<span class="text-slate-400">Test en cours...</span>';
+      postToBridge({ action: 'testGeminiApiKey', apiKey: key });
+    }
+
+    function handleApiKeyTestResult(success) {
+      document.getElementById('test-spinner').classList.add('hidden');
+      const status = document.getElementById('api-test-status');
+      if (success) {
+        status.innerHTML = '<span class="text-emerald-400 font-semibold">✓ Clé valide & connectée !</span>';
+      } else {
+        status.innerHTML = '<span class="text-rose-400 font-semibold">✗ Clé invalide ou erreur réseau</span>';
+      }
+    }
+
+    function saveAiSettings() {
+      const key = document.getElementById('input-api-key').value.trim();
+      currentSettings.geminiApiKey = key;
+      currentSettings.enableAI = true;
+      postToBridge({
+        action: 'saveSettings',
+        settings: currentSettings
+      });
+      updateAiHeaderUI();
+      closeAiSettingsModal();
+    }
+
+    function updateAiHeaderUI() {
+      const indicator = document.getElementById('ai-header-indicator');
+      const label = document.getElementById('ai-header-label');
+      if (!indicator || !label) return;
+      if (currentSettings.geminiApiKey && currentSettings.geminiApiKey.length > 5) {
+        indicator.className = "w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/80 animate-pulse";
+        label.innerText = "Mode IA Actif";
+      } else {
+        indicator.className = "w-1.5 h-1.5 rounded-full bg-slate-500";
+        label.innerText = "Mode IA";
+      }
     }
 
     function closeResearchModal() {

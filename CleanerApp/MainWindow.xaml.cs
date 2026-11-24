@@ -161,6 +161,55 @@ namespace CleanerApp
                         break;
                     }
 
+                    case "researchItemAI":
+                    {
+                        var name = root.GetProperty("name").GetString() ?? "";
+                        var path = root.GetProperty("path").GetString() ?? "";
+                        int risk = 5;
+                        if (root.TryGetProperty("riskPct", out var rProp))
+                        {
+                            risk = rProp.GetInt32();
+                        }
+                        string? customKey = null;
+                        if (root.TryGetProperty("apiKey", out var kProp) && !string.IsNullOrWhiteSpace(kProp.GetString()))
+                        {
+                            customKey = kProp.GetString();
+                        }
+                        var report = await CleanerBackend.ResearchItemWithAIAsync(name, path, risk, customKey);
+                        SendJson(new { type = "researchResult", report });
+                        break;
+                    }
+
+                    case "getSettings":
+                    {
+                        var settings = CleanerBackend.GetSettings();
+                        SendJson(new { type = "appSettings", settings });
+                        break;
+                    }
+
+                    case "saveSettings":
+                    {
+                        if (root.TryGetProperty("settings", out var sProp))
+                        {
+                            var s = JsonSerializer.Deserialize<AppSettings>(sProp.GetRawText(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                            if (s != null)
+                            {
+                                CleanerBackend.SaveSettings(s);
+                            }
+                        }
+                        var current = CleanerBackend.GetSettings();
+                        SendJson(new { type = "appSettings", settings = current });
+                        break;
+                    }
+
+                    case "testGeminiApiKey":
+                    {
+                        var key = root.TryGetProperty("apiKey", out var kProp) ? (kProp.GetString() ?? "") : "";
+                        var ok = await CleanerBackend.TestGeminiApiKeyAsync(key);
+                        SendJson(new { type = "apiKeyTestResult", success = ok });
+                        break;
+                    }
+
                     case "executeClean":
                     {
                         var itemsJson = root.GetProperty("items").GetRawText();
