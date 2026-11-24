@@ -49,14 +49,20 @@ Chaque élément détecté lors de l'audit reçoit une note de risque objective 
 
 ---
 
-## 3. Déroulement du Workflow & Découverte Dynamique
+## 3. Déroulement du Workflow & Découverte Dynamique Multi-Disques
 
-### Règle d'Exhaustivité : Zéro Oubli par Scan au Seuil (>= 150 Mo)
-Pour éviter tout angle mort, l'audit ne se base jamais sur une liste statique. Il scanne l'intégralité de l'arborescence :
-- `AppData\Local` : Overlays, enregistreurs de jeu (Medal), moteurs RGB (VortxEngine/WhirlwindFX), caches de navigateurs, updaters.
-- `AppData\Roaming` : Messageries (Slack), gestionnaires de mods (Thunderstore, r2modman), VPN (Pulse Secure).
-- `AppData\LocalLow` : Sauvegardes de jeux (Poly Bridge / Dry Cactus), données graphiques.
-- `C:\Users\benja` : Caches de build (.gradle, .m2, .vscode), profils de launchers (Lunar Client, CurseForge).
+### Règle d'Exhaustivité : Zéro Oubli par Scan au Seuil & Multi-Disques (C:, D:, E:)
+Pour éviter tout angle mort, l'audit ne se limite jamais à une liste statique ni au seul lecteur système C:. Il explore automatiquement l'ensemble des disques fixes connectés :
+1. **Sur le Disque Système (C:)** :
+   - `AppData\Local`, `Roaming`, `LocalLow` (Seuil >= 150 Mo) : Overlays (Overwolf, Medal), moteurs RGB (SignalRGB/VortxEngine), messageries (Slack), updaters.
+   - Profil `C:\Users\benja` : Caches de build (.gradle, .m2), launchers et modpacks (.lunarclient, curseforge).
+2. **Sur les Disques Secondaires de Jeux et Données (D:, E:)** :
+   - **Caches Steam cachés** : `steamapps\downloading` (téléchargements Steam bloqués ou corrompus consommant des dizaines de Go), `steamapps\workshop` (mods orphelins), `shadercache`.
+   - **Doublons de jeux cross-plateformes** : Détection des jeux installés à la fois sur Steam, Epic Games ou Xbox App (ex: Rocket League).
+   - **Serveurs de test publics (PTS) & Démos** : Versions de test et démos oubliées (Paladins PTS, démos Steam de festivals).
+   - **Émulateurs tiers & ROMs orphelines** : NoxPlayer, BlueStacks, Yuzu Switch ROMs (.nsp), Dolphin Wii ISOs.
+   - **Dossiers Téléchargements secondaires** : `D:\Téléchargements` pour les vieux installeurs volumineux (.exe, .msi, .zip) de logiciels déjà désinstallés.
+   - **Vieux jeux portables inactifs** : `D:\Autres Jeux` ou `E:\Jeux` non touchés depuis plus d'un an.
 
 ```
 [1. Audit Récursif Dynamique Multi-Niveaux (Seuil >= 150 Mo)]

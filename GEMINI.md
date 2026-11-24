@@ -21,17 +21,24 @@ Ce document définit les règles impératives, la politique de sécurité et les
 
 ### 2.1. Audit Récursif Multi-Niveaux et Découverte Dynamique
 Tout audit doit inspecter dynamiquement et exhaustivement :
-1. **Zéro Oubli par Scan Dynamique au Seuil (>= 150 Mo)** : Interdiction absolue de se limiter à une liste codée en dur de logiciels ou de caches. Le script doit scanner dynamiquement chaque sous-dossier de `AppData\Local`, `AppData\Roaming`, `AppData\LocalLow` et du profil `C:\Users\benja`.
-2. **Couverture Exhaustive Obligatoire** :
+1. **Couverture Multi-Disques par Défaut (C:, D:, E:)** : Ne jamais limiter l'audit au seul disque système. Analyser automatiquement tous les disques fixes connectés.
+2. **Zéro Oubli par Scan Dynamique au Seuil (>= 150 Mo)** : Interdiction absolue de se limiter à une liste codée en dur de logiciels ou de caches. Le script doit scanner dynamiquement chaque sous-dossier de `AppData\Local`, `AppData\Roaming`, `AppData\LocalLow` et du profil `C:\Users\benja`.
+3. **Couverture Exhaustive Obligatoire** :
+   - Caches internes Steam cachés : `steamapps\downloading` (téléchargements corrompus/bloqués souvent géants), `steamapps\workshop`, `shadercache`.
+   - Doublons de jeux cross-plateformes : Jeux installés simultanément sur Steam, Epic Games ou Xbox (ex: Rocket League).
+   - Serveurs de test publics (PTS) et démos abandonnées : Ex: `paladins pts`, démos temporaires de festivals Steam.
+   - Émulateurs tiers et ROMs orphelines : NoxPlayer (`D:\Program Files\Nox`), ROMs Switch Yuzu (`E:\Yuzu`), Dolphin (`C:\Jeux dolphin`).
+   - Dossiers Téléchargements secondaires : `D:\Téléchargements` pour les vieux installeurs (.exe, .msi) d'applications déjà supprimées.
+   - Vieux jeux portables inactifs : `D:\Autres Jeux` ou `E:\Jeux` non touchés depuis plus d'un an.
    - Moteurs RGB et overlays de jeu : `VortxEngine`, `WhirlwindFX`, `Overwolf`, `Medal.tv`, `VoicemodV3`.
    - Messageries et communications : `Slack`, `Microsoft Teams`, `Discord`, `Rocket.Chat`.
    - Mod managers, jeux et sauvegardes : `Thunderstore Mod Manager`, `r2modman`, `Dry Cactus` (Poly Bridge), `Lunar Client`, `CurseForge`.
    - VPN et outils réseau : `Pulse Secure`, `Radmin VPN`.
    - Caches de développement & build : `.gradle`, `.m2`, `npm-cache`, `pip`, `ms-playwright`.
    - Updaters résiduels Electron : `*-updater` dans LocalAppData.
-3. Les applications du Windows Store (`WindowsApps`) qui cachent souvent des jeux géants.
-4. Les logiciels résiduels dans `Program Files` et `Program Files (x86)`.
-5. Les répertoires racine atypiques de `C:\` (`Jeux dolphin`, `Jts`, `iMyfone`, etc.).
+4. Les applications du Windows Store (`WindowsApps`) qui cachent souvent des jeux géants.
+5. Les logiciels résiduels dans `Program Files` et `Program Files (x86)` sur tous les disques.
+6. Les répertoires racine atypiques de `C:\`, `D:\` et `E:\`.
 
 ### 2.2. Format de Restitution Interactif Obligatoire
 - Présenter les résultats sous forme de **tableau de bord interactif HTML** (`cleaner-checklist.html`) avec :
