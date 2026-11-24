@@ -286,6 +286,9 @@ namespace CleanerApp
                 progressCallback?.Invoke("Analyse dynamique des dossiers racines multi-disques...", 86);
                 AuditDriveRootsDynamic(recommendedItems, extraItems, seenPaths, targetDrives, runningProcs);
 
+                // 6b. Normalisation & déduplication globale (règles appliquées uniformément à tous les scanners)
+                NormalizeAuditItemsGlobal(recommendedItems, extraItems, runningProcs);
+
                 // 7. Tri par défaut : Recommandés par Risque croissant puis Taille décroissante ; Extra par Taille décroissante
                 var orderedRecommended = recommendedItems
                     .Where(x => IsDriveSelected(x.Path, targetDrives))
@@ -2381,7 +2384,115 @@ namespace CleanerApp
                 }
             }
 
+            FinalizeResearchReport(report, path, name, running);
             return report;
+        }
+
+        private static bool IsPureCacheOrDisposable(string name, string path)
+        {
+            string combined = ((name ?? "") + " " + (path ?? "")).ToLowerInvariant();
+            return combined.Contains("cache")
+                || combined.Contains("shadercache")
+                || combined.Contains("\\temp")
+                || combined.Contains("\\tmp")
+                || combined.Contains("$recycle.bin")
+                || combined.Contains("corbeille")
+                || combined.Contains("softwaredistribution")
+                || combined.Contains("\\downloading")
+                || combined.Contains("crashdumps")
+                || combined.Contains("-updater")
+                || combined.Contains("trace registre")
+                || combined.Contains("\\.nuget")
+                || combined.Contains("\\.gradle")
+                || combined.Contains("\\.m2")
+                || combined.Contains("\\ms-playwright")
+                || combined.Contains("\\pip\\")
+                || combined.Contains("\\npm-cache");
+        }
+
+        private static string GetRiskLevelLabel(int riskPct) => riskPct switch
+        {
+            <= 15 => "Quasi Nul",
+            <= 35 => "Faible",
+            <= 65 => "Modéré",
+            _ => "Élevé"
+        };
+
+        private static void NormalizeAuditItemsGlobal(List<CleanerItem> recommendedItems, List<CleanerItem> extraItems, HashSet<string> runningProcs)
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var normalizedRec = new List<CleanerItem>(recommendedItems.Count);
+            var normalizedExtra = new List<CleanerItem>(extraItems.Count);
+
+            foreach (var item in recommendedItems.Concat(extraItems))
+            {
+                if (item == null || string.IsNullOrWhiteSpace(item.Path)) continue;
+                string key = item.Path.TrimEnd('\\');
+                if (!seen.Add(key)) continue;
+
+                bool sanct = item.IsSanctuarized || IsPathSanctuarized(item.Path);
+                bool isCore = IsCoreSystemOrRuntime(item.Name, item.Path);
+                bool isCache = IsPureCacheOrDisposable(item.Name, item.Path);
+                bool isRunning = !isCache && IsLikelyRunning(item.Name, item.Path, runningProcs);
+
+                if (sanct)
+                {
+                    item.IsSanctuarized = true;
+                    item.RiskPct = Math.Max(item.RiskPct, 95);
+                }
+                else if (isCore)
+                {
+                    item.RiskPct = Math.Max(item.RiskPct, 85);
+                }
+                else if (isRunning)
+                {
+                    item.RiskPct = Math.Max(item.RiskPct, 55);
+                    if (!item.Description.Contains("En cours", StringComparison.OrdinalIgnoreCase))
+                        item.Description = $"⚠️ En cours d'exécution — {item.Description}";
+                }
+
+                item.RiskPct = Math.Clamp(item.RiskPct, 0, 100);
+                item.RiskLevel = GetRiskLevelLabel(item.RiskPct);
+
+                bool forceExtra = item.IsExtra || sanct || isCore || isRunning || item.RiskPct > 35;
+                item.IsExtra = forceExtra;
+                if (forceExtra) normalizedExtra.Add(item);
+                else normalizedRec.Add(item);
+            }
+
+            recommendedItems.Clear();
+            recommendedItems.AddRange(normalizedRec);
+            extraItems.Clear();
+            extraItems.AddRange(normalizedExtra);
+        }
+
+        private static void FinalizeResearchReport(ResearchReport report, string path, string name, bool running)
+        {
+            bool isCache = IsPureCacheOrDisposable(name, path);
+            bool sanct = IsPathSanctuarized(path);
+            bool isCore = IsCoreSystemOrRuntime(name, path);
+
+            if (sanct)
+            {
+                report.RiskPct = Math.Max(report.RiskPct, 95);
+                if (!report.SafetyImpact.Contains("Sanctuaris", StringComparison.OrdinalIgnoreCase))
+                    report.SafetyImpact = $"🛡️ Dossier sanctuarisé protégé. {report.SafetyImpact}";
+            }
+            else if (isCore)
+            {
+                report.RiskPct = Math.Max(report.RiskPct, 85);
+            }
+            else if (running && !isCache)
+            {
+                report.RiskPct = Math.Max(report.RiskPct + 25, 55);
+                if (!report.SafetyImpact.Contains("En cours", StringComparison.OrdinalIgnoreCase) &&
+                    !report.SafetyImpact.Contains("actif", StringComparison.OrdinalIgnoreCase))
+                {
+                    report.SafetyImpact = $"⚠️ Processus actif en mémoire. Fermez l'application avant de nettoyer. {report.SafetyImpact}";
+                }
+            }
+
+            report.RiskPct = Math.Clamp(report.RiskPct, 0, 100);
         }
 
         private static string InspectDirectoryForensics(string path)
@@ -3274,7 +3385,7 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
                                 SizeMB = Math.Round(bytes / 1024.0 / 1024.0, 1),
                                 IsFolder = false,
                                 FileCount = 1,
-                                LastModified = fi.LastWriteTime.ToString("dd/MM/yyyy"),
+                                LastModified = GetFileEffectiveActivityDate(fi).ToString("dd/MM/yyyy"),
                                 IsSanctuarized = sct,
                                 IsProtected = prt
                             });
