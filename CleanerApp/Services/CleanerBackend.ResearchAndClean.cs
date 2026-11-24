@@ -792,6 +792,76 @@ namespace CleanerApp
             return null;
         }
 
+        private static readonly Dictionary<string, (DateTime FetchedUtc, string[] Models)> _flashModelsCache = new();
+
+        private static async Task<string[]> DiscoverActiveFlashModelsAsync(HttpClient http, string apiKey, string[] fallback)
+        {
+            lock (_flashModelsCache)
+            {
+                if (_flashModelsCache.TryGetValue(apiKey, out var entry) && (DateTime.UtcNow - entry.FetchedUtc).TotalMinutes < 10 && entry.Models.Length > 0)
+                    return entry.Models;
+            }
+
+            try
+            {
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(5));
+                var res = await http.GetAsync($"https://generativelanguage.googleapis.com/v1beta/models?key={apiKey}", cts.Token);
+                if (!res.IsSuccessStatusCode) return fallback;
+
+                var body = await res.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(body);
+                if (!doc.RootElement.TryGetProperty("models", out var modelsArr) || modelsArr.ValueKind != JsonValueKind.Array)
+                    return fallback;
+
+                var candidates = new List<string>();
+                foreach (var m in modelsArr.EnumerateArray())
+                {
+                    var name = m.TryGetProperty("name", out var np) ? (np.GetString() ?? "") : "";
+                    if (name.StartsWith("models/", StringComparison.OrdinalIgnoreCase))
+                        name = name.Substring(7);
+
+                    var lower = name.ToLowerInvariant();
+                    if (!lower.Contains("flash")) continue;
+                    if (lower.Contains("tts") || lower.Contains("image") || lower.Contains("audio") || lower.Contains("robotics") || lower.Contains("2.0")) continue;
+
+                    bool supportsGen = false;
+                    if (m.TryGetProperty("supportedGenerationMethods", out var meth) && meth.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in meth.EnumerateArray())
+                        {
+                            if (string.Equals(item.GetString(), "generateContent", StringComparison.OrdinalIgnoreCase))
+                            {
+                                supportsGen = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (supportsGen) candidates.Add(name);
+                }
+
+                if (candidates.Count > 0)
+                {
+                    var ordered = candidates
+                        .OrderByDescending(c => c.Contains("3.8"))
+                        .ThenByDescending(c => c.Contains("3.7"))
+                        .ThenByDescending(c => c.Contains("3.6"))
+                        .ThenByDescending(c => c.Contains("3.5"))
+                        .ThenByDescending(c => !c.Contains("preview") && !c.Contains("exp"))
+                        .ThenByDescending(c => c)
+                        .Take(4)
+                        .ToArray();
+
+                    lock (_flashModelsCache)
+                    {
+                        _flashModelsCache[apiKey] = (DateTime.UtcNow, ordered);
+                    }
+                    return ordered;
+                }
+            }
+            catch { }
+            return fallback;
+        }
+
         public static async Task<ResearchReport> ResearchItemWithAIAsync(string name, string path, int initialRisk = 5, string? customApiKey = null, HttpMessageHandler? httpHandler = null)
         {
             var report = await Task.Run(() => ResearchItem(name, path, initialRisk, bypassAiCache: true));
@@ -849,7 +919,10 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
                 };
 
                 var jsonPayload = JsonSerializer.Serialize(payload);
-                string[] modelsToTry = { "gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash" };
+                string[] fallbackModels = { "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite" };
+                string[] modelsToTry = httpHandler == null
+                    ? await DiscoverActiveFlashModelsAsync(http, apiKey, fallbackModels)
+                    : fallbackModels;
                 HttpResponseMessage? response = null;
                 string usedModel = modelsToTry[0];
 
@@ -1433,22 +1506,16 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
             {
                 DateTime nowLimit = DateTime.Now.AddDays(1);
                 DateTime latest = (di.CreationTime > di.LastWriteTime && di.CreationTime <= nowLimit) ? di.CreationTime : di.LastWriteTime;
-                bool hasExe = false;
                 foreach (var f in di.EnumerateFiles("*", SafeRecurseOpts))
                 {
                     try
                     {
-                        if (f.Extension.Equals(".exe", StringComparison.OrdinalIgnoreCase)) hasExe = true;
                         var lw = f.LastWriteTime;
                         var ct = f.CreationTime;
                         var eff = (ct > lw && ct <= nowLimit) ? ct : lw;
                         if (eff > latest && eff <= nowLimit) latest = eff;
                     }
                     catch { }
-                }
-                if (hasExe && di.CreationTime < latest && di.CreationTime.Year >= 2010)
-                {
-                    return di.CreationTime;
                 }
                 return latest;
             }

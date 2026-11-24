@@ -193,7 +193,7 @@ namespace CleanerApp.Tests
             Assert.Equal("Jeu d'action", report.Definition);
             Assert.Equal("Epic Games", report.Origin);
             Assert.Equal(5, report.RiskPct);
-            Assert.Equal("gemini-2.5-flash-lite", report.AiModelUsed);
+            Assert.Equal("gemini-3.8-flash", report.AiModelUsed);
         }
 
         [Fact]
@@ -220,7 +220,7 @@ namespace CleanerApp.Tests
             var report = await CleanerBackend.ResearchItemWithAIAsync("TestApp", @"C:\Windows\System32\notepad.exe", 10, "fake-key-for-test", handler);
             Assert.True(report.IsAiEnriched);
             Assert.Equal(2, calls);
-            Assert.Equal("gemini-2.5-flash", report.AiModelUsed);
+            Assert.Equal("gemini-3.7-flash", report.AiModelUsed);
         }
 
         [Fact]

@@ -385,10 +385,10 @@ namespace CleanerApp
                         var diEpic = new DirectoryInfo(epicPath);
                         var lastWrite = GetLastWriteTimeSafe(diEpic);
                         bool hasLaunch = ExecutionHistoryService.TryGetFolderLastExecution(epicPath, out var epicLaunch);
-                        var displayDate = hasLaunch ? epicLaunch : (diEpic.CreationTime < lastWrite ? diEpic.CreationTime : lastWrite);
+                        var displayDate = hasLaunch ? epicLaunch : lastWrite;
                         string launchNote = hasLaunch
                             ? $"Dernier lancement détecté le {epicLaunch:dd/MM/yyyy}."
-                            : $"Aucun lancement détecté dans Windows (installé le {displayDate:dd/MM/yyyy}, dernière écriture/MàJ le {lastWrite:dd/MM/yyyy}).";
+                            : $"Dernière activité fichiers : {lastWrite:dd/MM/yyyy} (aucun lancement récent enregistré dans BAM/UserAssist).";
                         items.Add(CreateItem(
                             $"Doublon Cross-Platform : {epic.Key} (Epic Games)",
                             epicPath,
