@@ -61,6 +61,7 @@
         postToBridge({ action: 'getSettings' });
         postToBridge({ action: 'getHistory' });
         postToBridge({ action: 'getAuditSnapshots' });
+        postToBridge({ action: 'getAiCachedPaths' });
       }
     });
 
@@ -148,6 +149,15 @@
         renderWinSxSResult(data.report || data.Report);
       } else if (type === 'auditSnapshots') {
         renderHomeLastSnapshot(data.snapshots || data.Snapshots || []);
+      } else if (type === 'aiCachedPaths') {
+        const paths = data.paths || data.Paths || [];
+        paths.forEach(p => {
+          if (p) {
+            const k = p.toLowerCase();
+            if (!aiStatusByPath[k]) aiStatusByPath[k] = 'done';
+          }
+        });
+        if (currentView === 'audit' && allItems.length > 0) renderItems();
       } else if (type === 'protectedList') {
         protectedItems = data.items || data.Items || [];
         syncProtectedStatus();
@@ -279,6 +289,7 @@
       } else if (view === 'history') {
         postToBridge({ action: 'getHistory' });
         postToBridge({ action: 'getAuditSnapshots' });
+        postToBridge({ action: 'getAiCachedPaths' });
       }
       updateSelectionCalc();
     }
@@ -1254,7 +1265,8 @@
         showResearchModal(cachedLocal);
         return;
       }
-      resetAiDeepButton(false);
+      const isLoading = aiStatusByPath[key] === 'loading';
+      resetAiDeepButton(false, isLoading);
       postToBridge({ action: 'researchItem', name, path, riskPct, requestId: reqId });
     }
 
@@ -1292,7 +1304,8 @@
         }
       }
 
-      resetAiDeepButton(hasAi);
+      const isLoading = activeResearchItem && aiStatusByPath[(activeResearchItem.path || '').toLowerCase()] === 'loading';
+      resetAiDeepButton(hasAi, isLoading);
       document.getElementById('modal-research').classList.remove('hidden');
     }
 
@@ -1324,10 +1337,16 @@
       document.getElementById('modal-research').classList.add('hidden');
     }
 
-    function resetAiDeepButton(hasAi = false) {
-      document.getElementById('ai-spinner').classList.add('hidden');
-      document.getElementById('ai-deep-label').innerText = hasAi ? "Réanalyser avec l'IA" : "Approfondir avec l'IA";
-      document.getElementById('btn-ai-deep-research').disabled = false;
+    function resetAiDeepButton(hasAi = false, isLoading = false) {
+      if (isLoading) {
+        document.getElementById('ai-spinner').classList.remove('hidden');
+        document.getElementById('ai-deep-label').innerText = "Analyse Gemini en cours...";
+        document.getElementById('btn-ai-deep-research').disabled = true;
+      } else {
+        document.getElementById('ai-spinner').classList.add('hidden');
+        document.getElementById('ai-deep-label').innerText = hasAi ? "Réanalyser avec l'IA" : "Approfondir avec l'IA";
+        document.getElementById('btn-ai-deep-research').disabled = false;
+      }
     }
 
     function renderAiCardButton(name, path, riskPct) {

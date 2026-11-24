@@ -317,6 +317,13 @@ namespace CleanerApp
                         break;
                     }
 
+                    case "getAiCachedPaths":
+                    {
+                        var paths = CleanerBackend.GetAiCachedPaths();
+                        SendJson(new { type = "aiCachedPaths", paths });
+                        break;
+                    }
+
                     case "getSettings":
                     {
                         var settings = CleanerBackend.GetSettings();

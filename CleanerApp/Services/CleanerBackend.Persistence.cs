@@ -100,6 +100,25 @@ namespace CleanerApp
 
         #region GESTION DE LA LISTE PROTÉGÉE (PERSISTANTE SUR DISQUE)
 
+        public static List<string> GetAiCachedPaths()
+        {
+            var list = new List<string>();
+            try
+            {
+                var cache = LoadAiCache();
+                long maxAgeMs = 30L * 24 * 60 * 60 * 1000;
+                long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                foreach (var kv in cache)
+                {
+                    if (kv.Value == null) continue;
+                    bool expired = kv.Value.CachedAtUnixMs > 0 && (nowMs - kv.Value.CachedAtUnixMs) > maxAgeMs;
+                    if (!expired) list.Add(kv.Key);
+                }
+            }
+            catch { }
+            return list;
+        }
+
         private static string GetProtectedFilePath()
         {
             var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CleanerApp");
