@@ -63,6 +63,13 @@ Pour éviter tout angle mort, l'audit ne se limite jamais à une liste statique 
    - **Émulateurs tiers & ROMs orphelines** : NoxPlayer, BlueStacks, Yuzu Switch ROMs (.nsp), Dolphin Wii ISOs.
    - **Dossiers Téléchargements secondaires** : `D:\Téléchargements` pour les vieux installeurs volumineux (.exe, .msi, .zip) de logiciels déjà désinstallés.
    - **Vieux jeux portables inactifs** : `D:\Autres Jeux` ou `E:\Jeux` non touchés depuis plus d'un an.
+3. **Sur les Répertoires de Téléchargements (Downloads)** :
+   - **Dossier principal (`C:\Users\benja\Downloads`) & secondaires (`D:\Téléchargements`)** :
+     - Détection des installeurs résiduels (.exe, .msi, .AppImage) dès que le logiciel est installé.
+     - Détection des archives doublons (.zip existant à côté de son dossier déjà extrait).
+     - Détection des builds temporaires (`dist\`) et exports de données.
+   - **Règle d'Isolation en Onglet Dédié (`📥 Téléchargements`)** :
+     - Dès que le volume d'éléments détectés dans Downloads est important, il est obligatoirement isolé dans un onglet distinct au sein du tableau de bord interactif pour préserver la lisibilité de l'analyse système et jeux.
 
 ```
 [1. Audit Récursif Dynamique Multi-Niveaux (Seuil >= 150 Mo)]

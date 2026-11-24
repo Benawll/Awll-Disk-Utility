@@ -134,23 +134,56 @@ if ($emuFound) {
     Write-Host "Aucun émulateur ou ROM orpheline résiduelle." -ForegroundColor Green
 }
 
-# 5. Installeurs obsolètes dans les dossiers Téléchargements secondaires
-Write-Host "`n[5/7] SCAN DES INSTALLEURS OBSOLÈTES (D:\Téléchargements)..." -ForegroundColor Yellow
-if (Test-Path "D:\Téléchargements") {
-    $oldInstallers = Get-ChildItem "D:\Téléchargements" -File -Recurse -Force | 
-        Where-Object { $_.Length -gt 200MB -and $_.Extension -match '^(exe|msi|zip|rar)$' } | ForEach-Object {
+# 5. Installeurs obsolètes et gros fichiers dans les dossiers Téléchargements (C:\Downloads & D:\Téléchargements)
+Write-Host "`n[5/7] SCAN DES DOSSIERS DE TÉLÉCHARGEMENTS (C:\Downloads & D:\Téléchargements)..." -ForegroundColor Yellow
+$dlDirs = @("$env:USERPROFILE\Downloads", "D:\Téléchargements")
+$dlFindings = foreach ($dl in $dlDirs) {
+    if (Test-Path $dl) {
+        # A. Installeurs (.exe, .msi, .AppImage)
+        Get-ChildItem $dl -File -Force | Where-Object { $_.Extension -match '^\.(exe|msi|AppImage)$' } | ForEach-Object {
             [PSCustomObject]@{
+                Lecteur       = (Get-Item $dl).Name
                 Fichier       = $_.Name
+                Type          = "Installeur"
                 "Taille (Mo)" = [math]::Round($_.Length / 1MB, 1)
                 "Risque %"    = "0%"
                 Date          = $_.LastWriteTime.ToString("yyyy-MM-dd")
             }
         }
-    if ($oldInstallers) {
-        $oldInstallers | Sort-Object "Taille (Mo)" -Descending | Select-Object -First 10 | Format-Table -AutoSize
-    } else {
-        Write-Host "Aucun gros installeur résiduel dans D:\Téléchargements." -ForegroundColor Green
+        # B. Grosses archives doublons ou temporaires (> 50 Mo)
+        Get-ChildItem $dl -File -Force | Where-Object { $_.Extension -match '^\.(zip|rar|7z)$' -and $_.Length -gt 50MB } | ForEach-Object {
+            $isPersonal = ($_.Name -match 'Direct Messages')
+            $risk = if ($isPersonal) { "95%" } else { "5%" }
+            [PSCustomObject]@{
+                Lecteur       = (Get-Item $dl).Name
+                Fichier       = $_.Name
+                Type          = "Archive"
+                "Taille (Mo)" = [math]::Round($_.Length / 1MB, 1)
+                "Risque %"    = $risk
+                Date          = $_.LastWriteTime.ToString("yyyy-MM-dd")
+            }
+        }
+        # C. Sous-dossiers de builds ou d'outils temporaires (> 100 Mo)
+        Get-ChildItem $dl -Directory -Force | ForEach-Object {
+            $subSize = (Get-ChildItem $_.FullName -File -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
+            if ($subSize -gt 100MB) {
+                [PSCustomObject]@{
+                    Lecteur       = (Get-Item $dl).Name
+                    Fichier       = "$($_.Name)\"
+                    Type          = "Dossier Temporaire"
+                    "Taille (Mo)" = [math]::Round($subSize / 1MB, 1)
+                    "Risque %"    = "5%"
+                    Date          = $_.LastWriteTime.ToString("yyyy-MM-dd")
+                }
+            }
+        }
     }
+}
+if ($dlFindings) {
+    Write-Host "-> Éléments de Téléchargements détectés (isolés dans l'onglet Dédié '📥 Téléchargements') :" -ForegroundColor Cyan
+    $dlFindings | Sort-Object "Taille (Mo)" -Descending | Select-Object -First 15 Lecteur, Fichier, Type, "Taille (Mo)", "Risque %", Date | Format-Table -AutoSize
+} else {
+    Write-Host "Aucun installeur ou fichier temporaire résiduel dans Téléchargements." -ForegroundColor Green
 }
 
 # 6. Scan dynamique de AppData (Local, Roaming, LocalLow) sur C: (Seuil >= 150 Mo)

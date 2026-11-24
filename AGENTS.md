@@ -28,7 +28,9 @@ Tout audit doit inspecter dynamiquement et exhaustivement :
    - Doublons de jeux cross-plateformes : Jeux installés simultanément sur Steam, Epic Games ou Xbox (ex: Rocket League).
    - Serveurs de test publics (PTS) et démos abandonnées : Ex: `paladins pts`, démos temporaires de festivals Steam.
    - Émulateurs tiers et ROMs orphelines : NoxPlayer (`D:\Program Files\Nox`), ROMs Switch Yuzu (`E:\Yuzu`), Dolphin (`C:\Jeux dolphin`).
-   - Dossiers Téléchargements secondaires : `D:\Téléchargements` pour les vieux installeurs (.exe, .msi) d'applications déjà supprimées.
+   - Dossiers Téléchargements (Downloads) :
+     - `C:\Users\benja\Downloads` et `D:\Téléchargements` pour les vieux installeurs (.exe, .msi, .AppImage), archives doublons (ex: .zip existant à côté du dossier extrait) et builds temporaires.
+     - **Règle d'isolation en onglet dédié** : Si le volume d'éléments détectés dans Downloads est important, le regrouper obligatoirement dans son propre onglet dédié (`📥 Téléchargements`) au sein des widgets pour ne pas encombrer la vue système / disques.
    - Vieux jeux portables inactifs : `D:\Autres Jeux` ou `E:\Jeux` non touchés depuis plus d'un an.
    - Moteurs RGB et overlays de jeu : `VortxEngine`, `WhirlwindFX`, `Overwolf`, `Medal.tv`, `VoicemodV3`.
    - Messageries et communications : `Slack`, `Microsoft Teams`, `Discord`, `Rocket.Chat`.
