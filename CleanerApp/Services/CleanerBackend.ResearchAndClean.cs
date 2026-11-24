@@ -521,7 +521,7 @@ namespace CleanerApp
                 }
             }
 
-            FinalizeResearchReport(report, path, name, running);
+            FinalizeResearchReport(report, path, name, running, initialRisk);
             return report;
         }
 
@@ -603,8 +603,12 @@ namespace CleanerApp
             extraItems.AddRange(normalizedExtra);
         }
 
-        internal static void FinalizeResearchReport(ResearchReport report, string path, string name, bool running)
+        internal static void FinalizeResearchReport(ResearchReport report, string path, string name, bool running, int initialRisk = -1)
         {
+            if (initialRisk >= 0)
+            {
+                report.RiskPct = initialRisk;
+            }
             bool isCache = IsPureCacheOrDisposable(name, path);
             bool sanct = IsPathSanctuarized(path);
             bool isCore = IsCoreSystemOrRuntime(name, path);
@@ -844,33 +848,37 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
                 };
 
                 var jsonPayload = JsonSerializer.Serialize(payload);
-                string[] modelsToTry = { "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-3.8-flash", "gemini-3.6-flash" };
+                string[] modelsToTry = { "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.8-flash" };
                 HttpResponseMessage? response = null;
                 string usedModel = modelsToTry[0];
 
-                foreach (var modelName in modelsToTry)
+                for (int attempt = 0; attempt < 2; attempt++)
                 {
-                    usedModel = modelName;
-                    try
+                    if (attempt > 0) await Task.Delay(400);
+                    foreach (var modelName in modelsToTry)
                     {
-                        using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(12));
-                        using var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
-                        string url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={apiKey}";
-                        response = await http.PostAsync(url, content, cts.Token);
-                        if (response.IsSuccessStatusCode)
-                            break;
+                        usedModel = modelName;
+                        try
+                        {
+                            using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(7));
+                            using var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                            string url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={apiKey}";
+                            response = await http.PostAsync(url, content, cts.Token);
+                            if (response.IsSuccessStatusCode)
+                                break;
 
-                        int code = (int)response.StatusCode;
-                        if (code != 404 && code != 429 && code < 500)
-                            break;
-                    }
-                    catch (TaskCanceledException)
-                    {
-                        // Timeout sur ce modèle : basculer vers le modèle suivant
-                        response = null;
-                    }
+                            int code = (int)response.StatusCode;
+                            if (code != 404 && code != 429 && code < 500)
+                                break;
+                        }
+                        catch (TaskCanceledException)
+                        {
+                            response = null;
+                        }
 
-                    await Task.Delay(250);
+                        await Task.Delay(150);
+                    }
+                    if (response != null && response.IsSuccessStatusCode) break;
                 }
 
                 if (response != null && response.IsSuccessStatusCode)
@@ -881,29 +889,17 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
                     if (candidates.GetArrayLength() > 0)
                     {
                         var text = candidates[0].GetProperty("content").GetProperty("parts")[0].GetProperty("text").GetString() ?? "";
-
-                        using var parsedAi = JsonDocument.Parse(text);
-                        var root = parsedAi.RootElement;
-
-                        if (root.TryGetProperty("definition", out var defProp) && !string.IsNullOrWhiteSpace(defProp.GetString()))
-                            report.Definition = defProp.GetString() ?? "";
-
-                        if (root.TryGetProperty("origin", out var origProp) && !string.IsNullOrWhiteSpace(origProp.GetString()))
-                            report.Origin = origProp.GetString() ?? "";
-
-                        if (root.TryGetProperty("usageActivity", out var useProp) && !string.IsNullOrWhiteSpace(useProp.GetString()))
-                            report.UsageActivity = useProp.GetString() ?? "";
-
-                        if (root.TryGetProperty("safetyImpact", out var safeProp) && !string.IsNullOrWhiteSpace(safeProp.GetString()))
-                            report.SafetyImpact = safeProp.GetString() ?? "";
-
-                        if (root.TryGetProperty("riskPct", out var riskProp) && riskProp.TryGetInt32(out int aiRisk))
-                            report.RiskPct = aiRisk;
-
-                        report.IsAiEnriched = true;
-                        report.AiModelUsed = usedModel;
-                        report.CachedAtUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                        SaveAiCacheEntry(report);
+                        if (ParseGeminiResearchJson(text, report))
+                        {
+                            report.IsAiEnriched = true;
+                            report.AiModelUsed = usedModel;
+                            report.CachedAtUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                            SaveAiCacheEntry(report);
+                        }
+                        else
+                        {
+                            report.AiModelUsed = "Réponse Gemini invalide (format JSON inattendu).";
+                        }
                     }
                 }
                 else
@@ -911,19 +907,27 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
                     string errDetail = "";
                     if (response != null)
                     {
-                        try
+                        int statusCode = (int)response.StatusCode;
+                        if (statusCode == 503 || statusCode == 429)
                         {
-                            var errBody = await response.Content.ReadAsStringAsync();
-                            using var errDoc = JsonDocument.Parse(errBody);
-                            if (errDoc.RootElement.TryGetProperty("error", out var errObj) && errObj.TryGetProperty("message", out var msgProp))
-                                errDetail = msgProp.GetString() ?? "";
+                            report.AiModelUsed = $"Serveurs Gemini temporairement saturés (HTTP {statusCode}). Réessayez dans quelques secondes.";
                         }
-                        catch { }
-                        report.AiModelUsed = $"Erreur API HTTP {(int)response.StatusCode}{(string.IsNullOrEmpty(errDetail) ? "" : " : " + errDetail)}";
+                        else
+                        {
+                            try
+                            {
+                                var errBody = await response.Content.ReadAsStringAsync();
+                                using var errDoc = JsonDocument.Parse(errBody);
+                                if (errDoc.RootElement.TryGetProperty("error", out var errObj) && errObj.TryGetProperty("message", out var msgProp))
+                                    errDetail = msgProp.GetString() ?? "";
+                            }
+                            catch { }
+                            report.AiModelUsed = $"Erreur API HTTP {statusCode}{(string.IsNullOrEmpty(errDetail) ? "" : " : " + errDetail)}";
+                        }
                     }
                     else
                     {
-                        report.AiModelUsed = "Aucune réponse du serveur Gemini.";
+                        report.AiModelUsed = "Délai dépassé : aucune réponse du serveur Gemini.";
                     }
                 }
             }
@@ -933,6 +937,47 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
             }
 
             return report;
+        }
+
+        internal static bool ParseGeminiResearchJson(string rawText, ResearchReport report)
+        {
+            if (string.IsNullOrWhiteSpace(rawText)) return false;
+            try
+            {
+                var cleaned = rawText.Trim();
+                if (cleaned.StartsWith("```"))
+                {
+                    int firstNewline = cleaned.IndexOf('\n');
+                    if (firstNewline >= 0) cleaned = cleaned.Substring(firstNewline + 1);
+                    int lastFence = cleaned.LastIndexOf("```", StringComparison.Ordinal);
+                    if (lastFence >= 0) cleaned = cleaned.Substring(0, lastFence);
+                    cleaned = cleaned.Trim();
+                }
+
+                using var parsedAi = JsonDocument.Parse(cleaned);
+                var root = parsedAi.RootElement;
+
+                if (root.TryGetProperty("definition", out var defProp) && !string.IsNullOrWhiteSpace(defProp.GetString()))
+                    report.Definition = defProp.GetString() ?? "";
+
+                if (root.TryGetProperty("origin", out var origProp) && !string.IsNullOrWhiteSpace(origProp.GetString()))
+                    report.Origin = origProp.GetString() ?? "";
+
+                if (root.TryGetProperty("usageActivity", out var useProp) && !string.IsNullOrWhiteSpace(useProp.GetString()))
+                    report.UsageActivity = useProp.GetString() ?? "";
+
+                if (root.TryGetProperty("safetyImpact", out var safeProp) && !string.IsNullOrWhiteSpace(safeProp.GetString()))
+                    report.SafetyImpact = safeProp.GetString() ?? "";
+
+                if (root.TryGetProperty("riskPct", out var riskProp) && riskProp.TryGetInt32(out int aiRisk))
+                    report.RiskPct = Math.Clamp(aiRisk, 0, 100);
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         public static async Task<bool> TestGeminiApiKeyAsync(string apiKey)

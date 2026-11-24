@@ -285,14 +285,15 @@ namespace CleanerApp
                     {
                         var name = root.GetProperty("name").GetString() ?? "";
                         var path = root.GetProperty("path").GetString() ?? "";
-                        int risk = 5;
+                        int risk = -1;
                         if (root.TryGetProperty("riskPct", out var rProp))
                         {
                             risk = rProp.GetInt32();
                         }
+                        int requestId = root.TryGetProperty("requestId", out var ridProp) && ridProp.TryGetInt32(out int rid) ? rid : 0;
                         bool bypassAiCache = root.TryGetProperty("bypassAiCache", out var bProp) && bProp.ValueKind == JsonValueKind.True;
                         var report = CleanerBackend.ResearchItem(name, path, risk, bypassAiCache);
-                        SendJson(new { type = "researchResult", report });
+                        SendJson(new { type = "researchResult", requestId, report });
                         break;
                     }
 
@@ -300,18 +301,19 @@ namespace CleanerApp
                     {
                         var name = root.GetProperty("name").GetString() ?? "";
                         var path = root.GetProperty("path").GetString() ?? "";
-                        int risk = 5;
+                        int risk = -1;
                         if (root.TryGetProperty("riskPct", out var rProp))
                         {
                             risk = rProp.GetInt32();
                         }
+                        int requestId = root.TryGetProperty("requestId", out var ridProp) && ridProp.TryGetInt32(out int rid) ? rid : 0;
                         string? customKey = null;
                         if (root.TryGetProperty("apiKey", out var kProp) && !string.IsNullOrWhiteSpace(kProp.GetString()))
                         {
                             customKey = kProp.GetString();
                         }
                         var report = await CleanerBackend.ResearchItemWithAIAsync(name, path, risk, customKey);
-                        SendJson(new { type = "researchResult", report, aiError = report.IsAiEnriched ? "" : report.AiModelUsed });
+                        SendJson(new { type = "researchResult", requestId, report, aiError = report.IsAiEnriched ? "" : report.AiModelUsed });
                         break;
                     }
 

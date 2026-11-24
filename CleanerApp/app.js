@@ -23,6 +23,7 @@
     let personalSubExpanded = {};
     let currentSettings = { geminiApiKey: '', enableAI: true };
     let activeResearchItem = null;
+    let activeResearchRequestId = 0;
     let aiReportCache = {};
     let localReportCache = {};
     let selectedDeleteIds = new Set();
@@ -152,23 +153,42 @@
         if (allItems.length > 0) refreshAuditUI();
       } else if (type === 'researchResult') {
         const rep = data.report || data.Report;
-        if (rep && (rep.itemPath || rep.ItemPath)) {
-          const rKey = (rep.itemPath || rep.ItemPath).toLowerCase();
+        const rKey = (rep && (rep.itemPath || rep.ItemPath)) ? (rep.itemPath || rep.ItemPath).toLowerCase() : '';
+        if (rKey) {
           if (rep.isAiEnriched || rep.IsAiEnriched) {
             aiReportCache[rKey] = rep;
-          } else {
+            // Synchroniser le risque IA sur la carte correspondante si présente
+            const aiRisk = rep.riskPct ?? rep.RiskPct;
+            if (typeof aiRisk === 'number') {
+              let changed = false;
+              allItems.forEach(it => {
+                if ((it.path || it.Path || '').toLowerCase() === rKey) {
+                  it.riskPct = aiRisk;
+                  it.riskLevel = aiRisk <= 15 ? 'Quasi Nul' : (aiRisk <= 35 ? 'Faible' : (aiRisk <= 65 ? 'Modéré' : 'Élevé'));
+                  changed = true;
+                }
+              });
+              if (changed && currentView === 'audit' && allItems.length > 0) renderItems();
+            }
+          } else if (!data.aiError) {
             localReportCache[rKey] = rep;
           }
-          if (data.aiError && aiReportCache[rKey]) {
-            resetAiDeepButton(true);
-            showToast(data.aiError, 'warn');
-            return;
-          }
         }
-        showResearchModal(rep);
+
+        // Ignorer les réponses obsolètes si l'utilisateur a changé d'élément ou fermé la fenêtre
+        const curKey = activeResearchItem?.path?.toLowerCase() || '';
+        const reqId = data.requestId ?? 0;
+        if (!activeResearchItem || (rKey && curKey && rKey !== curKey) || (reqId > 0 && reqId !== activeResearchRequestId)) {
+          return;
+        }
+
         if (data.aiError) {
+          resetAiDeepButton(!!aiReportCache[rKey]);
           showToast(data.aiError, 'warn');
+          return;
         }
+
+        showResearchModal(rep);
       } else if (type === 'folderTreeProgress') {
         const pKey = normalizeTreeKey(data.path || data.Path || '');
         if (pKey) {
@@ -1197,18 +1217,26 @@
     }
 
     function askResearchPath(encName, encPath) {
-      triggerResearch(decodeURIComponent(encName), decodeURIComponent(encPath), 15);
+      triggerResearch(decodeURIComponent(encName), decodeURIComponent(encPath), -1);
     }
 
     function triggerResearch(name, path, riskPct) {
       activeResearchItem = { name, path, riskPct };
-      const cached = aiReportCache[path.toLowerCase()];
-      if (cached) {
-        showResearchModal(cached);
+      activeResearchRequestId++;
+      const reqId = activeResearchRequestId;
+      const key = (path || '').toLowerCase();
+      const cachedAi = aiReportCache[key];
+      if (cachedAi) {
+        showResearchModal(cachedAi);
         return;
       }
-      resetAiDeepButton();
-      postToBridge({ action: 'researchItem', name, path, riskPct });
+      const cachedLocal = localReportCache[key];
+      if (cachedLocal) {
+        showResearchModal(cachedLocal);
+        return;
+      }
+      resetAiDeepButton(false);
+      postToBridge({ action: 'researchItem', name, path, riskPct, requestId: reqId });
     }
 
     function showResearchModal(rep) {
@@ -1290,6 +1318,8 @@
         openAiSettingsModal();
         return;
       }
+      activeResearchRequestId++;
+      const reqId = activeResearchRequestId;
       document.getElementById('ai-spinner').classList.remove('hidden');
       document.getElementById('ai-deep-label').innerText = "Analyse Gemini en cours...";
       document.getElementById('btn-ai-deep-research').disabled = true;
@@ -1298,7 +1328,8 @@
         name: activeResearchItem.name,
         path: activeResearchItem.path,
         riskPct: activeResearchItem.riskPct,
-        apiKey: currentSettings.geminiApiKey || ''
+        apiKey: currentSettings.geminiApiKey || '',
+        requestId: reqId
       });
     }
 

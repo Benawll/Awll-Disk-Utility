@@ -101,5 +101,25 @@ namespace CleanerApp.Tests
                 try { Directory.Delete(root, true); } catch { }
             }
         }
+
+        [Fact]
+        public void FinalizeResearchReport_PreservesCardInitialRiskWhenSafeAndInactive()
+        {
+            var report = new ResearchReport { RiskPct = 5, SafetyImpact = "RAS" };
+            CleanerBackend.FinalizeResearchReport(report, @"D:\Data\SomeFolder", "SomeFolder", false, initialRisk: 35);
+            Assert.Equal(35, report.RiskPct);
+        }
+
+        [Fact]
+        public void ParseGeminiResearchJson_ParsesMarkdownFencedJsonWithoutPrefix()
+        {
+            var report = new ResearchReport();
+            var raw = "```json\n{\"definition\":\"Outil test\",\"origin\":\"Installateur\",\"usageActivity\":\"Inactif\",\"safetyImpact\":\"SUPPRESSION CONSEILLÉE\",\"riskPct\":10}\n```";
+            bool ok = CleanerBackend.ParseGeminiResearchJson(raw, report);
+            Assert.True(ok);
+            Assert.Equal("Outil test", report.Definition);
+            Assert.Equal(10, report.RiskPct);
+            Assert.DoesNotContain("[IA Gemini]", report.Definition);
+        }
     }
 }
