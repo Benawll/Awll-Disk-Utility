@@ -55,6 +55,7 @@
         postToBridge({ action: 'getProtected' });
         postToBridge({ action: 'getSettings' });
         postToBridge({ action: 'getHistory' });
+        postToBridge({ action: 'getAuditSnapshots' });
       }
     });
 
@@ -140,6 +141,8 @@
         }
       } else if (type === 'winSxSResult') {
         renderWinSxSResult(data.report || data.Report);
+      } else if (type === 'auditSnapshots') {
+        renderHomeLastSnapshot(data.snapshots || data.Snapshots || []);
       } else if (type === 'protectedList') {
         protectedItems = data.items || data.Items || [];
         syncProtectedStatus();
@@ -239,6 +242,7 @@
         navigateExplorer(firstActive.endsWith('\\') ? firstActive : `${firstActive}\\`);
       } else if (view === 'history') {
         postToBridge({ action: 'getHistory' });
+        postToBridge({ action: 'getAuditSnapshots' });
       }
       updateSelectionCalc();
     }
@@ -333,6 +337,7 @@
 
     // ================= AUDIT =================
     function startAudit() {
+      if (auditInProgress) return;
       if (auditCustomFolders.length === 0 && auditScanDrives.size === 0) {
         showToast('Sélectionnez au moins un disque ou un dossier à analyser.', 'warn');
         return;
@@ -1450,6 +1455,20 @@
     }
 
     // ================= AUDIT EVOLUTION & WINSXS =================
+    function renderHomeLastSnapshot(snapshots) {
+      const el = document.getElementById('home-last-snapshot');
+      if (!el) return;
+      if (!snapshots || snapshots.length === 0) {
+        el.innerHTML = `<span class="text-slate-500">Aucun audit précédent enregistré</span>`;
+        return;
+      }
+      const last = snapshots[0];
+      const dt = last.date || last.Date || '';
+      const recGB = (last.recommendedGB ?? last.RecommendedGB ?? 0).toFixed(2);
+      const recCnt = last.recommendedCount ?? last.RecommendedCount ?? 0;
+      el.innerHTML = `Dernier audit (${escapeHtml(dt)}) : <span class="text-blue-300 font-bold">${recCnt} éléments</span> • <span class="text-emerald-400 font-bold">${recGB} Go récupérables</span>`;
+    }
+
     function renderAuditEvolutionBanner(prev) {
       const el = document.getElementById('audit-evolution-banner');
       if (!el) return;
@@ -1601,6 +1620,7 @@
     }
 
     function startDuplicatesScan() {
+      if (dupInProgress) return;
       if (duplicateCustomFolders.length === 0 && dupScanDrives.size === 0) {
         showToast('Sélectionnez au moins un disque ou un dossier.', 'warn');
         return;

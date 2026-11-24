@@ -327,18 +327,31 @@
 
         <!-- Audit Items List -->
         <div id="items-container" class="space-y-2.5">
-          <div class="surface-card rounded-2xl p-12 text-center space-y-4">
-            <div class="w-14 h-14 mx-auto rounded-2xl bg-blue-500/10 border border-blue-500/25 flex items-center justify-center text-blue-400">
-              <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+          <div class="surface-card rounded-2xl p-6 space-y-5">
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
+              <div>
+                <h3 class="text-sm font-bold text-white">Ce que l'Audit Intelligent inspecte</h3>
+                <p class="text-[11px] text-slate-400 mt-0.5">Sélectionnez vos disques ou dossiers ci-dessus, puis lancez l'analyse.</p>
+              </div>
+              <div id="home-last-snapshot" class="text-[11px] text-slate-400 font-mono">Chargement du dernier bilan...</div>
             </div>
-            <h3 class="text-base font-bold text-white">Prêt pour l'analyse de vos disques</h3>
-            <p class="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
-              Choisissez un ou plusieurs disques dans la barre latérale à gauche, puis cliquez sur <strong class="text-blue-400">Lancer l'Audit</strong>.
-              Vous pouvez aussi ouvrir <strong class="text-cyan-400">Explorateur d'Espace</strong> pour visualiser les dossiers les plus volumineux en arborescence.
-            </p>
-            <div class="flex items-center justify-center gap-3 pt-1">
-              <button onclick="startAudit()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-600/25">Lancer l'Audit maintenant</button>
-              <button onclick="switchView('explorer')" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-medium border border-white/[0.08]">Ouvrir l'Explorateur d'Espace</button>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div class="p-3.5 rounded-xl bg-slate-950/60 border border-white/[0.06] space-y-1">
+                <div class="font-semibold text-blue-300">🎮 Jeux, Shaders &amp; Émulateurs</div>
+                <p class="text-[11px] text-slate-400 leading-relaxed">Téléchargements Steam bloqués, workshop, caches GPU (DirectX/NVIDIA/AMD), démos, jeux inactifs et émulateurs.</p>
+              </div>
+              <div class="p-3.5 rounded-xl bg-slate-950/60 border border-white/[0.06] space-y-1">
+                <div class="font-semibold text-emerald-300">⚙️ Système, AppData &amp; Caches Dev</div>
+                <p class="text-[11px] text-slate-400 leading-relaxed">Fichiers temporaires, CrashDumps, NuGet, Gradle, Maven, Playwright, pip, npm et dossiers AppData inactifs.</p>
+              </div>
+              <div class="p-3.5 rounded-xl bg-slate-950/60 border border-white/[0.06] space-y-1">
+                <div class="font-semibold text-amber-300">📥 Téléchargements &amp; Archives</div>
+                <p class="text-[11px] text-slate-400 leading-relaxed">Vieux installeurs (.exe, .msi), archives (.zip, .7z, .iso) et dossiers extraits oubliés sur tous vos disques.</p>
+              </div>
+              <div class="p-3.5 rounded-xl bg-slate-950/60 border border-white/[0.06] space-y-1">
+                <div class="font-semibold text-purple-300">📁 Dossiers Personnels &amp; Logiciels</div>
+                <p class="text-[11px] text-slate-400 leading-relaxed">Exploration en profondeur de Documents, Vidéos, Images, Musique et Bureau (classés dans une liste à part) + logiciels inutilisés.</p>
+              </div>
             </div>
           </div>
         </div>
