@@ -1578,7 +1578,7 @@ namespace CleanerApp
                 "msdownld.tmp", "MSOCache", "Temp", "Tmp", ".gradle", ".m2", "node_modules"
             };
 
-            string[] romOrGameExts = { ".iso", ".nsp", ".xci", ".wbfs", ".rvz", ".gcz", ".cso", ".pak", ".ucas" };
+            string[] romOrGameExts = { ".iso", ".nsp", ".xci", ".wbfs", ".rvz", ".gcz", ".cso", ".chd", ".wad", ".3ds", ".cia", ".nds", ".gba", ".pak", ".ucas" };
 
             foreach (var d in GetTargetDrives(targetDrives))
             {
@@ -1602,20 +1602,120 @@ namespace CleanerApp
                     bool looksLikeCacheOrDownload = nLower.Contains("cache") || nLower.Contains("temp") ||
                                                     nLower.Contains("tmp") || nLower.Contains("download");
 
-                    bool hasExeOrGame = false;
-                    bool hasRom = false;
+                    // Détection générique de dossier "conteneur" (ex: regroupe un émulateur + des ROMs, ou plusieurs jeux portables)
+                    FileInfo[] directFiles = Array.Empty<FileInfo>();
+                    DirectoryInfo[] directSubDirs = Array.Empty<DirectoryInfo>();
                     try
                     {
-                        var sampleFiles = di.EnumerateFiles("*", new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = true, MaxRecursionDepth = 2, AttributesToSkip = FileAttributes.ReparsePoint }).Take(80);
-                        foreach (var sf in sampleFiles)
-                        {
-                            var ext = sf.Extension.ToLowerInvariant();
-                            if (ext == ".exe") hasExeOrGame = true;
-                            if (romOrGameExts.Contains(ext)) hasRom = true;
-                            if (hasExeOrGame && hasRom) break;
-                        }
+                        directFiles = di.GetFiles("*", SafeTopOpts);
+                        directSubDirs = di.GetDirectories("*", SafeTopOpts);
                     }
                     catch { }
+
+                    bool hasTopExe = directFiles.Any(f => f.Extension.Equals(".exe", StringComparison.OrdinalIgnoreCase));
+                    var topLargeRoms = directFiles
+                        .Where(f => romOrGameExts.Contains(f.Extension.ToLowerInvariant()) && f.Length >= 50 * 1024 * 1024)
+                        .ToList();
+
+                    int subAppsOrRoms = 0;
+                    if (!hasTopExe && directSubDirs.Length > 0)
+                    {
+                        foreach (var sub in directSubDirs.Take(20))
+                        {
+                            try
+                            {
+                                bool subHasApp = sub.EnumerateFiles("*", new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = true, MaxRecursionDepth = 2, AttributesToSkip = FileAttributes.ReparsePoint })
+                                    .Take(40)
+                                    .Any(sf => sf.Extension.Equals(".exe", StringComparison.OrdinalIgnoreCase) || romOrGameExts.Contains(sf.Extension.ToLowerInvariant()));
+                                if (subHasApp) subAppsOrRoms++;
+                            }
+                            catch { }
+                        }
+                    }
+
+                    bool isContainer = !hasTopExe && !looksLikeCacheOrDownload &&
+                                       ((topLargeRoms.Count > 0 && directSubDirs.Length > 0) || topLargeRoms.Count >= 2 || subAppsOrRoms >= 2);
+
+                    if (isContainer)
+                    {
+                        // 1. Chaque ROM / image disque directe devient un élément indépendant
+                        foreach (var rf in topLargeRoms)
+                        {
+                            if (!seenPaths.Add(rf.FullName)) continue;
+                            int rDays = Math.Max(0, (int)(DateTime.Now - rf.LastWriteTime).TotalDays);
+                            int rRisk = ComputeRiskScore("portable_game", rDays, false, false, false);
+                            bool rPromote = rDays >= 180;
+                            var rItem = CreateItem(
+                                $"ROM / Jeu : {Path.GetFileNameWithoutExtension(rf.Name)} ({di.Name})",
+                                rf.FullName,
+                                "games",
+                                rf.Length,
+                                rRisk,
+                                $"Image jeu / ROM ({rf.Extension.ToUpperInvariant()}) dans {di.Name} ({FormatAgeText(rDays)}).",
+                                isFolder: false,
+                                lastModified: rf.LastWriteTime,
+                                isExtra: !rPromote
+                            );
+                            if (rPromote) recommendedItems.Add(rItem);
+                            else extraItems.Add(rItem);
+                        }
+
+                        // 2. Chaque sous-dossier applicatif/émulateur/jeu significatif devient un élément indépendant
+                        foreach (var sub in directSubDirs)
+                        {
+                            if (!seenPaths.Add(sub.FullName)) continue;
+                            var (sBytes, sFiles, sLast) = GetDirectoryStatsSafe(sub.FullName);
+                            if (sBytes < 30 * 1024 * 1024) continue;
+
+                            int sDays = Math.Max(0, (int)(DateTime.Now - sLast).TotalDays);
+                            bool sRun = IsLikelyRunning(sub.Name, sub.FullName, runningProcs);
+                            bool subHasRom = false;
+                            try
+                            {
+                                subHasRom = sub.EnumerateFiles("*", new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = true, MaxRecursionDepth = 2, AttributesToSkip = FileAttributes.ReparsePoint })
+                                    .Take(50)
+                                    .Any(sf => romOrGameExts.Contains(sf.Extension.ToLowerInvariant()));
+                            }
+                            catch { }
+
+                            string sCat = subHasRom ? "games" : "apps";
+                            int sRisk = ComputeRiskScore(subHasRom ? "portable_game" : "emulator", sDays, sRun, false, false);
+                            bool sPromote = sDays >= 180 && !sRun;
+                            var sItem = CreateItem(
+                                $"{sub.Name} ({di.Name})",
+                                sub.FullName,
+                                sCat,
+                                sBytes,
+                                sRisk,
+                                $"Sous-dossier dans {di.Name} ({sFiles} fichiers, {FormatAgeText(sDays)}).",
+                                lastModified: sLast,
+                                isExtra: !sPromote
+                            );
+                            if (sPromote) recommendedItems.Add(sItem);
+                            else extraItems.Add(sItem);
+                        }
+
+                        seenPaths.Add(dir);
+                        continue;
+                    }
+
+                    bool hasExeOrGame = hasTopExe;
+                    bool hasRom = topLargeRoms.Count > 0;
+                    if (!hasExeOrGame || !hasRom)
+                    {
+                        try
+                        {
+                            var sampleFiles = di.EnumerateFiles("*", new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = true, MaxRecursionDepth = 2, AttributesToSkip = FileAttributes.ReparsePoint }).Take(80);
+                            foreach (var sf in sampleFiles)
+                            {
+                                var ext = sf.Extension.ToLowerInvariant();
+                                if (ext == ".exe") hasExeOrGame = true;
+                                if (romOrGameExts.Contains(ext)) hasRom = true;
+                                if (hasExeOrGame && hasRom) break;
+                            }
+                        }
+                        catch { }
+                    }
 
                     if (looksLikeCacheOrDownload)
                     {
@@ -1632,7 +1732,7 @@ namespace CleanerApp
                     }
                     else if (hasRom || hasExeOrGame)
                     {
-                        string cat = (hasRom || nLower.Contains("jeu") || nLower.Contains("game") || nLower.Contains("emu") || nLower.Contains("dolphin") || nLower.Contains("yuzu")) ? "games" : "apps";
+                        string cat = (hasRom || nLower.Contains("jeu") || nLower.Contains("game") || nLower.Contains("emu") || nLower.Contains("rom")) ? "games" : "apps";
                         int risk = ComputeRiskScore("portable_game", daysAgo, isRunning, false, false);
                         bool promote = daysAgo >= 180 && !isRunning;
                         var item = CreateItem(
