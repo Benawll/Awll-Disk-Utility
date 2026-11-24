@@ -151,6 +151,25 @@
         </button>
       </nav>
 
+      <!-- Audit Sections Quick Toggles (Always visible on the left!) -->
+      <div id="sidebar-audit-sections" class="hidden space-y-1.5 pt-2 border-t border-white/[0.06]">
+        <div class="px-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Listes de l'Audit</div>
+        <button onclick="toggleMainSection()" id="btn-side-main" class="w-full flex items-center justify-between px-2.5 py-2 rounded-xl border border-blue-500/35 bg-blue-950/25 text-xs text-slate-200 hover:bg-blue-950/40 transition-all">
+          <span class="flex items-center gap-2">
+            <span id="side-main-arrow" class="text-[10px] font-mono text-blue-300">▼</span>
+            <span>Audit Recommandé</span>
+          </span>
+          <span id="side-main-count" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/[0.07] text-blue-200 tabular-nums">0</span>
+        </button>
+        <button onclick="toggleExtraSection()" id="btn-side-extra" class="w-full flex items-center justify-between px-2.5 py-2 rounded-xl border border-white/[0.07] bg-slate-900/60 text-xs text-slate-300 hover:bg-slate-800/80 transition-all">
+          <span class="flex items-center gap-2">
+            <span id="side-extra-arrow" class="text-[10px] font-mono text-slate-400">▶</span>
+            <span>Actifs / Récents</span>
+          </span>
+          <span id="side-extra-count" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/[0.06] text-slate-300 tabular-nums">0</span>
+        </button>
+      </div>
+
       <!-- Multi-Drive Selector -->
       <div class="space-y-2 pt-2 border-t border-white/[0.06]">
         <div class="flex items-center justify-between px-1">
@@ -566,6 +585,7 @@
     let quickFilter = 'all';
     let sortField = 'recommended';
     let sortAsc = true;
+    let mainExpanded = true;
     let extraExpanded = false;
     let currentSettings = { geminiApiKey: '', enableAI: true };
     let activeResearchItem = null;
@@ -648,6 +668,7 @@
         document.getElementById('audit-tabs-bar').classList.add('flex');
         document.getElementById('toolbar-controls').classList.remove('hidden');
         document.getElementById('toolbar-controls').classList.add('flex');
+        document.getElementById('sidebar-audit-sections').classList.remove('hidden');
         renderSidebarDrives();
         refreshAuditUI();
         showToast(`Audit terminé : ${allItems.length} éléments analysés.`, 'success');
@@ -882,6 +903,7 @@
 
     function getDriveFilteredItems() {
       return allItems.filter(raw => {
+        if (raw.isProtected ?? raw.IsProtected) return false;
         const drv = (raw.drive || raw.Drive || '').toUpperCase();
         if (!drv) return true;
         return activeDrives.has(drv);
@@ -1033,9 +1055,28 @@
       const mainItems = sortItemsArray(filtered.filter(x => !(x.isExtra ?? x.IsExtra)));
       const extraItems = sortItemsArray(filtered.filter(x => (x.isExtra ?? x.IsExtra)));
 
+      updateSidebarSectionsUI(mainItems.length, extraItems.length);
+
       let html = '';
       if (mainItems.length > 0) {
-        html += `<div class="space-y-2">${mainItems.map(renderCardHtml).join('')}</div>`;
+        const mainTotalGB = mainItems.reduce((acc, x) => acc + getItemSizeGB(x), 0);
+        html += `
+          <div class="space-y-2">
+            <button onclick="toggleMainSection()" class="w-full flex items-center justify-between px-4 py-2.5 rounded-xl surface-card hover:bg-slate-800/70 transition-all text-left border-blue-500/20">
+              <div class="flex items-center gap-2.5">
+                <span class="text-xs font-mono text-blue-300">${mainExpanded ? '▼' : '▶'}</span>
+                <div>
+                  <span class="text-xs font-bold text-white">Audit Intelligent Recommandé</span>
+                  <span class="text-[11px] text-slate-400 ml-2">(${mainItems.length} éléments • ${mainTotalGB.toFixed(1)} Go)</span>
+                </div>
+              </div>
+              <span class="text-[11px] text-blue-400 font-semibold">${mainExpanded ? 'Replier' : 'Déplier'}</span>
+            </button>
+            <div class="${mainExpanded ? 'space-y-2' : 'hidden'}">
+              ${mainItems.map(renderCardHtml).join('')}
+            </div>
+          </div>
+        `;
       } else {
         html += `<div class="surface-card rounded-xl p-4 text-center text-xs text-slate-400">Aucun reliquat ou élément inactif recommandé pour ces disques.</div>`;
       }
@@ -1043,8 +1084,8 @@
       if (extraItems.length > 0) {
         const extraTotalGB = extraItems.reduce((acc, x) => acc + getItemSizeGB(x), 0);
         html += `
-          <div class="mt-5 pt-4 border-t border-white/[0.06]">
-            <button onclick="toggleExtraSection()" class="${extraExpanded ? 'sticky top-0 z-10 bg-[#0e1526]/95 backdrop-blur-md border-blue-500/35 shadow-xl' : 'surface-card hover:bg-slate-800/70'} border w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all text-left">
+          <div class="mt-4 pt-4 border-t border-white/[0.06]">
+            <button onclick="toggleExtraSection()" class="surface-card hover:bg-slate-800/70 border w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all text-left">
               <div class="flex items-center gap-2.5">
                 <span class="text-xs font-mono text-slate-400">${extraExpanded ? '▼' : '▶'}</span>
                 <div>
@@ -1052,13 +1093,10 @@
                   <span class="text-[11px] text-slate-400 ml-2">(${extraItems.length} éléments • ${extraTotalGB.toFixed(1)} Go)</span>
                 </div>
               </div>
-              <span class="text-[11px] text-blue-400 font-semibold">${extraExpanded ? '▲ Replier la liste' : 'Afficher l\'inventaire'}</span>
+              <span class="text-[11px] text-blue-400 font-semibold">${extraExpanded ? 'Replier' : 'Déplier'}</span>
             </button>
             <div class="${extraExpanded ? 'mt-2.5 space-y-2' : 'hidden'}">
               ${extraItems.map(renderCardHtml).join('')}
-              <div class="pt-2 flex justify-center">
-                <button onclick="toggleExtraSection()" class="px-4 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/[0.08] text-[11px] text-blue-400 font-medium">▲ Replier les logiciels actifs</button>
-              </div>
             </div>
           </div>
         `;
@@ -1067,7 +1105,29 @@
       container.innerHTML = html;
     }
 
+    function updateSidebarSectionsUI(mainCount, extraCount) {
+      const mCnt = document.getElementById('side-main-count');
+      const eCnt = document.getElementById('side-extra-count');
+      const mArr = document.getElementById('side-main-arrow');
+      const eArr = document.getElementById('side-extra-arrow');
+      const mBtn = document.getElementById('btn-side-main');
+      const eBtn = document.getElementById('btn-side-extra');
+      if (mCnt) mCnt.innerText = mainCount;
+      if (eCnt) eCnt.innerText = extraCount;
+      if (mArr) mArr.innerText = mainExpanded ? '▼' : '▶';
+      if (eArr) eArr.innerText = extraExpanded ? '▼' : '▶';
+      if (mBtn) mBtn.className = `w-full flex items-center justify-between px-2.5 py-2 rounded-xl border text-xs transition-all ${mainExpanded ? 'border-blue-500/35 bg-blue-950/25 text-slate-100' : 'border-white/[0.07] bg-slate-900/50 text-slate-400'}`;
+      if (eBtn) eBtn.className = `w-full flex items-center justify-between px-2.5 py-2 rounded-xl border text-xs transition-all ${extraExpanded ? 'border-blue-500/35 bg-blue-950/25 text-slate-100' : 'border-white/[0.07] bg-slate-900/50 text-slate-400'}`;
+    }
+
+    function toggleMainSection() {
+      if (currentView !== 'audit') switchView('audit');
+      mainExpanded = !mainExpanded;
+      renderItems();
+    }
+
     function toggleExtraSection() {
+      if (currentView !== 'audit') switchView('audit');
       extraExpanded = !extraExpanded;
       renderItems();
     }
