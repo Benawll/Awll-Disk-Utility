@@ -694,6 +694,11 @@
           } else {
             localReportCache[rKey] = rep;
           }
+          if (data.aiError && aiReportCache[rKey]) {
+            resetAiDeepButton(true);
+            showToast(data.aiError, 'warn');
+            return;
+          }
         }
         showResearchModal(rep);
         if (data.aiError) {

@@ -269,7 +269,7 @@ namespace CleanerApp
 
                 // 3. Audit Recommandé : Caches système, GPU Shaders et outils de build / IA
                 progressCallback?.Invoke("Scan des caches système, GPU, IA et builds dev...", 42);
-                AuditSystemUniversal(recommendedItems, targetDrives, runningProcs);
+                AuditSystemUniversal(recommendedItems, extraItems, targetDrives, runningProcs);
                 foreach (var it in recommendedItems) seenPaths.Add(it.Path);
 
                 // 4. Audit Recommandé : Téléchargements et disques secondaires (archives, installeurs)
@@ -1286,7 +1286,7 @@ namespace CleanerApp
             }
         }
 
-        private static void AuditSystemUniversal(List<CleanerItem> items, HashSet<string>? targetDrives, HashSet<string> runningProcs)
+        private static void AuditSystemUniversal(List<CleanerItem> items, List<CleanerItem> extraItems, HashSet<string>? targetDrives, HashSet<string> runningProcs)
         {
             var user = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -1425,18 +1425,44 @@ namespace CleanerApp
                             bool isOld = daysAgo >= 180;
                             bool isRunning = IsLikelyRunning(di.Name, dir, runningProcs);
 
-                            if (isCache || isOld)
+                            if (isCache)
                             {
-                                int risk = ComputeRiskScore(isCache ? "appdata_cache" : "appdata_inactive", daysAgo, isRunning, false, false);
+                                int risk = ComputeRiskScore("appdata_cache", daysAgo, isRunning, false, false);
                                 items.Add(CreateItem(
-                                    isCache ? $"Cache AppData : {di.Name}" : $"Dossier Inactif AppData : {di.Name}",
+                                    $"Cache AppData : {di.Name}",
                                     dir,
                                     "system",
                                     size,
                                     risk,
-                                    isCache ? $"Cache / updater applicatif régénérable ({Math.Round(size / 1024.0 / 1024.0, 1)} Mo)."
-                                            : $"Données d'application inactives depuis {FormatAgeText(daysAgo)} ({lastWrite:dd/MM/yyyy}).",
+                                    $"Cache / updater applicatif régénérable ({Math.Round(size / 1024.0 / 1024.0, 1)} Mo).",
                                     lastModified: lastWrite
+                                ));
+                            }
+                            else if (isOld && !isRunning)
+                            {
+                                int risk = ComputeRiskScore("appdata_inactive", daysAgo, false, false, false);
+                                items.Add(CreateItem(
+                                    $"Dossier Inactif AppData : {di.Name}",
+                                    dir,
+                                    "system",
+                                    size,
+                                    risk,
+                                    $"Données d'application inactives depuis {FormatAgeText(daysAgo)} ({lastWrite:dd/MM/yyyy}).",
+                                    lastModified: lastWrite
+                                ));
+                            }
+                            else if (isRunning)
+                            {
+                                int risk = ComputeRiskScore("appdata_inactive", daysAgo, true, false, false);
+                                extraItems.Add(CreateItem(
+                                    $"Dossier AppData Actif (en cours) : {di.Name}",
+                                    dir,
+                                    "system",
+                                    size,
+                                    risk,
+                                    $"Processus associé actif en mémoire ({Math.Round(size / 1024.0 / 1024.0, 1)} Mo).",
+                                    lastModified: lastWrite,
+                                    isExtra: true
                                 ));
                             }
                         }
@@ -2479,7 +2505,7 @@ namespace CleanerApp
             try
             {
                 using var http = new HttpClient();
-                http.Timeout = TimeSpan.FromSeconds(30);
+                http.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
 
                 var prompt = $@"Tu es un expert système Windows et rétro-ingénierie logicielle. Un utilisateur analyse son PC avec un logiciel de nettoyage et souhaite comprendre exactement ce qu'est cet élément détecté sur son disque :
 
@@ -2525,18 +2551,26 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
                 foreach (var modelName in modelsToTry)
                 {
                     usedModel = modelName;
-                    using var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
-                    string url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={apiKey}";
-                    response = await http.PostAsync(url, content);
-                    if (response.IsSuccessStatusCode)
-                        break;
+                    try
+                    {
+                        using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(12));
+                        using var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                        string url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={apiKey}";
+                        response = await http.PostAsync(url, content, cts.Token);
+                        if (response.IsSuccessStatusCode)
+                            break;
 
-                    int code = (int)response.StatusCode;
-                    // Repli automatique sur un autre modèle si indisponible (404, 429, 500, 502, 503, 504)
-                    if (code != 404 && code != 429 && code < 500)
-                        break;
+                        int code = (int)response.StatusCode;
+                        if (code != 404 && code != 429 && code < 500)
+                            break;
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        // Timeout sur ce modèle : basculer vers le modèle suivant
+                        response = null;
+                    }
 
-                    await Task.Delay(350);
+                    await Task.Delay(250);
                 }
 
                 if (response != null && response.IsSuccessStatusCode)
