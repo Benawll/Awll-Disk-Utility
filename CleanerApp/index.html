@@ -170,6 +170,20 @@
         </div>
       </div>
 
+      <!-- Duplicates Progress Banner -->
+      <div id="progress-banner-dup" class="hidden p-3.5 rounded-xl bg-amber-950/40 border border-amber-500/40 space-y-2">
+        <div class="flex items-center justify-between text-xs text-amber-200 font-medium">
+          <span id="progress-text-dup" class="flex items-center gap-2">
+            <svg class="animate-spin h-4 w-4 text-amber-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+            Détection des doublons en cours...
+          </span>
+          <span id="progress-pct-dup" class="font-mono font-bold tabular-nums">0%</span>
+        </div>
+        <div class="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
+          <div id="progress-bar-dup" class="bg-gradient-to-r from-amber-500 to-orange-400 h-1.5 rounded-full transition-all duration-300" style="width: 0%;"></div>
+        </div>
+      </div>
+
       <!-- ==================== VIEW 1: AUDIT INTELLIGENT ==================== -->
       <section id="view-audit" class="space-y-4">
         <!-- Audit Scan Configuration Card -->

@@ -405,33 +405,21 @@
       });
     }
 
-    function updateGlobalProgressBanner() {
+    function showProgress(text, pct) {
       const banner = document.getElementById('progress-banner');
       if (!banner) return;
-      const entries = Object.entries(activeTasksProgress).filter(([, v]) => v && v.active);
-      if (entries.length === 0) {
-        banner.classList.add('hidden');
-        return;
-      }
       banner.classList.remove('hidden');
-      const textParts = entries.map(([k, v]) => `[${v.label}] ${v.text}`);
-      const avgPct = Math.round(entries.reduce((acc, [, v]) => acc + (v.pct || 0), 0) / entries.length);
       document.getElementById('progress-text').innerHTML = `
         <svg class="animate-spin h-4 w-4 text-blue-400 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
-        <span class="truncate">${escapeHtml(textParts.join('  •  '))}</span>`;
-      document.getElementById('progress-pct').innerText = `${avgPct}%`;
-      document.getElementById('progress-bar').style.width = `${Math.min(100, Math.max(0, avgPct))}%`;
-    }
-
-    function showProgress(text, pct) {
-      activeTasksProgress.audit = { active: true, label: 'Audit', text, pct };
-      updateGlobalProgressBanner();
+        <span class="truncate">${escapeHtml(text)}</span>`;
+      document.getElementById('progress-pct').innerText = `${Math.round(pct)}%`;
+      document.getElementById('progress-bar').style.width = `${Math.min(100, Math.max(0, pct))}%`;
     }
 
     function hideProgress() {
       auditInProgress = false;
-      delete activeTasksProgress.audit;
-      updateGlobalProgressBanner();
+      const banner = document.getElementById('progress-banner');
+      if (banner) banner.classList.add('hidden');
       const pickBtn = document.getElementById('btn-audit-pick-folders');
       if (pickBtn) pickBtn.disabled = false;
       renderScanDrivePills('audit');
@@ -1785,20 +1773,23 @@
     }
 
     function showDupProgress(text, pct) {
-      activeTasksProgress.duplicates = { active: true, label: 'Doublons', text, pct };
-      updateGlobalProgressBanner();
+      const topBanner = document.getElementById('progress-banner-dup');
+      if (topBanner) {
+        topBanner.classList.remove('hidden');
+        document.getElementById('progress-text-dup').innerHTML = `
+          <svg class="animate-spin h-4 w-4 text-amber-400 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+          <span class="truncate">${escapeHtml(text)}</span>`;
+        document.getElementById('progress-pct-dup').innerText = `${Math.round(pct)}%`;
+        document.getElementById('progress-bar-dup').style.width = `${Math.min(100, Math.max(0, pct))}%`;
+      }
       const wrap = document.getElementById('dup-progress-wrap');
-      if (!wrap) return;
-      wrap.classList.remove('hidden');
-      document.getElementById('dup-progress-text').innerText = text;
-      document.getElementById('dup-progress-pct').innerText = `${Math.round(pct)}%`;
-      document.getElementById('dup-progress-bar').style.width = `${Math.min(100, Math.max(0, pct))}%`;
+      if (wrap) wrap.classList.add('hidden');
     }
 
     function hideDupProgress() {
       dupInProgress = false;
-      delete activeTasksProgress.duplicates;
-      updateGlobalProgressBanner();
+      const topBanner = document.getElementById('progress-banner-dup');
+      if (topBanner) topBanner.classList.add('hidden');
       const wrap = document.getElementById('dup-progress-wrap');
       if (wrap) wrap.classList.add('hidden');
       const pickBtn = document.getElementById('btn-dup-pick-folders');
