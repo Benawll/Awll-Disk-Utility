@@ -99,7 +99,51 @@ namespace CleanerApp
                                 SendJson(new { type = "auditProgress", text = msg, pct });
                             });
                         });
-                        SendJson(new { type = "auditResult", items });
+                        SendJson(new { type = "auditResult", items, scanType = "smart" });
+                        break;
+                    }
+
+                    case "runExhaustiveScan":
+                    {
+                        var items = await CleanerBackend.RunExhaustiveScanAsync((msg, pct) =>
+                        {
+                            Dispatcher.Invoke(() =>
+                            {
+                                SendJson(new { type = "auditProgress", text = msg, pct });
+                            });
+                        });
+                        SendJson(new { type = "auditResult", items, scanType = "exhaustive" });
+                        break;
+                    }
+
+                    case "getProtected":
+                    {
+                        var items = CleanerBackend.GetProtectedItems();
+                        SendJson(new { type = "protectedList", items });
+                        break;
+                    }
+
+                    case "addProtected":
+                    {
+                        if (root.TryGetProperty("item", out var itemProp))
+                        {
+                            var it = JsonSerializer.Deserialize<ProtectedItem>(itemProp.GetRawText(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                            if (it != null)
+                            {
+                                CleanerBackend.AddProtectedItem(it);
+                            }
+                        }
+                        var items = CleanerBackend.GetProtectedItems();
+                        SendJson(new { type = "protectedList", items });
+                        break;
+                    }
+
+                    case "removeProtected":
+                    {
+                        var id = root.GetProperty("id").GetString() ?? "";
+                        CleanerBackend.RemoveProtectedItem(id);
+                        var items = CleanerBackend.GetProtectedItems();
+                        SendJson(new { type = "protectedList", items });
                         break;
                     }
 

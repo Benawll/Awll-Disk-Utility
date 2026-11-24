@@ -35,6 +35,20 @@ namespace CleanerApp
         public string LastModified { get; set; } = "";
         public bool IsFolder { get; set; }
         public bool IsSanctuarized { get; set; }
+        public bool IsProtected { get; set; }
+    }
+
+    public class ProtectedItem
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString("N");
+        public string Name { get; set; } = "";
+        public string Path { get; set; } = "";
+        public string Category { get; set; } = "";
+        public string Drive { get; set; } = "";
+        public double SizeGB { get; set; }
+        public double SizeMB { get; set; }
+        public string ProtectedDate { get; set; } = DateTime.Now.ToString("dd/MM/yyyy HH:mm");
+        public string Description { get; set; } = "";
     }
 
     public class ResearchReport
@@ -129,10 +143,344 @@ namespace CleanerApp
                 progressCallback?.Invoke("Recherche des émulateurs et applications résiduelles...", 90);
                 AuditEmulatorsUniversal(items);
 
+                // 6. Marquage des éléments protégés
+                var protectedList = GetProtectedItems();
+                foreach (var it in items)
+                {
+                    it.IsProtected = protectedList.Any(p => p.Path.Equals(it.Path, StringComparison.OrdinalIgnoreCase) || p.Name.Equals(it.Name, StringComparison.OrdinalIgnoreCase));
+                }
+
                 progressCallback?.Invoke("Finalisation de l'audit...", 100);
                 return items.OrderBy(x => x.RiskPct).ThenByDescending(x => x.SizeGB).ToList();
             });
         }
+
+        // =========================================================================
+        // DEUXIÈME SCAN : INVENTAIRE EXHAUSTIF (TOUS LES JEUX & LOGICIELS DU PC)
+        // =========================================================================
+        public static async Task<List<CleanerItem>> RunExhaustiveScanAsync(Action<string, int>? progressCallback = null)
+        {
+            return await Task.Run(() =>
+            {
+                var items = new List<CleanerItem>();
+                var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                // 1. Découverte de toutes les bibliothèques
+                progressCallback?.Invoke("Découverte des bibliothèques de jeux sur tous les disques...", 10);
+                var steamLibs = DiscoverSteamLibraries();
+                var epicGames = DiscoverEpicGames();
+
+                // 2. Inventaire exhaustif de TOUS les jeux Steam (sur tous les disques)
+                progressCallback?.Invoke("Inventaire exhaustif de tous les jeux Steam...", 25);
+                foreach (var lib in steamLibs)
+                {
+                    var common = Path.Combine(lib, "steamapps", "common");
+                    if (Directory.Exists(common))
+                    {
+                        foreach (var gameDir in Directory.GetDirectories(common))
+                        {
+                            var di = new DirectoryInfo(gameDir);
+                            if (seenPaths.Add(gameDir))
+                            {
+                                double size = GetDirectorySizeSafe(gameDir);
+                                var last = GetLastWriteTimeSafe(di);
+                                var drive = Path.GetPathRoot(gameDir)?.TrimEnd('\\') ?? "C:";
+                                items.Add(CreateItem(
+                                    di.Name,
+                                    gameDir,
+                                    "games",
+                                    size,
+                                    5,
+                                    $"Jeu Steam complet sur {drive} (Dernière activité : {last:dd/MM/yyyy})"
+                                ));
+                                seenNames.Add(di.Name);
+                            }
+                        }
+                    }
+                }
+
+                // 3. Inventaire exhaustif de TOUS les jeux Epic Games
+                progressCallback?.Invoke("Inventaire exhaustif des jeux Epic Games...", 40);
+                foreach (var eg in epicGames)
+                {
+                    if (seenPaths.Add(eg.Value))
+                    {
+                        double size = GetDirectorySizeSafe(eg.Value);
+                        var di = new DirectoryInfo(eg.Value);
+                        var last = GetLastWriteTimeSafe(di);
+                        var drive = Path.GetPathRoot(eg.Value)?.TrimEnd('\\') ?? "C:";
+                        items.Add(CreateItem(
+                            eg.Key,
+                            eg.Value,
+                            "games",
+                            size,
+                            5,
+                            $"Jeu Epic Games complet sur {drive} (Dernière activité : {last:dd/MM/yyyy})"
+                        ));
+                        seenNames.Add(eg.Key);
+                    }
+                }
+
+                // 4. Inventaire des launchers & dossiers de jeux portables sur tous les disques
+                progressCallback?.Invoke("Scan de Riot Games, Ubisoft, GOG, Battle.net et jeux portables...", 55);
+                foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed))
+                {
+                    var gameFolders = new[] { "Autres Jeux", "Jeux", "Games", "Old Games", "Riot Games", "GOG Games", "Ubisoft", "Battle.net" };
+                    foreach (var gf in gameFolders)
+                    {
+                        var full = Path.Combine(drive.Name, gf);
+                        if (Directory.Exists(full))
+                        {
+                            foreach (var sub in Directory.GetDirectories(full))
+                            {
+                                if (seenPaths.Add(sub))
+                                {
+                                    var di = new DirectoryInfo(sub);
+                                    double size = GetDirectorySizeSafe(sub);
+                                    var last = GetLastWriteTimeSafe(di);
+                                    items.Add(CreateItem(
+                                        $"{di.Name} ({gf} {drive.Name.TrimEnd('\\')})",
+                                        sub,
+                                        "games",
+                                        size,
+                                        5,
+                                        $"Jeu ou composant ({gf}) sur {drive.Name.TrimEnd('\\')}. Dernière activité : {last:dd/MM/yyyy}"
+                                    ));
+                                    seenNames.Add(di.Name);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 5. Inventaire de TOUTES les applications enregistrées dans le Registre Windows
+                progressCallback?.Invoke("Inventaire des applications installées (Registre Windows HKLM/HKCU)...", 75);
+                var regApps = GetRegistryInstalledApps(seenPaths, seenNames);
+                items.AddRange(regApps);
+
+                // 6. Scan complémentaire de Program Files & Program Files (x86) sur tous les disques
+                progressCallback?.Invoke("Vérification des répertoires Program Files multi-disques...", 85);
+                foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed))
+                {
+                    foreach (var pf in new[] { "Program Files", "Program Files (x86)" })
+                    {
+                        var pfp = Path.Combine(drive.Name, pf);
+                        if (Directory.Exists(pfp))
+                        {
+                            foreach (var sub in Directory.GetDirectories(pfp))
+                            {
+                                var di = new DirectoryInfo(sub);
+                                if (di.Name.Equals("Microsoft", StringComparison.OrdinalIgnoreCase) ||
+                                    di.Name.Equals("Common Files", StringComparison.OrdinalIgnoreCase) ||
+                                    di.Name.Equals("Windows Defender", StringComparison.OrdinalIgnoreCase) ||
+                                    di.Name.Equals("Windows NT", StringComparison.OrdinalIgnoreCase)) continue;
+
+                                if (seenPaths.Add(sub) && !seenNames.Contains(di.Name))
+                                {
+                                    double size = GetDirectorySizeSafe(sub);
+                                    if (size > 20 * 1024 * 1024) // > 20 Mo
+                                    {
+                                        items.Add(CreateItem(
+                                            di.Name,
+                                            sub,
+                                            "apps",
+                                            size,
+                                            5,
+                                            $"Logiciel installé dans {pfp}"
+                                        ));
+                                        seenNames.Add(di.Name);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 7. Émulateurs sur tous les disques
+                progressCallback?.Invoke("Inventaire des émulateurs sur tous les disques...", 92);
+                AuditEmulatorsUniversal(items);
+
+                // 8. Marquage des éléments protégés
+                progressCallback?.Invoke("Application de la liste protégée...", 98);
+                var protectedList = GetProtectedItems();
+                foreach (var it in items)
+                {
+                    it.IsProtected = protectedList.Any(p => p.Path.Equals(it.Path, StringComparison.OrdinalIgnoreCase) || p.Name.Equals(it.Name, StringComparison.OrdinalIgnoreCase));
+                }
+
+                progressCallback?.Invoke("Inventaire exhaustif terminé !", 100);
+                return items.OrderByDescending(x => x.SizeGB).ToList();
+            });
+        }
+
+        private static List<CleanerItem> GetRegistryInstalledApps(HashSet<string> seenPaths, HashSet<string> seenNames)
+        {
+            var list = new List<CleanerItem>();
+
+            var keys = new[]
+            {
+                (Registry.LocalMachine, @"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
+                (Registry.LocalMachine, @"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
+                (Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Uninstall")
+            };
+
+            foreach (var (hive, subKeyPath) in keys)
+            {
+                try
+                {
+                    using var baseKey = hive.OpenSubKey(subKeyPath);
+                    if (baseKey == null) continue;
+
+                    foreach (var subName in baseKey.GetSubKeyNames())
+                    {
+                        try
+                        {
+                            using var appKey = baseKey.OpenSubKey(subName);
+                            if (appKey == null) continue;
+
+                            var sysComp = appKey.GetValue("SystemComponent");
+                            if (sysComp is int sc && sc == 1) continue;
+
+                            var parentKey = appKey.GetValue("ParentKeyName");
+                            if (parentKey != null) continue;
+
+                            var displayName = appKey.GetValue("DisplayName") as string;
+                            if (string.IsNullOrWhiteSpace(displayName)) continue;
+
+                            if (displayName.StartsWith("KB", StringComparison.OrdinalIgnoreCase) ||
+                                displayName.Contains("Security Update", StringComparison.OrdinalIgnoreCase)) continue;
+
+                            if (!seenNames.Add(displayName)) continue;
+
+                            var installLoc = appKey.GetValue("InstallLocation") as string;
+                            var uninstallStr = appKey.GetValue("UninstallString") as string;
+                            var displayIcon = appKey.GetValue("DisplayIcon") as string;
+                            var publisher = appKey.GetValue("Publisher") as string ?? "Éditeur inconnu";
+                            var version = appKey.GetValue("DisplayVersion") as string ?? "";
+
+                            string effectivePath = "";
+                            if (!string.IsNullOrEmpty(installLoc) && Directory.Exists(installLoc))
+                            {
+                                effectivePath = installLoc;
+                            }
+                            else if (!string.IsNullOrEmpty(displayIcon))
+                            {
+                                var iconPath = displayIcon.Split(',')[0].Trim('"');
+                                if (File.Exists(iconPath))
+                                {
+                                    effectivePath = Path.GetDirectoryName(iconPath) ?? "";
+                                }
+                            }
+
+                            if (!string.IsNullOrEmpty(effectivePath))
+                            {
+                                seenPaths.Add(effectivePath);
+                            }
+
+                            double sizeBytes = 0;
+                            if (!string.IsNullOrEmpty(effectivePath) && Directory.Exists(effectivePath))
+                            {
+                                sizeBytes = GetDirectorySizeSafe(effectivePath);
+                            }
+                            else
+                            {
+                                var estSize = appKey.GetValue("EstimatedSize");
+                                if (estSize is int esInt && esInt > 0) sizeBytes = esInt * 1024.0;
+                                else if (estSize is long esLong && esLong > 0) sizeBytes = esLong * 1024.0;
+                            }
+
+                            var pathForDisplay = !string.IsNullOrEmpty(effectivePath) ? effectivePath : (uninstallStr ?? "Registre Windows");
+                            var drive = "";
+                            try { drive = Path.GetPathRoot(pathForDisplay)?.TrimEnd('\\') ?? "C:"; } catch { drive = "C:"; }
+
+                            list.Add(CreateItem(
+                                displayName,
+                                pathForDisplay,
+                                "apps",
+                                sizeBytes,
+                                5,
+                                $"Application Windows enregistrée ({publisher}{(string.IsNullOrEmpty(version) ? "" : ", v" + version)})."
+                            ));
+                        }
+                        catch { }
+                    }
+                }
+                catch { }
+            }
+
+            return list;
+        }
+
+        #region GESTION DE LA LISTE PROTÉGÉE (PERSISTANTE SUR DISQUE)
+
+        private static string GetProtectedFilePath()
+        {
+            var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CleanerApp");
+            Directory.CreateDirectory(folder);
+            return Path.Combine(folder, "protected_items.json");
+        }
+
+        public static List<ProtectedItem> GetProtectedItems()
+        {
+            try
+            {
+                var file = GetProtectedFilePath();
+                if (!File.Exists(file)) return new List<ProtectedItem>();
+                var json = File.ReadAllText(file);
+                return JsonSerializer.Deserialize<List<ProtectedItem>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<ProtectedItem>();
+            }
+            catch
+            {
+                return new List<ProtectedItem>();
+            }
+        }
+
+        public static void SaveProtectedItems(List<ProtectedItem> list)
+        {
+            try
+            {
+                var file = GetProtectedFilePath();
+                var json = JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(file, json);
+            }
+            catch { }
+        }
+
+        public static void AddProtectedItem(ProtectedItem item)
+        {
+            var list = GetProtectedItems();
+            if (!list.Any(x => (!string.IsNullOrEmpty(item.Path) && x.Path.Equals(item.Path, StringComparison.OrdinalIgnoreCase)) ||
+                               (!string.IsNullOrEmpty(item.Name) && x.Name.Equals(item.Name, StringComparison.OrdinalIgnoreCase))))
+            {
+                list.Add(item);
+                SaveProtectedItems(list);
+            }
+        }
+
+        public static bool RemoveProtectedItem(string idOrPath)
+        {
+            var list = GetProtectedItems();
+            var countBefore = list.Count;
+            list.RemoveAll(x => x.Id.Equals(idOrPath, StringComparison.OrdinalIgnoreCase) ||
+                                x.Path.Equals(idOrPath, StringComparison.OrdinalIgnoreCase) ||
+                                x.Name.Equals(idOrPath, StringComparison.OrdinalIgnoreCase));
+            if (list.Count != countBefore)
+            {
+                SaveProtectedItems(list);
+                return true;
+            }
+            return false;
+        }
+
+        public static bool IsProtected(string path, string name)
+        {
+            var list = GetProtectedItems();
+            return list.Any(x => (!string.IsNullOrEmpty(path) && x.Path.Equals(path, StringComparison.OrdinalIgnoreCase)) ||
+                                (!string.IsNullOrEmpty(name) && x.Name.Equals(name, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        #endregion
 
         #region DÉCOUVERTE DYNAMIQUE DES BIBLIOTHÈQUES (STEAM & EPIC)
 
@@ -638,6 +986,19 @@ namespace CleanerApp
 
         public static CleanResult DeleteItem(CleanerItem item)
         {
+            // Vérification de la Liste Protégée (choix explicite de l'utilisateur)
+            if (IsProtected(item.Path, item.Name))
+            {
+                return new CleanResult
+                {
+                    ItemId = item.Id,
+                    ItemName = item.Name,
+                    FreedGB = 0,
+                    Success = false,
+                    Message = "Suppression bloquée : Cet élément fait partie de votre Liste Protégée. Retirez-le de la liste protégée si vous souhaitez le supprimer."
+                };
+            }
+
             // Vérification de la sanctuarisation universelle
             foreach (var sp in GetSanctuarizedRoots())
             {

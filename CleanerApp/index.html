@@ -15,6 +15,11 @@
       color: #ffffff;
       border-color: #3b82f6;
     }
+    .tab-btn.active-protected {
+      background-color: #059669;
+      color: #ffffff;
+      border-color: #059669;
+    }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 antialiased font-sans select-none overflow-x-hidden min-h-screen flex flex-col">
@@ -29,17 +34,24 @@
         <div>
           <h1 class="text-base font-bold tracking-tight text-white flex items-center gap-2">
             Workspace Cleaner Pro
-            <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">v2.0 Standalone</span>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">v2.1 Dual-Scan</span>
           </h1>
-          <p class="text-xs text-slate-400">Audit dynamique multi-disques • Détection universelle • Mode 100% Headless</p>
+          <p class="text-xs text-slate-400">Audit Recommandé • Inventaire Exhaustif • Liste Protégée Permanente</p>
         </div>
       </div>
 
       <!-- Action buttons in header -->
       <div class="flex items-center gap-3">
-        <button id="btn-scan" onclick="startAudit()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-md shadow-blue-600/30 transition-all flex items-center gap-2 active:scale-95">
-          <span id="scan-icon">🔍</span>
-          <span id="scan-label">Lancer l'Audit Global</span>
+        <!-- Scan 1 : Audit Recommandé -->
+        <button id="btn-smart-scan" onclick="startAudit('smart')" title="Détecte intelligemment les angles morts, caches, doublons et résidus" class="px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-md shadow-blue-600/30 transition-all flex items-center gap-2 active:scale-95">
+          <span>🔍</span>
+          <span id="scan-smart-label">Audit Recommandé</span>
+        </button>
+
+        <!-- Scan 2 : Inventaire Complet (Tous les jeux et logiciels) -->
+        <button id="btn-exhaustive-scan" onclick="startAudit('exhaustive')" title="Lister l'intégralité de tous les jeux et logiciels installés sur le PC" class="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs shadow-md shadow-indigo-600/30 transition-all flex items-center gap-2 active:scale-95">
+          <span>📋</span>
+          <span id="scan-exhaustive-label">Inventaire Complet (Tous)</span>
         </button>
 
         <div class="h-6 w-px bg-slate-800"></div>
@@ -56,7 +68,7 @@
       </div>
     </div>
 
-    <!-- ================= DRIVES REAL-TIME STATUS BAR (100% DYNAMIQUE MULTI-DISQUES) ================= -->
+    <!-- ================= DRIVES REAL-TIME STATUS BAR (DYNAMIQUE MULTI-DISQUES) ================= -->
     <div id="drives-container" class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3 pt-3 border-t border-slate-800/60">
       <div class="p-3 text-center text-xs text-slate-500 col-span-full">
         <span class="inline-block animate-spin mr-1.5">⏳</span> Détection automatique des disques en cours...
@@ -72,7 +84,7 @@
       <div class="flex items-center justify-between text-xs text-blue-300 font-medium">
         <span id="progress-text" class="flex items-center gap-2">
           <svg class="animate-spin h-3.5 w-3.5 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" stroke-width="4" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
-          Audit multi-disques en cours...
+          Scan en cours...
         </span>
         <span id="progress-pct" class="font-mono font-bold">20%</span>
       </div>
@@ -100,6 +112,13 @@
         <button onclick="switchTab('apps')" id="tab-apps" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold border border-slate-800 text-purple-400 hover:bg-slate-900 transition-all flex items-center gap-1.5">
           <span>📦</span> Logiciels & Émulateurs (<span id="count-apps">0</span>)
         </button>
+
+        <div class="h-5 w-px bg-slate-800 mx-1"></div>
+
+        <!-- NEW: Onglet Liste Protégée -->
+        <button onclick="switchTab('protected')" id="tab-protected" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10 transition-all flex items-center gap-1.5">
+          <span>🛡️</span> Liste Protégée (<span id="count-protected">0</span>)
+        </button>
       </div>
 
       <!-- Search Input -->
@@ -111,15 +130,39 @@
     <!-- Results Container -->
     <div id="items-container" class="space-y-2.5">
       <!-- Default Empty State -->
-      <div id="empty-state" class="p-12 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 space-y-3">
+      <div id="empty-state" class="p-8 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 space-y-4">
         <div class="text-4xl">🚀</div>
-        <h3 class="text-sm font-semibold text-white">Prêt pour l'audit complet</h3>
-        <p class="text-xs text-slate-400 max-w-md mx-auto">
-          Cliquez sur <strong>« Lancer l'Audit Global »</strong> pour scanner dynamiquement tous vos disques connectés, détecter les doublons de jeux, les caches corrompus, et les installeurs résiduels.
+        <h3 class="text-base font-semibold text-white">Prêt pour l'analyse multi-disques</h3>
+        <p class="text-xs text-slate-400 max-w-xl mx-auto">
+          Choisissez le type d'analyse adapté à votre besoin :
         </p>
-        <button onclick="startAudit()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-md transition-all inline-flex items-center gap-2">
-          <span>🔍</span> Lancer l'Audit Immédiat
-        </button>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto pt-2">
+          <!-- Carte 1 -->
+          <div class="bg-slate-950/70 border border-blue-500/30 hover:border-blue-500/60 p-4 rounded-xl text-left space-y-2.5 transition-all">
+            <div class="flex items-center gap-2 text-blue-400 font-bold text-xs">
+              <span class="text-lg">🔍</span> Mode 1 : Audit Recommandé
+            </div>
+            <p class="text-[11px] text-slate-400 leading-relaxed">
+              Scan intelligent des <strong>angles morts, caches corrompus, téléchargements orphelins, doublons</strong> et installeurs résiduels à supprimer en priorité.
+            </p>
+            <button onclick="startAudit('smart')" class="w-full px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-md transition-all flex items-center justify-center gap-1.5">
+              <span>Lancer l'Audit Recommandé</span>
+            </button>
+          </div>
+
+          <!-- Carte 2 -->
+          <div class="bg-slate-950/70 border border-indigo-500/30 hover:border-indigo-500/60 p-4 rounded-xl text-left space-y-2.5 transition-all">
+            <div class="flex items-center gap-2 text-indigo-400 font-bold text-xs">
+              <span class="text-lg">📋</span> Mode 2 : Inventaire Complet
+            </div>
+            <p class="text-[11px] text-slate-400 leading-relaxed">
+              Liste <strong>100% de tous les jeux</strong> (Steam, Epic, Riot, etc.) et de <strong>tous les logiciels</strong> enregistrés sur le PC pour faire un tri exhaustif et protéger vos favoris.
+            </p>
+            <button onclick="startAudit('exhaustive')" class="w-full px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs shadow-md transition-all flex items-center justify-center gap-1.5">
+              <span>Lancer l'Inventaire Complet</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -211,7 +254,7 @@
         </div>
 
         <p class="text-[11px] text-slate-500 flex items-center gap-1.5">
-          <span>🛡️</span> Sanctuarisations garanties : C:\New Doc, Videos, Java 17/24 et DLSS ne peuvent jamais être altérés.
+          <span>🛡️</span> Sanctuarisations garanties : Les éléments de la Liste Protégée ainsi que C:\New Doc, Videos, Java 17/24 et DLSS ne peuvent jamais être supprimés.
         </p>
       </div>
 
@@ -227,14 +270,17 @@
   <!-- ================= LOGIC & WEBVIEW2 BRIDGE ================= -->
   <script>
     let allItems = [];
+    let protectedItems = [];
     let currentTab = 'all';
+    let currentScanType = 'smart';
 
     // 1. Initialisation de la communication WebView2
     window.addEventListener('DOMContentLoaded', () => {
       if (window.chrome && window.chrome.webview) {
         window.chrome.webview.addEventListener('message', onBridgeMessage);
-        // Demande initiale de l'état des disques
+        // Demande initiale de l'état des disques et de la liste protégée
         postToBridge({ action: 'getDrives' });
+        postToBridge({ action: 'getProtected' });
       }
     });
 
@@ -252,17 +298,45 @@
       if (type === 'drivesUpdate') {
         renderDrives(data.drives || data.Drives);
       } else if (type === 'auditProgress') {
-        showProgress(data.text || data.Text || 'Analyse...', data.pct ?? data.Pct ?? 0);
+        showProgress(data.text || data.Text || 'Scan en cours...', data.pct ?? data.Pct ?? 0);
       } else if (type === 'auditResult') {
         hideProgress();
         allItems = data.items || data.Items || [];
-        renderItems();
+        syncProtectedStatus();
+        if (currentTab === 'protected') {
+          renderProtectedItems();
+        } else {
+          renderItems();
+        }
         updateCounters();
+      } else if (type === 'protectedList') {
+        protectedItems = data.items || data.Items || [];
+        syncProtectedStatus();
+        updateCounters();
+        if (currentTab === 'protected') {
+          renderProtectedItems();
+        } else {
+          renderItems();
+        }
       } else if (type === 'researchResult') {
         showResearchModal(data.report || data.Report);
       } else if (type === 'cleanResult') {
         onCleanCompleted(data);
       }
+    }
+
+    function syncProtectedStatus() {
+      if (!allItems || !protectedItems) return;
+      allItems.forEach(raw => {
+        const p = (raw.path || raw.Path || '').toLowerCase();
+        const n = (raw.name || raw.Name || '').toLowerCase();
+        const isProt = protectedItems.some(x => {
+          const xp = (x.path || x.Path || '').toLowerCase();
+          const xn = (x.name || x.Name || '').toLowerCase();
+          return (p && xp === p) || (n && xn === n);
+        });
+        raw.isProtected = isProt;
+      });
     }
 
     // 2. Rendu Dynamique des Disques (S'adapte à tout PC : 1, 2, 3 disques ou plus)
@@ -305,10 +379,19 @@
       }).join('');
     }
 
-    // 3. Lancement de l'audit
-    function startAudit() {
-      showProgress("Initialisation du scan multi-disques...", 10);
-      postToBridge({ action: 'runAudit' });
+    // 3. Lancement de l'audit (Mode 1 Smart ou Mode 2 Exhaustif)
+    function startAudit(mode = 'smart') {
+      currentScanType = mode;
+      const msg = mode === 'exhaustive'
+        ? "Inventaire complet de TOUS les jeux et logiciels du PC..."
+        : "Initialisation de l'audit recommandé...";
+      showProgress(msg, 10);
+
+      if (mode === 'exhaustive') {
+        postToBridge({ action: 'runExhaustiveScan' });
+      } else {
+        postToBridge({ action: 'runAudit' });
+      }
     }
 
     function showProgress(text, pct) {
@@ -317,17 +400,17 @@
       document.getElementById('progress-text').innerText = text;
       document.getElementById('progress-pct').innerText = `${pct}%`;
       document.getElementById('progress-bar').style.width = `${pct}%`;
-      document.getElementById('btn-scan').disabled = true;
-      document.getElementById('scan-label').innerText = "Scan en cours...";
+      document.getElementById('btn-smart-scan').disabled = true;
+      document.getElementById('btn-exhaustive-scan').disabled = true;
     }
 
     function hideProgress() {
       document.getElementById('progress-banner').classList.add('hidden');
-      document.getElementById('btn-scan').disabled = false;
-      document.getElementById('scan-label').innerText = "Relancer l'Audit";
+      document.getElementById('btn-smart-scan').disabled = false;
+      document.getElementById('btn-exhaustive-scan').disabled = false;
     }
 
-    // 4. Rendu des Éléments (avec support robuste PascalCase & camelCase)
+    // 4. Rendu des Éléments de Scan
     function renderItems() {
       const container = document.getElementById('items-container');
 
@@ -335,8 +418,8 @@
         container.innerHTML = `
           <div class="p-12 text-center rounded-2xl border border-dashed border-emerald-500/30 bg-emerald-500/5 space-y-2">
             <div class="text-4xl">✨</div>
-            <h3 class="text-sm font-semibold text-emerald-400">Aucun élément superflu détecté !</h3>
-            <p class="text-xs text-slate-400">Tous vos disques sont impeccables et optimisés.</p>
+            <h3 class="text-sm font-semibold text-emerald-400">Aucun élément à afficher</h3>
+            <p class="text-xs text-slate-400">Lancez l'« Audit Recommandé » ou l'« Inventaire Complet » pour scanner vos disques.</p>
           </div>
         `;
         return;
@@ -371,7 +454,8 @@
           sizeGB: raw.sizeGB ?? raw.SizeGB ?? 0,
           sizeMB: raw.sizeMB ?? raw.SizeMB ?? 0,
           riskPct: raw.riskPct ?? raw.RiskPct ?? 0,
-          description: raw.description || raw.Description || ''
+          description: raw.description || raw.Description || '',
+          isProtected: raw.isProtected ?? raw.IsProtected ?? false
         };
 
         const riskColor = item.riskPct <= 10 ? 'emerald' : (item.riskPct <= 40 ? 'blue' : (item.riskPct <= 70 ? 'amber' : 'red'));
@@ -379,26 +463,36 @@
         const sz = item.sizeGB > 0 ? (item.sizeGB.toFixed(2) + ' Go') : (item.sizeMB.toFixed(1) + ' Mo');
 
         return `
-          <div class="p-3 rounded-xl bg-slate-900 border border-slate-800/80 hover:border-slate-700 transition-all flex flex-wrap items-center justify-between gap-3 shadow-sm" id="row-${item.id}">
+          <div class="p-3 rounded-xl bg-slate-900 border ${item.isProtected ? 'border-emerald-500/40 bg-slate-900/90' : 'border-slate-800/80'} hover:border-slate-700 transition-all flex flex-wrap items-center justify-between gap-3 shadow-sm" id="row-${item.id}">
             <div class="flex-1 min-w-[280px]">
               <div class="flex items-center gap-2 mb-1 flex-wrap">
                 <span class="font-bold text-white text-xs">${item.name}</span>
                 <span class="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">${sz}</span>
                 <span class="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-${riskColor}-500/10 text-${riskColor}-400 border border-${riskColor}-500/30">Risque : ${item.riskPct}%</span>
                 <span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-${driveColor}-500/10 text-${driveColor}-400 font-bold">${item.drive || 'Système'}</span>
+                ${item.isProtected ? '<span class="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">🛡️ Protégé</span>' : ''}
               </div>
               <p class="text-[11px] text-slate-400">${item.description}</p>
             </div>
 
             <div class="flex items-center gap-2">
-              <label class="cursor-pointer px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-700 hover:bg-slate-800 transition-colors flex items-center gap-1.5 has-[:checked]:bg-red-600 has-[:checked]:text-white has-[:checked]:border-red-600">
-                <input type="radio" name="action-${item.id}" value="delete" class="sr-only" onchange="updateSelectionCalc()">
-                <span>Supprimer</span>
-              </label>
-              <label class="cursor-pointer px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-700 hover:bg-slate-800 transition-colors flex items-center gap-1.5 has-[:checked]:bg-emerald-600 has-[:checked]:text-white has-[:checked]:border-emerald-600">
-                <input type="radio" name="action-${item.id}" value="keep" class="sr-only" checked onchange="updateSelectionCalc()">
-                <span>Garder</span>
-              </label>
+              ${item.isProtected ? `
+                <button onclick="removeFromProtected('${item.id}')" title="Retirer de la Liste Protégée" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-red-600 hover:text-white text-slate-300 border border-slate-700 transition-colors flex items-center gap-1">
+                  <span>🔓</span><span>Déprotéger</span>
+                </button>
+              ` : `
+                <label class="cursor-pointer px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-700 hover:bg-slate-800 transition-colors flex items-center gap-1.5 has-[:checked]:bg-red-600 has-[:checked]:text-white has-[:checked]:border-red-600">
+                  <input type="radio" name="action-${item.id}" value="delete" class="sr-only" onchange="updateSelectionCalc()">
+                  <span>Supprimer</span>
+                </label>
+                <label class="cursor-pointer px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-700 hover:bg-slate-800 transition-colors flex items-center gap-1.5 has-[:checked]:bg-emerald-600 has-[:checked]:text-white has-[:checked]:border-emerald-600">
+                  <input type="radio" name="action-${item.id}" value="keep" class="sr-only" checked onchange="updateSelectionCalc()">
+                  <span>Garder</span>
+                </label>
+                <button onclick="protectItem('${item.id}')" title="Ajouter à la Liste Protégée permanente (ne pourra jamais être supprimé)" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-emerald-600 hover:text-white text-emerald-400 border border-slate-700 hover:border-emerald-600 transition-all flex items-center gap-1">
+                  <span>🛡️ Protéger</span>
+                </button>
+              `}
               <button onclick="askResearch('${item.id}')" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 transition-colors flex items-center gap-1">
                 <span>❓ Infos</span>
               </button>
@@ -411,7 +505,104 @@
       }).join('');
     }
 
-    // 5. Calcul dynamique de l'espace sélectionné
+    // 5. Rendu Spécifique de la Liste Protégée
+    function renderProtectedItems() {
+      const container = document.getElementById('items-container');
+
+      if (!protectedItems || protectedItems.length === 0) {
+        container.innerHTML = `
+          <div class="p-12 text-center rounded-2xl border border-dashed border-emerald-500/30 bg-emerald-500/5 space-y-3">
+            <div class="text-4xl">🛡️</div>
+            <h3 class="text-sm font-semibold text-emerald-400">Aucun élément dans la Liste Protégée</h3>
+            <p class="text-xs text-slate-400 max-w-md mx-auto">
+              Dans vos scans (« Audit Recommandé » ou « Inventaire Complet »), cliquez sur le bouton <strong>« 🛡️ Protéger »</strong> pour sanctuariser définitivement vos jeux ou logiciels favoris.
+            </p>
+          </div>
+        `;
+        return;
+      }
+
+      const q = (document.getElementById('search-input').value || '').toLowerCase();
+      const filtered = protectedItems.filter(p => {
+        const name = (p.name || p.Name || '').toLowerCase();
+        const path = (p.path || p.Path || '').toLowerCase();
+        return !q || name.includes(q) || path.includes(q);
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="p-8 text-center text-xs text-slate-500">
+            Aucun élément protégé ne correspond à votre recherche.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = filtered.map(raw => {
+        const p = {
+          id: raw.id || raw.Id,
+          name: raw.name || raw.Name || 'Élément Protégé',
+          path: raw.path || raw.Path || '',
+          drive: raw.drive || raw.Drive || 'Système',
+          sizeGB: raw.sizeGB ?? raw.SizeGB ?? 0,
+          sizeMB: raw.sizeMB ?? raw.SizeMB ?? 0,
+          date: raw.protectedDate || raw.ProtectedDate || 'Enregistré',
+          desc: raw.description || raw.Description || ''
+        };
+
+        const sz = p.sizeGB > 0 ? (p.sizeGB.toFixed(2) + ' Go') : (p.sizeMB.toFixed(1) + ' Mo');
+
+        return `
+          <div class="p-3.5 rounded-xl bg-slate-900 border border-emerald-500/40 hover:border-emerald-400 transition-all flex flex-wrap items-center justify-between gap-3 shadow-md">
+            <div class="flex-1 min-w-[280px]">
+              <div class="flex items-center gap-2 mb-1 flex-wrap">
+                <span class="font-bold text-white text-xs">${p.name}</span>
+                <span class="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">${sz}</span>
+                <span class="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">🛡️ Protégé permanent</span>
+                <span class="font-mono text-[10px] text-slate-400">Ajouté le ${p.date}</span>
+              </div>
+              <p class="text-[11px] text-slate-400">${p.desc}</p>
+              <span class="font-mono text-[10px] text-slate-500 break-all">${p.path}</span>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button onclick="removeFromProtected('${p.id}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-600/20 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/30 transition-all flex items-center gap-1.5 active:scale-95">
+                <span>🔓</span>
+                <span>Retirer de la liste protégée</span>
+              </button>
+              <button onclick="openFolder('${encodeURIComponent(p.path)}')" title="Ouvrir dans l'Explorateur" class="p-1.5 rounded-lg text-xs text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors">
+                📂
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // 6. Gestion des actions de protection (Ajout / Retrait)
+    function protectItem(id) {
+      const raw = allItems.find(x => (x.id || x.Id) === id);
+      if (!raw) return;
+
+      const pItem = {
+        id: raw.id || raw.Id,
+        name: raw.name || raw.Name,
+        path: raw.path || raw.Path,
+        category: raw.category || raw.Category,
+        drive: raw.drive || raw.Drive,
+        sizeGB: raw.sizeGB ?? raw.SizeGB ?? 0,
+        sizeMB: raw.sizeMB ?? raw.SizeMB ?? 0,
+        description: raw.description || raw.Description || ''
+      };
+
+      postToBridge({ action: 'addProtected', item: pItem });
+    }
+
+    function removeFromProtected(id) {
+      postToBridge({ action: 'removeProtected', id: id });
+    }
+
+    // 7. Calcul dynamique de l'espace sélectionné
     function updateSelectionCalc() {
       let totalGB = 0;
       let count = 0;
@@ -433,17 +624,35 @@
       btnClean.innerHTML = `<span>🗑️</span><span>Nettoyer (${totalGB.toFixed(2)} Go)</span>`;
     }
 
-    // 6. Navigation par onglets
+    // 8. Navigation par onglets
     function switchTab(tab) {
       currentTab = tab;
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.remove('active', 'active-protected');
+      });
+
       const activeBtn = document.getElementById(`tab-${tab}`);
-      if (activeBtn) activeBtn.classList.add('active');
-      renderItems();
+      if (activeBtn) {
+        if (tab === 'protected') {
+          activeBtn.classList.add('active-protected');
+        } else {
+          activeBtn.classList.add('active');
+        }
+      }
+
+      if (tab === 'protected') {
+        renderProtectedItems();
+      } else {
+        renderItems();
+      }
     }
 
     function filterItems() {
-      renderItems();
+      if (currentTab === 'protected') {
+        renderProtectedItems();
+      } else {
+        renderItems();
+      }
     }
 
     function updateCounters() {
@@ -453,9 +662,10 @@
       document.getElementById('count-system').innerText = allItems.filter(x => getCat(x) === 'system').length;
       document.getElementById('count-downloads').innerText = allItems.filter(x => getCat(x) === 'downloads').length;
       document.getElementById('count-apps').innerText = allItems.filter(x => getCat(x) === 'apps').length;
+      document.getElementById('count-protected').innerText = protectedItems.length;
     }
 
-    // 7. Enquête factuelle ("❓ Plus d'infos")
+    // 9. Enquête factuelle ("❓ Plus d'infos")
     function askResearch(id) {
       const item = allItems.find(x => (x.id || x.Id) === id);
       if (!item) return;
@@ -498,7 +708,7 @@
       postToBridge({ action: 'openFolder', path: decodeURIComponent(path) });
     }
 
-    // 8. Modal de Confirmation et Nettoyage Headless
+    // 10. Modal de Confirmation et Nettoyage Headless
     function openCleanModal() {
       const selected = allItems.filter(raw => {
         const id = raw.id || raw.Id;
