@@ -20,6 +20,7 @@
     let mainExpanded = true;
     let extraExpanded = false;
     let personalExpanded = false;
+    let personalSubExpanded = {};
     let currentSettings = { geminiApiKey: '', enableAI: true };
     let activeResearchItem = null;
     let aiReportCache = {};
@@ -587,7 +588,7 @@
               </div>
               <span class="text-[11px] text-blue-400 font-semibold">${mainExpanded ? 'Replier' : 'Déplier'}</span>
             </button>
-            <div class="${mainExpanded ? 'space-y-2' : 'hidden'}">
+            <div class="${mainExpanded ? 'ml-4 pl-3 border-l-2 border-blue-500/20 space-y-2' : 'hidden'}">
               ${mainItems.map(renderCardHtml).join('')}
             </div>
           </div>
@@ -610,7 +611,7 @@
               </div>
               <span class="text-[11px] text-blue-400 font-semibold">${extraExpanded ? 'Replier' : 'Déplier'}</span>
             </button>
-            <div class="${extraExpanded ? 'mt-2.5 space-y-2' : 'hidden'}">
+            <div class="${extraExpanded ? 'mt-2.5 ml-4 pl-3 border-l-2 border-white/[0.1] space-y-2' : 'hidden'}">
               ${extraItems.map(renderCardHtml).join('')}
             </div>
           </div>
@@ -619,20 +620,57 @@
 
       if (personalItems.length > 0) {
         const personalTotalGB = personalItems.reduce((acc, x) => acc + getItemSizeGB(x), 0);
+        const groupMap = {};
+        const groupIcons = {
+          'Documents': '📄',
+          'Vidéos': '🎬',
+          'Images': '🖼️',
+          'Musique': '🎵',
+          'Bureau': '🖥️',
+          'Profil Utilisateur': '👤',
+          'Sauvegardes & Dossiers Racines': '📦'
+        };
+        personalItems.forEach(it => {
+          const g = (it.personalGroup || it.PersonalGroup || 'Autres');
+          if (!groupMap[g]) groupMap[g] = [];
+          groupMap[g].push(it);
+        });
+
+        const subListsHtml = Object.entries(groupMap).map(([grp, list]) => {
+          const isOpen = !!personalSubExpanded[grp];
+          const grpGB = list.reduce((acc, x) => acc + getItemSizeGB(x), 0);
+          const icon = groupIcons[grp] || '📁';
+          return `
+            <div class="space-y-2">
+              <button onclick="togglePersonalSubGroup('${safeEnc(grp)}')" class="w-full flex items-center justify-between px-3.5 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800/80 border border-amber-500/20 transition-all text-left">
+                <div class="flex items-center gap-2">
+                  <span class="text-[11px] font-mono text-amber-300">${isOpen ? '▼' : '▶'}</span>
+                  <span class="text-xs font-semibold text-amber-100">${icon} ${escapeHtml(grp)}</span>
+                  <span class="text-[11px] text-slate-400">(${list.length} éléments • ${grpGB.toFixed(1)} Go)</span>
+                </div>
+                <span class="text-[11px] text-amber-400 font-medium">${isOpen ? 'Replier' : 'Déplier'}</span>
+              </button>
+              <div class="${isOpen ? 'ml-5 pl-3 border-l-2 border-amber-500/20 space-y-2' : 'hidden'}">
+                ${list.map(renderCardHtml).join('')}
+              </div>
+            </div>
+          `;
+        }).join('');
+
         html += `
           <div class="mt-4 pt-4 border-t border-white/[0.06]">
             <button onclick="togglePersonalSection()" class="surface-card hover:bg-slate-800/70 border border-amber-500/20 w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all text-left">
               <div class="flex items-center gap-2.5">
                 <span class="text-xs font-mono text-amber-300">${personalExpanded ? '▼' : '▶'}</span>
                 <div>
-                  <span class="text-xs font-bold text-amber-200">📁 Fichiers Personnels (Documents, Vidéos, Images, Musique, Bureau)</span>
+                  <span class="text-xs font-bold text-amber-200">📁 Fichiers &amp; Dossiers Personnels (${Object.keys(groupMap).length} catégories)</span>
                   <span class="text-[11px] text-slate-400 ml-2">(${personalItems.length} éléments • ${personalTotalGB.toFixed(1)} Go)</span>
                 </div>
               </div>
               <span class="text-[11px] text-amber-400 font-semibold">${personalExpanded ? 'Replier' : 'Déplier'}</span>
             </button>
-            <div class="${personalExpanded ? 'mt-2.5 space-y-2' : 'hidden'}">
-              ${personalItems.map(renderCardHtml).join('')}
+            <div class="${personalExpanded ? 'mt-2.5 ml-4 pl-3 border-l-2 border-amber-500/30 space-y-2.5' : 'hidden'}">
+              ${subListsHtml}
             </div>
           </div>
         `;
@@ -677,6 +715,12 @@
     function togglePersonalSection() {
       if (currentView !== 'audit') switchView('audit');
       personalExpanded = !personalExpanded;
+      renderItems();
+    }
+
+    function togglePersonalSubGroup(encGroup) {
+      const grp = decodeURIComponent(encGroup);
+      personalSubExpanded[grp] = !personalSubExpanded[grp];
       renderItems();
     }
 

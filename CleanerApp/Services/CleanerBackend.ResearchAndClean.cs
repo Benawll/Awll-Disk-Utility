@@ -844,7 +844,7 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
                 };
 
                 var jsonPayload = JsonSerializer.Serialize(payload);
-                string[] modelsToTry = { "gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-flash", "gemini-3.5-flash-lite" };
+                string[] modelsToTry = { "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-3.8-flash", "gemini-3.6-flash" };
                 HttpResponseMessage? response = null;
                 string usedModel = modelsToTry[0];
 
@@ -886,16 +886,16 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
                         var root = parsedAi.RootElement;
 
                         if (root.TryGetProperty("definition", out var defProp) && !string.IsNullOrWhiteSpace(defProp.GetString()))
-                            report.Definition = "✨ [IA Gemini] " + defProp.GetString();
+                            report.Definition = defProp.GetString() ?? "";
 
                         if (root.TryGetProperty("origin", out var origProp) && !string.IsNullOrWhiteSpace(origProp.GetString()))
-                            report.Origin = "✨ [IA Gemini] " + origProp.GetString();
+                            report.Origin = origProp.GetString() ?? "";
 
                         if (root.TryGetProperty("usageActivity", out var useProp) && !string.IsNullOrWhiteSpace(useProp.GetString()))
-                            report.UsageActivity = "✨ [IA Gemini] " + useProp.GetString();
+                            report.UsageActivity = useProp.GetString() ?? "";
 
                         if (root.TryGetProperty("safetyImpact", out var safeProp) && !string.IsNullOrWhiteSpace(safeProp.GetString()))
-                            report.SafetyImpact = "✨ [IA Gemini] " + safeProp.GetString();
+                            report.SafetyImpact = safeProp.GetString() ?? "";
 
                         if (root.TryGetProperty("riskPct", out var riskProp) && riskProp.TryGetInt32(out int aiRisk))
                             report.RiskPct = aiRisk;

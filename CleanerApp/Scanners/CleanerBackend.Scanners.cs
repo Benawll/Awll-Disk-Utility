@@ -985,21 +985,24 @@ namespace CleanerApp
                     }
                     else
                     {
-                        // Dossier de données divers à la racine du disque
-                        bool promote = daysAgo >= 365 && !isRunning;
-                        int risk = promote ? 20 : 45;
-                        var item = CreateItem(
-                            $"Dossier Racine : {di.Name} ({d.Name.TrimEnd('\\')})",
-                            dir,
-                            "system",
-                            bytes,
-                            risk,
-                            $"Dossier personnalisé à la racine de {d.Name.TrimEnd('\\')} ({fCount} fichiers, {FormatAgeText(daysAgo)}).",
-                            lastModified: last,
-                            isExtra: !promote
-                        );
-                        if (promote) recommendedItems.Add(item);
-                        else extraItems.Add(item);
+                        // Dossier personnel / sauvegardes à la racine du disque (ex: New Doc, Backups...) -> exploration en profondeur dans Dossiers Personnels
+                        int subAdded = ScanPersonalDirectoryRecursive(dir, $"{di.Name} ({d.Name.TrimEnd('\\')})", "docs", 0, extraItems, seenPaths, "Sauvegardes & Dossiers Racines");
+                        if (subAdded == 0 && seenPaths.Add(dir))
+                        {
+                            var item = CreateItem(
+                                $"Dossier Perso ({di.Name}) : {di.Name} ({d.Name.TrimEnd('\\')})",
+                                dir,
+                                "system",
+                                bytes,
+                                daysAgo >= 365 ? 35 : 55,
+                                $"Dossier personnalisé à la racine de {d.Name.TrimEnd('\\')} ({fCount} fichiers, {FormatAgeText(daysAgo)}).",
+                                lastModified: last,
+                                isExtra: true
+                            );
+                            item.IsPersonal = true;
+                            item.PersonalGroup = "Sauvegardes & Dossiers Racines";
+                            extraItems.Add(item);
+                        }
                     }
                     seenPaths.Add(dir);
                 }
@@ -1021,7 +1024,57 @@ namespace CleanerApp
             {
                 if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) continue;
                 if (!IsDriveSelected(root, targetDrives)) continue;
-                ScanPersonalDirectoryRecursive(root, label, kind, 0, extraItems, seenPaths);
+                ScanPersonalDirectoryRecursive(root, label, kind, 0, extraItems, seenPaths, label);
+            }
+
+            // Dossiers personnalisés supplémentaires directement dans C:\Users\<user> (ex: OneDrive, Saved Games, dossiers persos...)
+            var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (!string.IsNullOrWhiteSpace(userProfile) && Directory.Exists(userProfile) && IsDriveSelected(userProfile, targetDrives))
+            {
+                var knownProfileSkip = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    "AppData", "Downloads", "Documents", "Videos", "Pictures", "Music", "Desktop",
+                    "Searches", "Links", "Favorites", "Contacts", "3D Objects", "IntelGraphicsProfiles",
+                    "Application Data", "Local Settings", "Cookies", "NetHood", "PrintHood", "Recent", "SendTo", "Start Menu", "Templates"
+                };
+                foreach (var r in personalRoots)
+                {
+                    if (!string.IsNullOrWhiteSpace(r.Path))
+                        knownProfileSkip.Add(Path.GetFileName(r.Path.TrimEnd('\\')));
+                }
+
+                try
+                {
+                    foreach (var sub in Directory.GetDirectories(userProfile))
+                    {
+                        var di = new DirectoryInfo(sub);
+                        if (di.Name.StartsWith(".") || knownProfileSkip.Contains(di.Name)) continue;
+                        if ((di.Attributes & FileAttributes.ReparsePoint) != 0) continue;
+                        if (seenPaths.Contains(sub)) continue;
+                        double bytes = GetDirectorySizeSafe(sub);
+                        if (bytes < 150L * 1024 * 1024) continue;
+                        int subAdded = ScanPersonalDirectoryRecursive(sub, di.Name, "docs", 0, extraItems, seenPaths, "Profil Utilisateur");
+                        if (subAdded == 0 && seenPaths.Add(sub))
+                        {
+                            var last = GetLastWriteTimeSafe(di);
+                            int daysAgo = Math.Max(0, (int)(DateTime.Now - last).TotalDays);
+                            var item = CreateItem(
+                                $"Dossier Profil : {di.Name}",
+                                sub,
+                                "system",
+                                bytes,
+                                daysAgo >= 365 ? 35 : 55,
+                                $"Dossier dans votre profil utilisateur ({FormatAgeText(daysAgo)}, {last:dd/MM/yyyy}).",
+                                lastModified: last,
+                                isExtra: true
+                            );
+                            item.IsPersonal = true;
+                            item.PersonalGroup = "Profil Utilisateur";
+                            extraItems.Add(item);
+                        }
+                    }
+                }
+                catch { }
             }
         }
 
@@ -1031,7 +1084,8 @@ namespace CleanerApp
             string kind,
             int depth,
             List<CleanerItem> extraItems,
-            HashSet<string> seenPaths)
+            HashSet<string> seenPaths,
+            string personalGroup = "")
         {
             const long minDirBytes = 150L * 1024 * 1024;
             const long minFileBytes = 100L * 1024 * 1024;
@@ -1076,6 +1130,7 @@ namespace CleanerApp
                             isExtra: true
                         );
                         item.IsPersonal = true;
+                        item.PersonalGroup = string.IsNullOrEmpty(personalGroup) ? label : personalGroup;
                         extraItems.Add(item);
                         addedCount++;
                     }
@@ -1093,7 +1148,7 @@ namespace CleanerApp
                             double subBytes = GetDirectorySizeSafe(sub);
                             if (subBytes < minDirBytes) continue;
 
-                            int subAdded = ScanPersonalDirectoryRecursive(sub, label, kind, depth + 1, extraItems, seenPaths);
+                            int subAdded = ScanPersonalDirectoryRecursive(sub, label, kind, depth + 1, extraItems, seenPaths, personalGroup);
                             if (subAdded == 0 && seenPaths.Add(sub))
                             {
                                 var last = GetLastWriteTimeSafe(di);
@@ -1111,6 +1166,7 @@ namespace CleanerApp
                                     isExtra: true
                                 );
                                 item.IsPersonal = true;
+                                item.PersonalGroup = string.IsNullOrEmpty(personalGroup) ? label : personalGroup;
                                 extraItems.Add(item);
                                 addedCount++;
                             }

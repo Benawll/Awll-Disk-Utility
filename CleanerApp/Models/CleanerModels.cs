@@ -50,6 +50,7 @@ namespace CleanerApp
         public bool IsSanctuarized { get; set; }
         public bool IsProtected { get; set; }
         public bool IsPersonal { get; set; }
+        public string PersonalGroup { get; set; } = "";
         public bool IsExtra { get; set; }
     }
 
