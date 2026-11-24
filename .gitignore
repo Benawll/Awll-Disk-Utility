@@ -1,0 +1,7 @@
+
+CleanerApp/bin/
+CleanerApp/obj/
+dist_app/
+*.exe
+*.pdb
+
