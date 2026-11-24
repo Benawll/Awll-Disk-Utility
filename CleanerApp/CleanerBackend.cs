@@ -625,7 +625,26 @@ namespace CleanerApp
                                 }
                                 else
                                 {
-                                    // Trace registre orpheline : le logiciel n'existe plus sur le disque -> ne pas l'afficher comme installé
+                                    // Trace registre orpheline : le logiciel n'existe plus sur le disque -> proposer le nettoyage de l'entrée fantôme
+                                    if (IsDriveSelected(extractedExe, targetDrives))
+                                    {
+                                        string hivePrefix = hive == Registry.CurrentUser ? "HKCU" : "HKLM";
+                                        string regPath = $@"{hivePrefix}\{subKeyPath}\{subName}";
+                                        DateTime orphanDate = DateTime.TryParseExact(installDateRaw, "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out var od) ? od : DateTime.Now.AddYears(-1);
+                                        var orphanItem = CreateItem(
+                                            $"Trace registre orpheline : {displayName}",
+                                            regPath,
+                                            "system",
+                                            0,
+                                            0,
+                                            $"Application déjà supprimée du disque ({extractedExe}), seule une trace fantôme subsiste dans le Registre Windows.",
+                                            isFolder: false,
+                                            lastModified: orphanDate,
+                                            isExtra: false
+                                        );
+                                        try { orphanItem.Drive = Path.GetPathRoot(extractedExe)?.TrimEnd('\\') ?? "C:"; } catch { orphanItem.Drive = "C:"; }
+                                        list.Add(orphanItem);
+                                    }
                                     continue;
                                 }
                             }
@@ -1440,6 +1459,17 @@ namespace CleanerApp
                 ItemPath = path,
                 RiskPct = initialRisk
             };
+
+            if (path.StartsWith(@"HKLM\", StringComparison.OrdinalIgnoreCase) || path.StartsWith(@"HKCU\", StringComparison.OrdinalIgnoreCase))
+            {
+                report.Definition = $"Trace fantôme dans le Registre Windows (clé de désinstallation orpheline) pour : {name.Replace("Trace registre orpheline : ", "")}.";
+                report.Origin = $"Clé Registre Windows ({path}). Le programme d'origine n'existe plus sur le disque, mais son entrée est restée dans la liste des programmes installés.";
+                report.UsageActivity = "Totalement inactif (aucun fichier exécutable présent sur le disque).";
+                report.SafetyImpact = "🟢 SUPPRESSION 100% SÛRE (Risque 0%). Nettoie proprement cette entrée fantôme du Registre Windows sans aucun impact sur le système.";
+                report.LastAccessDate = "Trace orpheline";
+                report.RiskPct = 0;
+                return report;
+            }
 
             bool isRegistryEntry = path.Equals("Registre Windows", StringComparison.OrdinalIgnoreCase) ||
                                    path.Contains("msiexec", StringComparison.OrdinalIgnoreCase);
@@ -2365,6 +2395,27 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
 
             try
             {
+                // Suppression sécurisée d'une trace fantôme dans le Registre (strictement limitée aux clés Uninstall)
+                if (item.Path.StartsWith(@"HKLM\", StringComparison.OrdinalIgnoreCase) || item.Path.StartsWith(@"HKCU\", StringComparison.OrdinalIgnoreCase))
+                {
+                    bool isCu = item.Path.StartsWith(@"HKCU\", StringComparison.OrdinalIgnoreCase);
+                    string subKey = item.Path.Substring(5);
+                    if (!subKey.Contains(@"\CurrentVersion\Uninstall\", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return new CleanResult { ItemId = item.Id, ItemName = item.Name, FreedGB = 0, Success = false, Message = "Clé registre hors périmètre Uninstall." };
+                    }
+                    try
+                    {
+                        using var rootHive = isCu ? Registry.CurrentUser : Registry.LocalMachine;
+                        rootHive.DeleteSubKeyTree(subKey, false);
+                        return new CleanResult { ItemId = item.Id, ItemName = item.Name, FreedGB = 0, Success = true, Message = "Trace registre orpheline supprimée." };
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                        return new CleanResult { ItemId = item.Id, ItemName = item.Name, FreedGB = 0, Success = false, Message = "Droits administrateur requis pour supprimer cette clé HKLM (relancez l'app en administrateur)." };
+                    }
+                }
+
                 // Si c'est une application avec un désinstalleur officiel, tenter d'abord la désinstallation silencieuse
                 if (!string.IsNullOrWhiteSpace(item.UninstallString))
                 {
