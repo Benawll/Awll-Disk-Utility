@@ -41,10 +41,22 @@ namespace CleanerApp
         public string RiskLevel { get; set; } = "Quasi Nul";
         public string Description { get; set; } = "";
         public string LastModified { get; set; } = "";
+        public long LastModifiedTimestamp { get; set; }
+        public int AgeDays { get; set; }
+        public string UninstallString { get; set; } = "";
         public bool IsFolder { get; set; }
         public bool IsSanctuarized { get; set; }
         public bool IsProtected { get; set; }
         public bool IsExtra { get; set; }
+    }
+
+    public class CleanHistoryEntry
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString("N");
+        public string Date { get; set; } = DateTime.Now.ToString("dd/MM/yyyy HH:mm");
+        public int ItemsCount { get; set; }
+        public double FreedGB { get; set; }
+        public List<string> ItemNames { get; set; } = new();
     }
 
     public class ProtectedItem
@@ -127,10 +139,103 @@ namespace CleanerApp
             return list;
         }
 
-        public static async Task<List<CleanerItem>> RunAuditAsync(Action<string, int>? progressCallback = null)
+        private static bool IsDriveSelected(string path, HashSet<string>? targetDrives)
+        {
+            if (targetDrives == null || targetDrives.Count == 0) return true;
+            try
+            {
+                var root = Path.GetPathRoot(path)?.TrimEnd('\\') ?? "";
+                if (string.IsNullOrEmpty(root)) return true;
+                return targetDrives.Contains(root);
+            }
+            catch { return true; }
+        }
+
+        private static List<DriveInfo> GetTargetDrives(HashSet<string>? targetDrives)
+        {
+            return DriveInfo.GetDrives()
+                .Where(d => d.IsReady && d.DriveType == DriveType.Fixed)
+                .Where(d => targetDrives == null || targetDrives.Count == 0 || targetDrives.Contains(d.Name.TrimEnd('\\')))
+                .ToList();
+        }
+
+        public static bool IsCoreSystemOrRuntime(string name, string path)
+        {
+            var n = (name + " " + path).ToLowerInvariant();
+            string[] coreKeywords =
+            {
+                "microsoft visual c++", "visual c++", "vcredist", ".net runtime", ".net sdk", "asp.net core", "windows desktop runtime",
+                "webview2", "directx", "vulkan", "nvidia graphics", "nvidia physx", "nvidia driver", "geforce experience", "nvidia app",
+                "amd software", "amd chipset", "realtek", "intel graphics", "intel(r)", "bluetooth", "wi-fi", "wifi", "ethernet",
+                "java 17", "java 24", "jdk-17", "jdk-24", "temurin-17", "temurin-24", "openjdk",
+                "steam", "epic games launcher", "battle.net", "ubisoft connect", "ea app", "riot client",
+                "discord", "visual studio code", "git", "windows terminal", "powershell", "7-zip", "winrar"
+            };
+            // Attention: "steam" ne doit pas protéger les démos ou dossiers downloading/shadercache/workshop
+            if (n.Contains("downloading") || n.Contains("shadercache") || n.Contains("workshop") || n.Contains("demo") || n.Contains("playtest") || n.Contains("pts"))
+                return false;
+
+            return coreKeywords.Any(k => n.Contains(k));
+        }
+
+        public static string FormatAgeText(int daysAgo)
+        {
+            if (daysAgo <= 0) return "aujourd'hui";
+            if (daysAgo == 1) return "hier";
+            if (daysAgo < 30) return $"il y a {daysAgo} jours";
+            if (daysAgo < 365)
+            {
+                int months = Math.Max(1, daysAgo / 30);
+                return $"il y a {months} mois";
+            }
+            int years = daysAgo / 365;
+            return $"il y a {years} an{(years > 1 ? "s" : "")}";
+        }
+
+        public static int ComputeRiskScore(string kind, int daysAgo, bool isRunning, bool isCore, bool isSanctuarized)
+        {
+            if (isSanctuarized) return 95;
+
+            int score = kind switch
+            {
+                "pure_cache" => 0,          // DXCache, NuGet, Gradle, Maven, Playwright, Temp, CrashDumps, downloading, *-updater
+                "installer" => daysAgo >= 7 ? 0 : 5,
+                "archive" => daysAgo >= 90 ? 0 : (daysAgo >= 30 ? 5 : 15),
+                "demo_pts" => daysAgo >= 120 ? 5 : 20,
+                "duplicate_game" => 5,
+                "emulator" => daysAgo >= 365 ? 5 : (daysAgo >= 120 ? 15 : 35),
+                "portable_game" => daysAgo >= 730 ? 5 : (daysAgo >= 365 ? 10 : (daysAgo >= 120 ? 20 : 40)),
+                "steam_epic_game" => daysAgo >= 1095 ? 10 : (daysAgo >= 365 ? 20 : (daysAgo >= 120 ? 35 : 60)),
+                "appdata_cache" => 0,
+                "appdata_inactive" => daysAgo >= 730 ? 5 : (daysAgo >= 365 ? 10 : 20),
+                "installed_app" => isCore ? 90 : (daysAgo >= 1095 ? 5 : (daysAgo >= 365 ? 15 : (daysAgo >= 180 ? 30 : 55))),
+                _ => daysAgo >= 730 ? 10 : (daysAgo >= 180 ? 25 : 45)
+            };
+
+            if (isCore && kind != "pure_cache" && kind != "appdata_cache")
+            {
+                score = Math.Max(score, 85);
+            }
+
+            if (isRunning)
+            {
+                score = Math.Max(score + 25, 55);
+            }
+
+            return Math.Clamp(score, 0, 98);
+        }
+
+        public static async Task<List<CleanerItem>> RunAuditAsync(Action<string, int>? progressCallback = null, List<string>? selectedDrives = null)
         {
             return await Task.Run(() =>
             {
+                HashSet<string>? targetDrives = null;
+                if (selectedDrives != null && selectedDrives.Count > 0)
+                {
+                    targetDrives = new HashSet<string>(selectedDrives.Select(d => d.TrimEnd('\\')), StringComparer.OrdinalIgnoreCase);
+                }
+
+                var runningProcs = GetRunningProcessNamesSafe();
                 var recommendedItems = new List<CleanerItem>();
                 var extraItems = new List<CleanerItem>();
                 var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -138,38 +243,46 @@ namespace CleanerApp
 
                 // 1. Découverte dynamique de Steam & Epic Games
                 progressCallback?.Invoke("Détection des bibliothèques de jeux...", 10);
-                var steamLibs = DiscoverSteamLibraries();
-                var epicGames = DiscoverEpicGames();
+                var steamLibs = DiscoverSteamLibraries().Where(p => IsDriveSelected(p, targetDrives)).ToList();
+                var epicGames = DiscoverEpicGames().Where(kv => IsDriveSelected(kv.Value, targetDrives)).ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
 
-                // 2. Audit Recommandé : Caches de téléchargement Steam, démos abandonnées (> 120j), doublons
+                // 2. Audit Recommandé : Caches de téléchargement Steam, workshop, shadercache, démos abandonnées, doublons
                 progressCallback?.Invoke("Scan des caches de jeux et reliquats...", 25);
-                AuditGamesUniversal(recommendedItems, steamLibs, epicGames);
+                AuditGamesUniversal(recommendedItems, steamLibs, epicGames, targetDrives, runningProcs);
                 foreach (var it in recommendedItems) seenPaths.Add(it.Path);
 
-                // 3. Audit Recommandé : Caches système, GPU Shaders et outils de build (.gradle, .m2, nuget, playwright)
-                progressCallback?.Invoke("Scan des caches système, GPU et builds dev...", 40);
-                AuditSystemUniversal(recommendedItems);
+                // 3. Audit Recommandé : Caches système, GPU Shaders et outils de build / IA
+                progressCallback?.Invoke("Scan des caches système, GPU, IA et builds dev...", 42);
+                AuditSystemUniversal(recommendedItems, targetDrives, runningProcs);
                 foreach (var it in recommendedItems) seenPaths.Add(it.Path);
 
-                // 4. Audit Recommandé : Téléchargements et disques secondaires (archives, installeurs > 60j)
-                progressCallback?.Invoke("Analyse des fichiers téléchargés et archives...", 55);
-                AuditDownloadsUniversal(recommendedItems);
+                // 4. Audit Recommandé : Téléchargements et disques secondaires (archives, installeurs)
+                progressCallback?.Invoke("Analyse des fichiers téléchargés et archives...", 58);
+                AuditDownloadsUniversal(recommendedItems, targetDrives);
                 foreach (var it in recommendedItems) seenPaths.Add(it.Path);
 
-                // 5. Audit Recommandé : Émulateurs inactifs
-                progressCallback?.Invoke("Recherche des émulateurs inactifs...", 70);
-                AuditEmulatorsUniversal(recommendedItems);
+                // 5. Audit Recommandé : Émulateurs
+                progressCallback?.Invoke("Recherche des émulateurs...", 70);
+                AuditEmulatorsUniversal(recommendedItems, targetDrives, runningProcs);
                 foreach (var it in recommendedItems) seenPaths.Add(it.Path);
 
-                // 6. Inventaire Déroulant Complémentaire : Autres jeux et logiciels installés (Actifs / Conservables)
-                progressCallback?.Invoke("Inventaire des jeux Steam, Epic et logiciels installés...", 85);
-                DiscoverInstalledGamesAndApps(extraItems, steamLibs, epicGames, seenPaths, seenNames);
+                // 6. Inventaire Complet : Autres jeux et logiciels installés
+                //    Les éléments inutilisés depuis >= 365 jours (et non critiques) sont promus dans l'Audit Recommandé !
+                progressCallback?.Invoke("Inventaire des jeux et logiciels installés (avec analyse d'inactivité)...", 84);
+                DiscoverInstalledGamesAndApps(recommendedItems, extraItems, steamLibs, epicGames, seenPaths, seenNames, targetDrives, runningProcs);
 
-                // 7. Tri des listes :
-                // Les éléments recommandés sont triés par risque (0% d'abord) puis taille décroissante
-                var orderedRecommended = recommendedItems.OrderBy(x => x.RiskPct).ThenByDescending(x => x.SizeGB).ToList();
-                // Les éléments secondaires sont triés par taille décroissante
-                var orderedExtra = extraItems.OrderByDescending(x => x.SizeGB).ToList();
+                // 7. Tri par défaut : Recommandés par Risque croissant puis Taille décroissante ; Extra par Taille décroissante
+                var orderedRecommended = recommendedItems
+                    .Where(x => IsDriveSelected(x.Path, targetDrives))
+                    .OrderBy(x => x.RiskPct)
+                    .ThenByDescending(x => x.SizeGB)
+                    .ToList();
+
+                var orderedExtra = extraItems
+                    .Where(x => IsDriveSelected(x.Path, targetDrives))
+                    .OrderBy(x => x.RiskPct)
+                    .ThenByDescending(x => x.SizeGB)
+                    .ToList();
 
                 var allCombined = orderedRecommended.Concat(orderedExtra).ToList();
 
@@ -186,15 +299,48 @@ namespace CleanerApp
             });
         }
 
+        private static HashSet<string> GetRunningProcessNamesSafe()
+        {
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                foreach (var p in Process.GetProcesses())
+                {
+                    try { set.Add(p.ProcessName); } catch { }
+                }
+            }
+            catch { }
+            return set;
+        }
+
+        private static bool IsLikelyRunning(string name, string path, HashSet<string> runningProcs)
+        {
+            if (runningProcs.Count == 0) return false;
+            var baseName = Path.GetFileNameWithoutExtension(path);
+            if (!string.IsNullOrWhiteSpace(baseName) && baseName.Length >= 3 && runningProcs.Any(p => p.Contains(baseName, StringComparison.OrdinalIgnoreCase)))
+                return true;
+            if (name.Contains("Steam", StringComparison.OrdinalIgnoreCase) && !name.Contains("downloading", StringComparison.OrdinalIgnoreCase) && !name.Contains("Démo", StringComparison.OrdinalIgnoreCase) && runningProcs.Contains("steam"))
+                return true;
+            if (name.Contains("Discord", StringComparison.OrdinalIgnoreCase) && runningProcs.Contains("Discord"))
+                return true;
+            if ((name.Contains("SignalRGB", StringComparison.OrdinalIgnoreCase) || name.Contains("Whirlwind", StringComparison.OrdinalIgnoreCase) || name.Contains("Vortx", StringComparison.OrdinalIgnoreCase)) &&
+                runningProcs.Any(p => p.Contains("SignalRgb", StringComparison.OrdinalIgnoreCase) || p.Contains("Vortx", StringComparison.OrdinalIgnoreCase)))
+                return true;
+            return false;
+        }
+
         // =========================================================================
-        // DÉCOUVERTE DE TOUS LES JEUX & LOGICIELS INSTALLÉS (SECTION DÉROULANTE)
+        // DÉCOUVERTE DE TOUS LES JEUX & LOGICIELS INSTALLÉS
         // =========================================================================
         public static void DiscoverInstalledGamesAndApps(
-            List<CleanerItem> extraItems, 
-            List<string> steamLibs, 
-            Dictionary<string, string> epicGames, 
-            HashSet<string> seenPaths, 
-            HashSet<string> seenNames)
+            List<CleanerItem> recommendedItems,
+            List<CleanerItem> extraItems,
+            List<string> steamLibs,
+            Dictionary<string, string> epicGames,
+            HashSet<string> seenPaths,
+            HashSet<string> seenNames,
+            HashSet<string>? targetDrives,
+            HashSet<string> runningProcs)
         {
             // A. Jeux et démos Steam installés
             foreach (var lib in steamLibs)
@@ -210,24 +356,28 @@ namespace CleanerApp
                             double size = GetDirectorySizeSafe(gameDir);
                             var steamInfo = GetSteamAppInfo(gameDir);
                             var last = steamInfo?.LastPlayed ?? steamInfo?.LastUpdated ?? GetLastWriteTimeSafe(di);
+                            int daysAgo = Math.Max(0, (int)(DateTime.Now - last).TotalDays);
                             var drive = Path.GetPathRoot(gameDir)?.TrimEnd('\\') ?? "C:";
                             string appTitle = steamInfo?.Name ?? di.Name;
-                            string activityDetail = steamInfo?.LastPlayed != null 
-                                ? $"Dernière partie : {steamInfo.LastPlayed.Value:dd/MM/yyyy}" 
-                                : $"Dernière mise à jour : {last:dd/MM/yyyy}";
-
-                            bool isDemo = appTitle.Contains("demo", StringComparison.OrdinalIgnoreCase) || 
+                            bool isDemo = appTitle.Contains("demo", StringComparison.OrdinalIgnoreCase) ||
                                           appTitle.Contains("playtest", StringComparison.OrdinalIgnoreCase);
 
-                            extraItems.Add(CreateItem(
-                                appTitle,
-                                gameDir,
-                                "games",
-                                size,
-                                isDemo ? 10 : 25,
-                                isDemo ? $"Démo jouable Steam sur {drive} ({activityDetail})" : $"Jeu Steam complet sur {drive} ({activityDetail})",
-                                isExtra: true
-                            ));
+                            bool isRunning = IsLikelyRunning(appTitle, gameDir, runningProcs);
+                            bool promoteToRecommended = daysAgo >= 365 && !isRunning;
+                            int risk = ComputeRiskScore(isDemo ? "demo_pts" : "steam_epic_game", daysAgo, isRunning, false, false);
+
+                            string activityDetail = steamInfo?.LastPlayed != null
+                                ? $"Dernière partie : {steamInfo.LastPlayed.Value:dd/MM/yyyy} ({FormatAgeText(daysAgo)})"
+                                : $"Dernière mise à jour : {last:dd/MM/yyyy} ({FormatAgeText(daysAgo)})";
+
+                            string desc = promoteToRecommended
+                                ? $"Jeu Steam inutilisé depuis {FormatAgeText(daysAgo)} sur {drive} ({activityDetail})"
+                                : (isDemo ? $"Démo Steam récente sur {drive} ({activityDetail})" : $"Jeu Steam sur {drive} ({activityDetail})");
+
+                            var item = CreateItem(appTitle, gameDir, "games", size, risk, desc, lastModified: last, isExtra: !promoteToRecommended);
+                            if (promoteToRecommended) recommendedItems.Add(item);
+                            else extraItems.Add(item);
+
                             seenNames.Add(di.Name);
                             if (!string.IsNullOrEmpty(steamInfo?.Name)) seenNames.Add(steamInfo.Name);
                         }
@@ -243,24 +393,28 @@ namespace CleanerApp
                     double size = GetDirectorySizeSafe(eg.Value);
                     var di = new DirectoryInfo(eg.Value);
                     var last = GetLastWriteTimeSafe(di);
+                    int daysAgo = Math.Max(0, (int)(DateTime.Now - last).TotalDays);
                     var drive = Path.GetPathRoot(eg.Value)?.TrimEnd('\\') ?? "C:";
-                    extraItems.Add(CreateItem(
-                        eg.Key,
-                        eg.Value,
-                        "games",
-                        size,
-                        25,
-                        $"Jeu Epic Games complet sur {drive} (Dernière activité : {last:dd/MM/yyyy})",
-                        isExtra: true
-                    ));
+                    bool isRunning = IsLikelyRunning(eg.Key, eg.Value, runningProcs);
+                    bool promoteToRecommended = daysAgo >= 365 && !isRunning;
+                    int risk = ComputeRiskScore("steam_epic_game", daysAgo, isRunning, false, false);
+
+                    string desc = promoteToRecommended
+                        ? $"Jeu Epic Games inutilisé depuis {FormatAgeText(daysAgo)} sur {drive} ({last:dd/MM/yyyy})"
+                        : $"Jeu Epic Games sur {drive} (Activité : {last:dd/MM/yyyy})";
+
+                    var item = CreateItem(eg.Key, eg.Value, "games", size, risk, desc, lastModified: last, isExtra: !promoteToRecommended);
+                    if (promoteToRecommended) recommendedItems.Add(item);
+                    else extraItems.Add(item);
+
                     seenNames.Add(eg.Key);
                 }
             }
 
-            // C. Launchers et répertoires de jeux portables sur tous les disques
-            foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed))
+            // C. Launchers, XboxGames et répertoires de jeux portables sur tous les disques sélectionnés
+            foreach (var drive in GetTargetDrives(targetDrives))
             {
-                var gameFolders = new[] { "Autres Jeux", "Jeux", "Games", "Old Games", "Riot Games", "GOG Games", "Ubisoft", "Battle.net" };
+                var gameFolders = new[] { "Autres Jeux", "Jeux", "Games", "Old Games", "Riot Games", "GOG Games", "Ubisoft", "Battle.net", "XboxGames" };
                 foreach (var gf in gameFolders)
                 {
                     var full = Path.Combine(drive.Name, gf);
@@ -272,16 +426,21 @@ namespace CleanerApp
                             {
                                 var di = new DirectoryInfo(sub);
                                 double size = GetDirectorySizeSafe(sub);
+                                if (size < 20 * 1024 * 1024) continue;
                                 var last = GetLastWriteTimeSafe(di);
-                                extraItems.Add(CreateItem(
-                                    $"{di.Name} ({gf} {drive.Name.TrimEnd('\\')})",
-                                    sub,
-                                    "games",
-                                    size,
-                                    25,
-                                    $"Jeu ou composant ({gf}) sur {drive.Name.TrimEnd('\\')}. Dernière activité : {last:dd/MM/yyyy}",
-                                    isExtra: true
-                                ));
+                                int daysAgo = Math.Max(0, (int)(DateTime.Now - last).TotalDays);
+                                bool isRunning = IsLikelyRunning(di.Name, sub, runningProcs);
+                                bool promoteToRecommended = daysAgo >= 365 && !isRunning;
+                                int risk = ComputeRiskScore("portable_game", daysAgo, isRunning, false, false);
+
+                                string desc = promoteToRecommended
+                                    ? $"Jeu ({gf}) inutilisé depuis {FormatAgeText(daysAgo)} sur {drive.Name.TrimEnd('\\')} ({last:dd/MM/yyyy})."
+                                    : $"Jeu ou composant ({gf}) sur {drive.Name.TrimEnd('\\')} (Activité : {last:dd/MM/yyyy}).";
+
+                                var item = CreateItem($"{di.Name} ({gf} {drive.Name.TrimEnd('\\')})", sub, "games", size, risk, desc, lastModified: last, isExtra: !promoteToRecommended);
+                                if (promoteToRecommended) recommendedItems.Add(item);
+                                else extraItems.Add(item);
+
                                 seenNames.Add(di.Name);
                             }
                         }
@@ -290,15 +449,15 @@ namespace CleanerApp
             }
 
             // D. Applications enregistrées dans le Registre Windows
-            var regApps = GetRegistryInstalledApps(seenPaths, seenNames);
+            var regApps = GetRegistryInstalledApps(seenPaths, seenNames, targetDrives, runningProcs);
             foreach (var app in regApps)
             {
-                app.IsExtra = true;
-                extraItems.Add(app);
+                if (!app.IsExtra) recommendedItems.Add(app);
+                else extraItems.Add(app);
             }
 
             // E. Scan complémentaire des répertoires Program Files multi-disques
-            foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed))
+            foreach (var drive in GetTargetDrives(targetDrives))
             {
                 foreach (var pf in new[] { "Program Files", "Program Files (x86)" })
                 {
@@ -311,6 +470,7 @@ namespace CleanerApp
                             if (di.Name.Equals("Microsoft", StringComparison.OrdinalIgnoreCase) ||
                                 di.Name.Equals("Common Files", StringComparison.OrdinalIgnoreCase) ||
                                 di.Name.Equals("Windows Defender", StringComparison.OrdinalIgnoreCase) ||
+                                di.Name.Equals("WindowsApps", StringComparison.OrdinalIgnoreCase) ||
                                 di.Name.Equals("Windows NT", StringComparison.OrdinalIgnoreCase)) continue;
 
                             if (seenPaths.Add(sub) && !seenNames.Contains(di.Name))
@@ -318,15 +478,22 @@ namespace CleanerApp
                                 double size = GetDirectorySizeSafe(sub);
                                 if (size > 30 * 1024 * 1024) // > 30 Mo
                                 {
-                                    extraItems.Add(CreateItem(
-                                        di.Name,
-                                        sub,
-                                        "apps",
-                                        size,
-                                        25,
-                                        $"Logiciel installé dans {pfp}",
-                                        isExtra: true
-                                    ));
+                                    var last = GetLastWriteTimeSafe(di);
+                                    int daysAgo = Math.Max(0, (int)(DateTime.Now - last).TotalDays);
+                                    bool isCore = IsCoreSystemOrRuntime(di.Name, sub);
+                                    bool isRunning = IsLikelyRunning(di.Name, sub, runningProcs);
+                                    bool isSanct = IsPathSanctuarized(sub);
+                                    bool promoteToRecommended = daysAgo >= 365 && !isCore && !isRunning && !isSanct;
+                                    int risk = ComputeRiskScore("installed_app", daysAgo, isRunning, isCore, isSanct);
+
+                                    string desc = promoteToRecommended
+                                        ? $"Logiciel dans {pf} inutilisé depuis {FormatAgeText(daysAgo)} ({last:dd/MM/yyyy})."
+                                        : $"Logiciel installé dans {pfp} (Activité : {last:dd/MM/yyyy}).";
+
+                                    var item = CreateItem(di.Name, sub, "apps", size, risk, desc, lastModified: last, isSanctuarized: isSanct, isExtra: !promoteToRecommended);
+                                    if (promoteToRecommended) recommendedItems.Add(item);
+                                    else extraItems.Add(item);
+
                                     seenNames.Add(di.Name);
                                 }
                             }
@@ -336,12 +503,18 @@ namespace CleanerApp
             }
         }
 
-        public static async Task<List<CleanerItem>> RunExhaustiveScanAsync(Action<string, int>? progressCallback = null)
+        private static bool IsPathSanctuarized(string path)
         {
-            return await RunAuditAsync(progressCallback);
+            if (string.IsNullOrWhiteSpace(path)) return false;
+            return GetSanctuarizedRoots().Any(sp => path.StartsWith(sp, StringComparison.OrdinalIgnoreCase));
         }
 
-        private static List<CleanerItem> GetRegistryInstalledApps(HashSet<string> seenPaths, HashSet<string> seenNames)
+        public static async Task<List<CleanerItem>> RunExhaustiveScanAsync(Action<string, int>? progressCallback = null, List<string>? selectedDrives = null)
+        {
+            return await RunAuditAsync(progressCallback, selectedDrives);
+        }
+
+        private static List<CleanerItem> GetRegistryInstalledApps(HashSet<string> seenPaths, HashSet<string> seenNames, HashSet<string>? targetDrives, HashSet<string> runningProcs)
         {
             var list = new List<CleanerItem>();
 
@@ -381,10 +554,11 @@ namespace CleanerApp
                             if (!seenNames.Add(displayName)) continue;
 
                             var installLoc = appKey.GetValue("InstallLocation") as string;
-                            var uninstallStr = appKey.GetValue("UninstallString") as string;
+                            var uninstallStr = (appKey.GetValue("QuietUninstallString") as string) ?? (appKey.GetValue("UninstallString") as string) ?? "";
                             var displayIcon = appKey.GetValue("DisplayIcon") as string;
                             var publisher = appKey.GetValue("Publisher") as string ?? "Éditeur inconnu";
                             var version = appKey.GetValue("DisplayVersion") as string ?? "";
+                            var installDateRaw = appKey.GetValue("InstallDate") as string ?? "";
 
                             string effectivePath = "";
                             if (!string.IsNullOrEmpty(installLoc) && Directory.Exists(installLoc))
@@ -400,35 +574,58 @@ namespace CleanerApp
                                 }
                             }
 
+                            var pathForDisplay = !string.IsNullOrEmpty(effectivePath) ? effectivePath : (string.IsNullOrEmpty(uninstallStr) ? "Registre Windows" : uninstallStr);
+                            if (!IsDriveSelected(pathForDisplay, targetDrives)) continue;
+
                             if (!string.IsNullOrEmpty(effectivePath))
                             {
                                 seenPaths.Add(effectivePath);
                             }
 
                             double sizeBytes = 0;
+                            DateTime lastActivity = DateTime.Now;
                             if (!string.IsNullOrEmpty(effectivePath) && Directory.Exists(effectivePath))
                             {
                                 sizeBytes = GetDirectorySizeSafe(effectivePath);
+                                lastActivity = GetLastWriteTimeSafe(new DirectoryInfo(effectivePath));
                             }
                             else
                             {
                                 var estSize = appKey.GetValue("EstimatedSize");
                                 if (estSize is int esInt && esInt > 0) sizeBytes = esInt * 1024.0;
                                 else if (estSize is long esLong && esLong > 0) sizeBytes = esLong * 1024.0;
+
+                                if (DateTime.TryParseExact(installDateRaw, "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out var parsedInstall))
+                                {
+                                    lastActivity = parsedInstall;
+                                }
                             }
 
-                            var pathForDisplay = !string.IsNullOrEmpty(effectivePath) ? effectivePath : (uninstallStr ?? "Registre Windows");
-                            var drive = "";
-                            try { drive = Path.GetPathRoot(pathForDisplay)?.TrimEnd('\\') ?? "C:"; } catch { drive = "C:"; }
+                            int daysAgo = Math.Max(0, (int)(DateTime.Now - lastActivity).TotalDays);
+                            bool isCore = IsCoreSystemOrRuntime(displayName, pathForDisplay) || publisher.Contains("Microsoft", StringComparison.OrdinalIgnoreCase) && displayName.Contains("Runtime", StringComparison.OrdinalIgnoreCase);
+                            bool isRunning = IsLikelyRunning(displayName, pathForDisplay, runningProcs);
+                            bool isSanct = IsPathSanctuarized(effectivePath);
 
-                            list.Add(CreateItem(
+                            bool promoteToRecommended = daysAgo >= 365 && !isCore && !isRunning && !isSanct && sizeBytes > 25 * 1024 * 1024;
+                            int risk = ComputeRiskScore("installed_app", daysAgo, isRunning, isCore, isSanct);
+
+                            string desc = promoteToRecommended
+                                ? $"Application ({publisher}) inutilisée depuis {FormatAgeText(daysAgo)} ({lastActivity:dd/MM/yyyy})."
+                                : $"Application Windows ({publisher}{(string.IsNullOrEmpty(version) ? "" : ", v" + version)}).";
+
+                            var item = CreateItem(
                                 displayName,
                                 pathForDisplay,
                                 "apps",
                                 sizeBytes,
-                                5,
-                                $"Application Windows enregistrée ({publisher}{(string.IsNullOrEmpty(version) ? "" : ", v" + version)})."
-                            ));
+                                risk,
+                                desc,
+                                lastModified: lastActivity,
+                                uninstallString: uninstallStr,
+                                isSanctuarized: isSanct,
+                                isExtra: !promoteToRecommended
+                            );
+                            list.Add(item);
                         }
                         catch { }
                     }
@@ -713,12 +910,13 @@ namespace CleanerApp
 
         #region MODULES D'AUDIT UNIVERSELS
 
-        private static void AuditGamesUniversal(List<CleanerItem> items, List<string> steamLibs, Dictionary<string, string> epicGames)
+        private static void AuditGamesUniversal(List<CleanerItem> items, List<string> steamLibs, Dictionary<string, string> epicGames, HashSet<string>? targetDrives, HashSet<string> runningProcs)
         {
             var steamGames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var lib in steamLibs)
             {
+                if (!IsDriveSelected(lib, targetDrives)) continue;
                 var steamApps = Path.Combine(lib, "steamapps");
                 if (!Directory.Exists(steamApps)) continue;
 
@@ -729,11 +927,38 @@ namespace CleanerApp
                     double size = GetDirectorySizeSafe(dlPath);
                     if (size > 50 * 1024 * 1024) // > 50 MB
                     {
-                        items.Add(CreateItem("Téléchargements Steam Bloqués (downloading)", dlPath, "games", size, 0, "Paquets Steam interrompus ou corrompus. 100% régénérable sans casser vos jeux."));
+                        var last = GetLastWriteTimeSafe(new DirectoryInfo(dlPath));
+                        items.Add(CreateItem("Téléchargements Steam Bloqués (downloading)", dlPath, "games", size, 0, "Paquets Steam interrompus ou corrompus. 100% régénérable sans casser vos jeux.", lastModified: last));
                     }
                 }
 
-                // B. Jeux Steam installés
+                // A2. Steam Shader Cache
+                var shaderPath = Path.Combine(steamApps, "shadercache");
+                if (Directory.Exists(shaderPath))
+                {
+                    double size = GetDirectorySizeSafe(shaderPath);
+                    if (size > 150 * 1024 * 1024) // > 150 MB
+                    {
+                        var last = GetLastWriteTimeSafe(new DirectoryInfo(shaderPath));
+                        items.Add(CreateItem($"Steam Shader Cache ({Path.GetPathRoot(lib)?.TrimEnd('\\')})", shaderPath, "games", size, 0, "Caches de shaders pré-compilés Steam (Vulkan/OpenGL/DX). Régénérables automatiquement.", lastModified: last));
+                    }
+                }
+
+                // A3. Steam Workshop volumineux
+                var workshopPath = Path.Combine(steamApps, "workshop", "content");
+                if (Directory.Exists(workshopPath))
+                {
+                    double size = GetDirectorySizeSafe(workshopPath);
+                    if (size > 500 * 1024 * 1024) // > 500 MB
+                    {
+                        var last = GetLastWriteTimeSafe(new DirectoryInfo(workshopPath));
+                        int daysAgo = Math.Max(0, (int)(DateTime.Now - last).TotalDays);
+                        int risk = daysAgo >= 180 ? 10 : 25;
+                        items.Add(CreateItem($"Mods Steam Workshop ({Path.GetPathRoot(lib)?.TrimEnd('\\')})", workshopPath, "games", size, risk, $"Contenu et mods Steam Workshop ({FormatAgeText(daysAgo)}). Steam re-téléchargera les mods abonnés si besoin.", lastModified: last));
+                    }
+                }
+
+                // B. Jeux Steam installés (détection des démos/PTS abandonnés >= 120j)
                 var common = Path.Combine(steamApps, "common");
                 if (Directory.Exists(common))
                 {
@@ -743,36 +968,33 @@ namespace CleanerApp
                         var cleanName = Regex.Replace(di.Name, @"[^\w\s]", "").Trim();
                         steamGames[cleanName] = gameDir;
 
-                        // Détection Démos Steam et serveurs de test (PTS / Playtest)
-                        bool isDemo = di.Name.EndsWith("demo", StringComparison.OrdinalIgnoreCase) || 
+                        bool isDemo = di.Name.EndsWith("demo", StringComparison.OrdinalIgnoreCase) ||
                                       di.Name.Contains("demo", StringComparison.OrdinalIgnoreCase) ||
                                       di.Name.Contains("playtest", StringComparison.OrdinalIgnoreCase);
-                        bool isPts = di.Name.Contains("pts", StringComparison.OrdinalIgnoreCase) || 
+                        bool isPts = di.Name.Contains("pts", StringComparison.OrdinalIgnoreCase) ||
                                      di.Name.Contains("public test", StringComparison.OrdinalIgnoreCase);
 
                         if (isDemo || isPts)
                         {
                             var steamInfo = GetSteamAppInfo(gameDir);
-                            // La date d'activité la plus récente : dernière session jouée ou dernière mise à jour
-                            DateTime lastActivity = steamInfo?.LastPlayed 
-                                                    ?? steamInfo?.LastUpdated 
+                            DateTime lastActivity = steamInfo?.LastPlayed
+                                                    ?? steamInfo?.LastUpdated
                                                     ?? GetLastWriteTimeSafe(di);
 
-                            double daysAgo = (DateTime.Now - lastActivity).TotalDays;
+                            int daysAgo = Math.Max(0, (int)(DateTime.Now - lastActivity).TotalDays);
 
-                            // RÈGLE STRICTE AUDIT RECOMMANDÉ :
-                            // Tout jeu, démo ou test joué ou actif dans les 120 derniers jours est STRICTEMENT EXCLU de l'Audit Recommandé !
-                            // Il ne doit apparaître QUE dans l'Inventaire Complet ("Tous les jeux & logiciels").
                             if (daysAgo >= 120)
                             {
                                 double size = GetDirectorySizeSafe(gameDir);
                                 string appTitle = steamInfo?.Name ?? di.Name;
                                 string label = isPts ? $"Serveur de Test abandonné : {appTitle}" : $"Démo Steam abandonnée : {appTitle}";
-                                string reason = isPts 
-                                    ? $"Serveur de test public inutilisé depuis {(int)daysAgo} jours ({lastActivity:dd/MM/yyyy})." 
-                                    : $"Démo jouable inactive depuis {(int)daysAgo} jours (Dernière partie : {lastActivity:dd/MM/yyyy}).";
+                                string reason = isPts
+                                    ? $"Serveur de test public inutilisé depuis {FormatAgeText(daysAgo)} ({lastActivity:dd/MM/yyyy})."
+                                    : $"Démo jouable inactive depuis {FormatAgeText(daysAgo)} (Dernière partie : {lastActivity:dd/MM/yyyy}).";
 
-                                items.Add(CreateItem(label, gameDir, "games", size, 5, reason));
+                                bool isRunning = IsLikelyRunning(appTitle, gameDir, runningProcs);
+                                int risk = ComputeRiskScore("demo_pts", daysAgo, isRunning, false, false);
+                                items.Add(CreateItem(label, gameDir, "games", size, risk, reason, lastModified: lastActivity));
                             }
                         }
                     }
@@ -782,7 +1004,7 @@ namespace CleanerApp
             // C. Détection automatique des doublons cross-plateformes (Steam vs Epic)
             foreach (var epic in epicGames)
             {
-                // Si le même jeu existe sur Steam
+                if (!IsDriveSelected(epic.Value, targetDrives)) continue;
                 var matchKey = steamGames.Keys.FirstOrDefault(k => k.Equals(epic.Key, StringComparison.OrdinalIgnoreCase) || k.Contains(epic.Key, StringComparison.OrdinalIgnoreCase) || epic.Key.Contains(k, StringComparison.OrdinalIgnoreCase));
                 if (matchKey != null)
                 {
@@ -792,22 +1014,24 @@ namespace CleanerApp
                     double sizeEpic = GetDirectorySizeSafe(epicPath);
                     if (sizeEpic > 500 * 1024 * 1024)
                     {
+                        var last = GetLastWriteTimeSafe(new DirectoryInfo(epicPath));
                         items.Add(CreateItem(
                             $"Doublon Cross-Platform : {epic.Key} (Epic Games)",
                             epicPath,
                             "games",
                             sizeEpic,
                             5,
-                            $"Jeu installé à la fois sur Epic Games ({epicPath}) et sur Steam ({steamPath})."
+                            $"Jeu installé à la fois sur Epic Games ({epicPath}) et sur Steam ({steamPath}).",
+                            lastModified: last
                         ));
                     }
                 }
             }
 
-            // D. Découverte dynamique de vieux dossiers de jeux portables et launchers sur tous les disques
-            foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed))
+            // D. Découverte dynamique de vieux dossiers de jeux portables sur tous les disques sélectionnés
+            foreach (var drive in GetTargetDrives(targetDrives))
             {
-                var candidateFolders = new[] { "Autres Jeux", "Jeux", "Games", "Old Games", "Riot Games", "GOG Games", "Ubisoft", "Battle.net" };
+                var candidateFolders = new[] { "Autres Jeux", "Jeux", "Games", "Old Games" };
                 foreach (var cf in candidateFolders)
                 {
                     var full = Path.Combine(drive.Name, cf);
@@ -820,16 +1044,21 @@ namespace CleanerApp
                             if (size > 500 * 1024 * 1024)
                             {
                                 var last = GetLastWriteTimeSafe(di);
-                                bool isOld = (DateTime.Now - last).TotalDays > 180;
-                                int risk = isOld ? 5 : 15;
-                                items.Add(CreateItem(
-                                    $"{di.Name} (Jeu Portable {drive.Name.TrimEnd('\\')})",
-                                    sub,
-                                    "games",
-                                    size,
-                                    risk,
-                                    $"Jeu portable inactif depuis le {last:dd/MM/yyyy}."
-                                ));
+                                int daysAgo = Math.Max(0, (int)(DateTime.Now - last).TotalDays);
+                                if (daysAgo >= 180)
+                                {
+                                    bool isRunning = IsLikelyRunning(di.Name, sub, runningProcs);
+                                    int risk = ComputeRiskScore("portable_game", daysAgo, isRunning, false, false);
+                                    items.Add(CreateItem(
+                                        $"{di.Name} (Jeu Portable {drive.Name.TrimEnd('\\')})",
+                                        sub,
+                                        "games",
+                                        size,
+                                        risk,
+                                        $"Jeu portable inactif depuis {FormatAgeText(daysAgo)} ({last:dd/MM/yyyy}).",
+                                        lastModified: last
+                                    ));
+                                }
                             }
                         }
                     }
@@ -837,98 +1066,167 @@ namespace CleanerApp
             }
         }
 
-        private static void AuditSystemUniversal(List<CleanerItem> items)
+        private static void AuditSystemUniversal(List<CleanerItem> items, HashSet<string>? targetDrives, HashSet<string> runningProcs)
         {
             var user = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var winDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
 
-            // A. Caches GPU Shaders (NVIDIA & AMD)
-            var gpuCaches = new[]
+            // Les caches utilisateur/système résident généralement sur C: (ou le disque système)
+            if (IsDriveSelected(localAppData, targetDrives))
             {
-                Path.Combine(localAppData, "NVIDIA", "DXCache"),
-                Path.Combine(localAppData, "NVIDIA", "GLCache"),
-                Path.Combine(localAppData, "D3DSCache"),
-                Path.Combine(localAppData, "AMD", "DxCache")
-            };
-            foreach (var gc in gpuCaches)
-            {
-                if (Directory.Exists(gc))
+                // A. Caches GPU Shaders (NVIDIA & AMD & Intel)
+                var gpuCaches = new[]
                 {
-                    double size = GetDirectorySizeSafe(gc);
-                    if (size > 100 * 1024 * 1024)
-                    {
-                        items.Add(CreateItem("DirectX & GPU Shader Cache", gc, "system", size, 0, "Caches de rendu 3D compilés régénérables automatiquement au lancement des jeux."));
-                    }
-                }
-            }
-
-            // B. Caches de build développeur (.gradle, .m2, ms-playwright, .nuget)
-            var devCaches = new[]
-            {
-                new { Name = "Gradle Build Cache", Path = Path.Combine(user, ".gradle", "caches") },
-                new { Name = "Maven Local Repository (.m2)", Path = Path.Combine(user, ".m2", "repository") },
-                new { Name = "Playwright Test Browsers", Path = Path.Combine(localAppData, "ms-playwright") },
-                new { Name = "NuGet Package Cache", Path = Path.Combine(localAppData, "NuGet", "v3-cache") }
-            };
-            foreach (var dc in devCaches)
-            {
-                if (Directory.Exists(dc.Path))
+                    Path.Combine(localAppData, "NVIDIA", "DXCache"),
+                    Path.Combine(localAppData, "NVIDIA", "GLCache"),
+                    Path.Combine(localAppData, "D3DSCache"),
+                    Path.Combine(localAppData, "AMD", "DxCache"),
+                    Path.Combine(localAppData, "AMD", "GLCache"),
+                    Path.Combine(localAppData, "Intel", "ShaderCache")
+                };
+                foreach (var gc in gpuCaches)
                 {
-                    double size = GetDirectorySizeSafe(dc.Path);
-                    if (size > 100 * 1024 * 1024)
+                    if (Directory.Exists(gc))
                     {
-                        items.Add(CreateItem(dc.Name, dc.Path, "system", size, 0, "Dépendances et paquets de build téléchargeables automatiquement par les outils de développement."));
-                    }
-                }
-            }
-
-            // C. Scan dynamique d'AppData (>= 150 Mo - Caches, updaters et applications inactives > 180 jours uniquement)
-            var appDataRoots = new[] { localAppData, appData, Path.Combine(user, "AppData", "LocalLow") };
-            foreach (var root in appDataRoots)
-            {
-                if (!Directory.Exists(root)) continue;
-                foreach (var dir in Directory.GetDirectories(root))
-                {
-                    var di = new DirectoryInfo(dir);
-                    if (di.Name.Equals("Microsoft", StringComparison.OrdinalIgnoreCase) ||
-                        di.Name.Equals("Packages", StringComparison.OrdinalIgnoreCase) ||
-                        di.Name.Equals("Programs", StringComparison.OrdinalIgnoreCase) ||
-                        di.Name.Equals("Steam", StringComparison.OrdinalIgnoreCase)) continue;
-
-                    double size = GetDirectorySizeSafe(dir);
-                    if (size > 150 * 1024 * 1024)
-                    {
-                        bool isCache = di.Name.Contains("cache", StringComparison.OrdinalIgnoreCase) ||
-                                       di.Name.Contains("updater", StringComparison.OrdinalIgnoreCase) ||
-                                       di.Name.Contains("log", StringComparison.OrdinalIgnoreCase) ||
-                                       di.Name.Contains("temp", StringComparison.OrdinalIgnoreCase);
-
-                        var lastWrite = GetLastWriteTimeSafe(di);
-                        bool isOld = (DateTime.Now - lastWrite).TotalDays > 180;
-
-                        // Dans l'Audit Recommandé, on n'ajoute que les vrais caches ou les applications abandonnées (> 6 mois)
-                        if (isCache || isOld)
+                        double size = GetDirectorySizeSafe(gc);
+                        if (size > 100 * 1024 * 1024)
                         {
-                            int risk = isCache ? 0 : 10;
-                            items.Add(CreateItem(
-                                isCache ? $"Cache AppData : {di.Name}" : $"Dossier Inactif AppData : {di.Name}",
-                                dir,
-                                "system",
-                                size,
-                                risk,
-                                isCache ? $"Cache applicatif régénérable ({Math.Round(size / 1024.0 / 1024.0, 1)} Mo)."
-                                        : $"Application inactive depuis le {lastWrite:dd/MM/yyyy} ({Math.Round(size / 1024.0 / 1024.0, 1)} Mo)."
-                            ));
+                            var last = GetLastWriteTimeSafe(new DirectoryInfo(gc));
+                            items.Add(CreateItem("DirectX & GPU Shader Cache", gc, "system", size, 0, "Caches de rendu 3D compilés régénérables automatiquement au lancement des jeux.", lastModified: last));
+                        }
+                    }
+                }
+
+                // B. Caches de build développeur & IA (.gradle, .m2, ms-playwright, nuget, npm, pip, cargo, huggingface, torch, ollama, unity, unreal)
+                var devCaches = new[]
+                {
+                    new { Name = "Gradle Build Cache", Path = Path.Combine(user, ".gradle", "caches"), Risk = 0, Desc = "Dépendances et artefacts Gradle régénérables." },
+                    new { Name = "Maven Local Repository (.m2)", Path = Path.Combine(user, ".m2", "repository"), Risk = 0, Desc = "Bibliothèques Java (.jar) re-téléchargeables via Maven." },
+                    new { Name = "Playwright Test Browsers", Path = Path.Combine(localAppData, "ms-playwright"), Risk = 0, Desc = "Navigateurs headless de test réinstallables via npx playwright install." },
+                    new { Name = "NuGet Package Cache", Path = Path.Combine(localAppData, "NuGet", "v3-cache"), Risk = 0, Desc = "Paquets C#/.NET régénérables par dotnet / Visual Studio." },
+                    new { Name = "NPM Package Cache", Path = Path.Combine(localAppData, "npm-cache"), Risk = 0, Desc = "Cache local des paquets Node.js (npm)." },
+                    new { Name = "NPM Cache (Roaming)", Path = Path.Combine(appData, "npm-cache"), Risk = 0, Desc = "Cache local des paquets Node.js (npm)." },
+                    new { Name = "Pip Python Cache", Path = Path.Combine(localAppData, "pip", "Cache"), Risk = 0, Desc = "Archives d'installation Python (.whl) régénérables." },
+                    new { Name = "UV Python Cache", Path = Path.Combine(localAppData, "uv", "cache"), Risk = 0, Desc = "Cache de paquets Python uv régénérable." },
+                    new { Name = "Cargo Rust Cache", Path = Path.Combine(user, ".cargo", "registry"), Risk = 0, Desc = "Crates Rust téléchargées, régénérables lors du build." },
+                    new { Name = "HuggingFace AI Models Cache", Path = Path.Combine(user, ".cache", "huggingface", "hub"), Risk = 10, Desc = "Modèles d'IA locaux HuggingFace volumineux (re-téléchargeables si besoin)." },
+                    new { Name = "PyTorch Models Cache", Path = Path.Combine(user, ".cache", "torch"), Risk = 5, Desc = "Poids et modèles PyTorch mis en cache localement." },
+                    new { Name = "Unity Asset & Package Cache", Path = Path.Combine(localAppData, "Unity", "cache"), Risk = 0, Desc = "Cache de paquets et assets Unity Hub / Editor." },
+                    new { Name = "Unreal Engine DerivedDataCache", Path = Path.Combine(localAppData, "UnrealEngine", "Common", "DerivedDataCache"), Risk = 0, Desc = "Shaders et données compilées Unreal Engine régénérables." },
+                    new { Name = "Crash Dumps & Rapports d'erreur", Path = Path.Combine(localAppData, "CrashDumps"), Risk = 0, Desc = "Fichiers mémoire de plantages d'applications (.dmp) 100% inutiles." }
+                };
+                foreach (var dc in devCaches)
+                {
+                    if (Directory.Exists(dc.Path))
+                    {
+                        double size = GetDirectorySizeSafe(dc.Path);
+                        if (size > 80 * 1024 * 1024)
+                        {
+                            var last = GetLastWriteTimeSafe(new DirectoryInfo(dc.Path));
+                            items.Add(CreateItem(dc.Name, dc.Path, "system", size, dc.Risk, dc.Desc, lastModified: last));
+                        }
+                    }
+                }
+
+                // B2. Dossiers Temp Utilisateur & Windows & SoftwareDistribution
+                var sysTempPaths = new[]
+                {
+                    new { Name = "Fichiers Temporaires Utilisateur (%TEMP%)", Path = Path.GetTempPath().TrimEnd('\\'), Desc = "Fichiers temporaires Windows et installeurs résiduels." },
+                    new { Name = "Fichiers Temporaires Système (Windows\\Temp)", Path = Path.Combine(winDir, "Temp"), Desc = "Fichiers temporaires système Windows." },
+                    new { Name = "Cache Windows Update (SoftwareDistribution)", Path = Path.Combine(winDir, "SoftwareDistribution", "Download"), Desc = "Anciens paquets de mises à jour Windows déjà installées." },
+                    new { Name = "Minidumps Système (BSOD)", Path = Path.Combine(winDir, "Minidump"), Desc = "Journaux mémoire d'anciens écrans bleus." }
+                };
+                foreach (var st in sysTempPaths)
+                {
+                    if (IsDriveSelected(st.Path, targetDrives) && Directory.Exists(st.Path))
+                    {
+                        double size = GetDirectorySizeSafe(st.Path);
+                        if (size > 100 * 1024 * 1024)
+                        {
+                            var last = GetLastWriteTimeSafe(new DirectoryInfo(st.Path));
+                            items.Add(CreateItem(st.Name, st.Path, "system", size, 0, st.Desc, lastModified: last));
+                        }
+                    }
+                }
+
+                // B3. Caches de navigateurs & Spotify & Adobe
+                var mediaCaches = new[]
+                {
+                    new { Name = "Cache Navigateur Google Chrome", Path = Path.Combine(localAppData, "Google", "Chrome", "User Data", "Default", "Cache") },
+                    new { Name = "Cache Navigateur Microsoft Edge", Path = Path.Combine(localAppData, "Microsoft", "Edge", "User Data", "Default", "Cache") },
+                    new { Name = "Cache Navigateur Brave", Path = Path.Combine(localAppData, "BraveSoftware", "Brave-Browser", "User Data", "Default", "Cache") },
+                    new { Name = "Cache Audio Spotify (Storage)", Path = Path.Combine(localAppData, "Spotify", "Storage") },
+                    new { Name = "Adobe Media Cache Files", Path = Path.Combine(appData, "Adobe", "Common", "Media Cache Files") }
+                };
+                foreach (var mc in mediaCaches)
+                {
+                    if (Directory.Exists(mc.Path))
+                    {
+                        double size = GetDirectorySizeSafe(mc.Path);
+                        if (size > 150 * 1024 * 1024)
+                        {
+                            var last = GetLastWriteTimeSafe(new DirectoryInfo(mc.Path));
+                            items.Add(CreateItem(mc.Name, mc.Path, "system", size, 0, "Cache média/web 100% régénérable automatiquement sans perte de favoris ou mots de passe.", lastModified: last));
+                        }
+                    }
+                }
+
+                // C. Scan dynamique d'AppData (>= 150 Mo)
+                var appDataRoots = new[] { localAppData, appData, Path.Combine(user, "AppData", "LocalLow") };
+                foreach (var root in appDataRoots)
+                {
+                    if (!Directory.Exists(root)) continue;
+                    foreach (var dir in Directory.GetDirectories(root))
+                    {
+                        var di = new DirectoryInfo(dir);
+                        if (di.Name.Equals("Microsoft", StringComparison.OrdinalIgnoreCase) ||
+                            di.Name.Equals("Packages", StringComparison.OrdinalIgnoreCase) ||
+                            di.Name.Equals("Programs", StringComparison.OrdinalIgnoreCase) ||
+                            di.Name.Equals("NVIDIA", StringComparison.OrdinalIgnoreCase) ||
+                            di.Name.Equals("AMD", StringComparison.OrdinalIgnoreCase) ||
+                            di.Name.Equals("NuGet", StringComparison.OrdinalIgnoreCase) ||
+                            di.Name.Equals("ms-playwright", StringComparison.OrdinalIgnoreCase) ||
+                            di.Name.Equals("Temp", StringComparison.OrdinalIgnoreCase) ||
+                            di.Name.Equals("CrashDumps", StringComparison.OrdinalIgnoreCase) ||
+                            di.Name.Equals("Steam", StringComparison.OrdinalIgnoreCase)) continue;
+
+                        double size = GetDirectorySizeSafe(dir);
+                        if (size > 150 * 1024 * 1024)
+                        {
+                            bool isCache = di.Name.Contains("cache", StringComparison.OrdinalIgnoreCase) ||
+                                           di.Name.Contains("updater", StringComparison.OrdinalIgnoreCase) ||
+                                           di.Name.Contains("log", StringComparison.OrdinalIgnoreCase) ||
+                                           di.Name.Contains("temp", StringComparison.OrdinalIgnoreCase);
+
+                            var lastWrite = GetLastWriteTimeSafe(di);
+                            int daysAgo = Math.Max(0, (int)(DateTime.Now - lastWrite).TotalDays);
+                            bool isOld = daysAgo >= 180;
+                            bool isRunning = IsLikelyRunning(di.Name, dir, runningProcs);
+
+                            if (isCache || isOld)
+                            {
+                                int risk = ComputeRiskScore(isCache ? "appdata_cache" : "appdata_inactive", daysAgo, isRunning, false, false);
+                                items.Add(CreateItem(
+                                    isCache ? $"Cache AppData : {di.Name}" : $"Dossier Inactif AppData : {di.Name}",
+                                    dir,
+                                    "system",
+                                    size,
+                                    risk,
+                                    isCache ? $"Cache / updater applicatif régénérable ({Math.Round(size / 1024.0 / 1024.0, 1)} Mo)."
+                                            : $"Données d'application inactives depuis {FormatAgeText(daysAgo)} ({lastWrite:dd/MM/yyyy}).",
+                                    lastModified: lastWrite
+                                ));
+                            }
                         }
                     }
                 }
             }
 
-            // D. Scan des dossiers temporaires et caches à la racine sur TOUS les disques fixes
-            foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed))
+            // D. Scan des dossiers temporaires et caches à la racine sur TOUS les disques sélectionnés
+            foreach (var drive in GetTargetDrives(targetDrives))
             {
-                // Dossiers temporaires et caches à la racine de chaque disque
                 var rootCaches = new[] { "msdownld.tmp", "MSOCache", "MobiSaverCache", "Temp", "Tmp", "TeraBoxDownload", "$Recycle.Bin", ".gradle", ".m2", "node_modules" };
                 foreach (var rc in rootCaches)
                 {
@@ -938,20 +1236,23 @@ namespace CleanerApp
                         double size = GetDirectorySizeSafe(p);
                         if (size > 10 * 1024 * 1024) // > 10 Mo
                         {
-                            items.Add(CreateItem($"Cache / Dossier Temporaire : {rc} ({drive.Name.TrimEnd('\\')})", p, "system", size, 0, "Dossier temporaire ou cache d'installation résiduel à la racine du disque."));
+                            var last = GetLastWriteTimeSafe(new DirectoryInfo(p));
+                            string label = rc.Equals("$Recycle.Bin", StringComparison.OrdinalIgnoreCase)
+                                ? $"Corbeille Windows ({drive.Name.TrimEnd('\\')})"
+                                : $"Cache / Dossier Temporaire : {rc} ({drive.Name.TrimEnd('\\')})";
+                            items.Add(CreateItem(label, p, "system", size, 0, "Dossier temporaire, corbeille ou cache d'installation résiduel à la racine du disque.", lastModified: last));
                         }
                     }
                 }
             }
         }
 
-        private static void AuditDownloadsUniversal(List<CleanerItem> items)
+        private static void AuditDownloadsUniversal(List<CleanerItem> items, HashSet<string>? targetDrives)
         {
             var user = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             var dlList = new List<string> { Path.Combine(user, "Downloads") };
 
-            // Ajouter tout dossier Téléchargements ou Downloads sur les disques secondaires
-            foreach (var d in DriveInfo.GetDrives().Where(dr => dr.IsReady && dr.DriveType == DriveType.Fixed))
+            foreach (var d in GetTargetDrives(targetDrives))
             {
                 var p1 = Path.Combine(d.Name, "Téléchargements");
                 if (Directory.Exists(p1)) dlList.Add(p1);
@@ -961,40 +1262,39 @@ namespace CleanerApp
 
             foreach (var dl in dlList)
             {
-                if (!Directory.Exists(dl)) continue;
+                if (!IsDriveSelected(dl, targetDrives) || !Directory.Exists(dl)) continue;
 
-                // 1. Installeurs (.exe, .msi, .AppImage)
+                // 1. Installeurs (.exe, .msi, .appimage, .iso)
                 foreach (var f in Directory.GetFiles(dl))
                 {
                     var fi = new FileInfo(f);
                     var ext = fi.Extension.ToLowerInvariant();
-                    if (ext == ".exe" || ext == ".msi" || ext == ".appimage")
+                    int daysAgo = Math.Max(0, (int)(DateTime.Now - fi.LastWriteTime).TotalDays);
+
+                    if (ext == ".exe" || ext == ".msi" || ext == ".appimage" || ext == ".msix")
                     {
                         if (fi.Length > 5 * 1024 * 1024)
                         {
+                            int risk = ComputeRiskScore("installer", daysAgo, false, false, false);
                             items.Add(CreateItem(
                                 $"Installeur : {fi.Name}",
                                 f,
                                 "downloads",
                                 fi.Length,
-                                0,
-                                $"Installeur téléchargé le {fi.LastWriteTime:dd/MM/yyyy}. Inutile dès que le logiciel est installé.",
-                                isFolder: false
+                                risk,
+                                $"Installeur téléchargé {FormatAgeText(daysAgo)} ({fi.LastWriteTime:dd/MM/yyyy}). Inutile dès que le logiciel est installé.",
+                                isFolder: false,
+                                lastModified: fi.LastWriteTime
                             ));
                         }
                     }
-                    else if ((ext == ".zip" || ext == ".rar" || ext == ".7z") && fi.Length > 20 * 1024 * 1024)
+                    else if ((ext == ".zip" || ext == ".rar" || ext == ".7z" || ext == ".iso" || ext == ".tar" || ext == ".gz") && fi.Length > 20 * 1024 * 1024)
                     {
-                        bool isPersonal = fi.Name.Contains("Direct Messages", StringComparison.OrdinalIgnoreCase) || 
+                        bool isPersonal = fi.Name.Contains("Direct Messages", StringComparison.OrdinalIgnoreCase) ||
                                           fi.Name.Contains("backup", StringComparison.OrdinalIgnoreCase) ||
                                           fi.Name.Contains("sauvegarde", StringComparison.OrdinalIgnoreCase);
 
-                        double daysAgo = (DateTime.Now - fi.LastWriteTime).TotalDays;
-                        int risk = isPersonal ? 95 : (daysAgo >= 60 ? 0 : 15);
-
-                        string ageText = daysAgo >= 365 
-                            ? $"il y a {(int)(daysAgo / 365)} an(s)" 
-                            : $"il y a {(int)daysAgo} jours";
+                        int risk = ComputeRiskScore("archive", daysAgo, false, false, isPersonal);
 
                         items.Add(CreateItem(
                             $"Archive : {fi.Name}",
@@ -1002,11 +1302,12 @@ namespace CleanerApp
                             "downloads",
                             fi.Length,
                             risk,
-                            isPersonal 
-                                ? "Sauvegarde / archive personnelle. Recommandé de conserver !" 
-                                : $"Archive téléchargée {ageText} ({fi.LastWriteTime:dd/MM/yyyy}). Suppression sûre.",
+                            isPersonal
+                                ? "Sauvegarde / archive personnelle. Recommandé de conserver !"
+                                : $"Archive téléchargée {FormatAgeText(daysAgo)} ({fi.LastWriteTime:dd/MM/yyyy}). Suppression sûre si déjà extraite.",
                             isFolder: false,
-                            isSanctuarized: isPersonal
+                            isSanctuarized: isPersonal,
+                            lastModified: fi.LastWriteTime
                         ));
                     }
                 }
@@ -1023,19 +1324,19 @@ namespace CleanerApp
                         double size = GetDirectorySizeSafe(sub);
                         if (size > 50 * 1024 * 1024)
                         {
-                            items.Add(CreateItem($"Dossier Temporaire : {di.Name}", sub, "downloads", size, 5, "Dossier de build temporaire ou décompressé dans Téléchargements."));
+                            var last = GetLastWriteTimeSafe(di);
+                            items.Add(CreateItem($"Dossier Temporaire : {di.Name}", sub, "downloads", size, 0, "Dossier de build temporaire ou décompressé dans Téléchargements.", lastModified: last));
                         }
                     }
                 }
             }
         }
 
-        private static void AuditEmulatorsUniversal(List<CleanerItem> items)
+        private static void AuditEmulatorsUniversal(List<CleanerItem> items, HashSet<string>? targetDrives, HashSet<string> runningProcs)
         {
-            var drives = DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed);
             var emuFolderNames = new[] { "Nox", "BlueStacks", "Yuzu", "Jeux dolphin", "Dolphin-x64", "Ryujinx", "LDPlayer", "MEmu" };
 
-            foreach (var d in drives)
+            foreach (var d in GetTargetDrives(targetDrives))
             {
                 foreach (var baseFolder in new[] { @"Program Files", @"Program Files (x86)", "" })
                 {
@@ -1050,7 +1351,11 @@ namespace CleanerApp
                             double size = GetDirectorySizeSafe(target);
                             if (size > 10 * 1024 * 1024)
                             {
-                                items.Add(CreateItem($"Émulateur : {ef} ({d.Name.TrimEnd('\\')})", target, "apps", size, 5, "Émulateur ou ROMs installés sur cette machine."));
+                                var last = GetLastWriteTimeSafe(new DirectoryInfo(target));
+                                int daysAgo = Math.Max(0, (int)(DateTime.Now - last).TotalDays);
+                                bool isRunning = IsLikelyRunning(ef, target, runningProcs);
+                                int risk = ComputeRiskScore("emulator", daysAgo, isRunning, false, false);
+                                items.Add(CreateItem($"Émulateur : {ef} ({d.Name.TrimEnd('\\')})", target, "apps", size, risk, $"Émulateur ou ROMs (Activité : {FormatAgeText(daysAgo)}).", lastModified: last));
                             }
                         }
                     }
@@ -1313,67 +1618,243 @@ namespace CleanerApp
                 }
             }
             // 18. Installeurs (.exe, .msi, .appimage)
-            else if (pLower.EndsWith(".exe") || pLower.EndsWith(".msi") || pLower.EndsWith(".appimage"))
+            // 18. Installeurs (.exe, .msi, .appimage, .msix)
+            else if (pLower.EndsWith(".exe") || pLower.EndsWith(".msi") || pLower.EndsWith(".appimage") || pLower.EndsWith(".msix"))
             {
                 var vi = File.Exists(path) && pLower.EndsWith(".exe") ? FileVersionInfo.GetVersionInfo(path) : null;
                 string prod = !string.IsNullOrWhiteSpace(vi?.ProductName) ? vi.ProductName : Path.GetFileNameWithoutExtension(path);
                 string comp = !string.IsNullOrWhiteSpace(vi?.CompanyName) ? vi.CompanyName : "Éditeur internet";
                 string desc = !string.IsNullOrWhiteSpace(vi?.FileDescription) ? vi.FileDescription : "Programme d'installation";
 
-                int ageDays = (int)(DateTime.Now - lastWrite).TotalDays;
-                string ageStr = ageDays > 365 ? $"il y a {(int)(ageDays / 365)} an(s)" : $"il y a {ageDays} jours";
-
+                int ageDays = Math.Max(0, (int)(DateTime.Now - lastWrite).TotalDays);
                 report.Definition = $"Fichier d'installation autonome de : {prod} ({desc}).";
-                report.Origin = $"Téléchargé depuis internet ({comp}) le {lastWrite:dd MMMM yyyy} ({ageStr}) dans {Path.GetFileName(Path.GetDirectoryName(path))}.";
+                report.Origin = $"Téléchargé depuis internet ({comp}) le {lastWrite:dd MMMM yyyy} ({FormatAgeText(ageDays)}) dans {Path.GetFileName(Path.GetDirectoryName(path))}.";
                 report.SafetyImpact = "🟢 SUPPRESSION 100% SÛRE (Risque 0%). Ce n'est que l'installeur temporaire. Une fois le logiciel installé sur votre PC, ce fichier exécutable ne sert plus à rien et peut être supprimé sans affecter l'application installée.";
+                report.RiskPct = ComputeRiskScore("installer", ageDays, false, false, false);
+            }
+            // 19. Caches & Outils Dev / IA / Navigateurs / Système étendus
+            else if (n.Contains("npm") || pLower.Contains("npm-cache"))
+            {
+                report.Definition = "Cache local des paquets JavaScript / Node.js (npm).";
+                report.Origin = "Créé automatiquement par Node.js / npm lors de l'installation de dépendances de projets web.";
+                report.SafetyImpact = "🟢 SUPPRESSION 100% SÛRE (Risque 0%). npm re-téléchargera les paquets si besoin.";
                 report.RiskPct = 0;
             }
-            // 19. Jeux portables anciens
-            else if (n.Contains("jeu portable") || pLower.Contains("autres jeux") || pLower.Contains(@"\jeux\"))
+            else if (n.Contains("pip") || pLower.Contains(@"\pip\"))
             {
-                report.Definition = "Dossier de jeu vidéo portable (sans installeur Windows officiel).";
-                report.Origin = "Dossier de jeu extrait ou téléchargé directement sur vos disques secondaires.";
-                report.SafetyImpact = "Suppression sécurisée si vous n'y jouez plus. Conservez vos sauvegardes si le jeu les stocke dans son propre répertoire.";
+                report.Definition = "Cache local des archives Python (.whl / .tar.gz) téléchargées par pip.";
+                report.Origin = "Généré par Python lors de l'exécution de commandes 'pip install'.";
+                report.SafetyImpact = "🟢 SUPPRESSION 100% SÛRE (Risque 0%). Cache purement temporaire et régénérable.";
+                report.RiskPct = 0;
+            }
+            else if (n.Contains("huggingface") || pLower.Contains("huggingface") || n.Contains("pytorch") || pLower.Contains(@"\torch"))
+            {
+                report.Definition = "Cache local de modèles d'intelligence artificielle (poids .safetensors / .bin / tokenizers).";
+                report.Origin = "Téléchargé par des scripts Python, HuggingFace Hub, ComfyUI, Stable Diffusion ou PyTorch.";
+                report.SafetyImpact = "Suppression sûre pour le système (Risque 5-10%). Vous devrez re-télécharger ces modèles si vous relancez les scripts IA associés.";
+                report.RiskPct = 5;
+            }
+            else if (n.Contains("cargo") || pLower.Contains(".cargo"))
+            {
+                report.Definition = "Registre et cache des bibliothèques Rust (crates) compilées.";
+                report.Origin = "Généré par Cargo lors de la compilation de projets Rust.";
+                report.SafetyImpact = "🟢 SUPPRESSION 100% SÛRE (Risque 0%). Cargo re-téléchargera les dépendances à la prochaine compilation.";
+                report.RiskPct = 0;
+            }
+            else if (n.Contains("unity") && pLower.Contains("cache"))
+            {
+                report.Definition = "Cache de paquets et d'assets du moteur de jeu Unity.";
+                report.Origin = "Généré par Unity Hub / Unity Editor lors de l'ouverture de projets 3D/C#.";
+                report.SafetyImpact = "🟢 SUPPRESSION 100% SÛRE (Risque 0%). Unity re-téléchargera les paquets nécessaires à la prochaine ouverture de projet.";
+                report.RiskPct = 0;
+            }
+            else if (n.Contains("unreal") || pLower.Contains("deriveddatacache"))
+            {
+                report.Definition = "DerivedDataCache : shaders et textures pré-compilés d'Unreal Engine.";
+                report.Origin = "Généré par Unreal Editor lors de l'ouverture ou de la compilation de scènes 3D.";
+                report.SafetyImpact = "🟢 SUPPRESSION 100% SÛRE (Risque 0%). Régénéré automatiquement à l'ouverture d'Unreal (le premier chargement sera juste un peu plus long).";
+                report.RiskPct = 0;
+            }
+            else if (n.Contains("crashdump") || pLower.Contains("crashdumps") || n.Contains("minidump") || pLower.Contains("minidump"))
+            {
+                report.Definition = "Fichiers mémoire de diagnostic (.dmp) enregistrés lors d'anciens plantages logiciels ou Windows.";
+                report.Origin = "Généré automatiquement par Windows Error Reporting (WER) après un crash.";
+                report.SafetyImpact = "🟢 SUPPRESSION 100% SÛRE (Risque 0%). Fichiers de diagnostic obsolètes sans aucune utilité pour le fonctionnement du PC.";
+                report.RiskPct = 0;
+            }
+            else if (n.Contains("softwaredistribution") || pLower.Contains("softwaredistribution"))
+            {
+                report.Definition = "Cache des fichiers d'installation Windows Update déjà téléchargés.";
+                report.Origin = "Généré par le service Windows Update lors des mises à jour mensuelles de Windows.";
+                report.SafetyImpact = "🟢 SUPPRESSION 100% SÛRE (Risque 0%). Libère de l'espace sans affecter les mises à jour déjà installées.";
+                report.RiskPct = 0;
+            }
+            else if (n.Contains("voicemod") || pLower.Contains("voicemod"))
+            {
+                report.Definition = "Modulateur de voix en temps réel et banque d'effets sonores (Voicemod).";
+                report.Origin = "Installé pour modifier la voix sur Discord ou en jeu.";
+                report.SafetyImpact = "Sûr à supprimer si vous n'utilisez plus Voicemod.";
+                report.RiskPct = running ? 55 : 10;
+            }
+            else if (n.Contains("dry cactus") || n.Contains("poly bridge"))
+            {
+                report.Definition = "Données, sauvegardes et niveaux personnalisés des jeux Poly Bridge (studio Dry Cactus).";
+                report.Origin = "Créé dans AppData par Poly Bridge lors de vos parties.";
+                report.SafetyImpact = "Contient potentiellement des sauvegardes locales si le cloud Steam n'est pas activé.";
+                report.RiskPct = 20;
+            }
+            else if (n.Contains("radmin") || n.Contains("pulse secure") || n.Contains("hamachi"))
+            {
+                report.Definition = "Outil de réseau privé virtuel (VPN) ou de LAN virtuel pour jouer/travailler à distance.";
+                report.Origin = "Installé pour créer un réseau local virtuel (LAN gaming) ou accéder à un réseau d'entreprise/école.";
+                report.SafetyImpact = running ? "⚠️ Service réseau actif. Vérifiez si vous en avez encore besoin avant de désinstaller." : "Sûr à supprimer si vous n'utilisez plus ce VPN.";
+                report.RiskPct = running ? 60 : 15;
+            }
+            else if (n.Contains("discord") || n.Contains("slack") || n.Contains("teams") || n.Contains("rocket.chat"))
+            {
+                report.Definition = "Application de messagerie vocale/texte et ses données locales.";
+                report.Origin = "Installée pour la communication (gaming, études ou travail).";
+                report.SafetyImpact = running ? "🔴 Application active en cours d'utilisation !" : "Si c'est une ancienne messagerie inutilisée (ex: Slack/Teams d'un ancien stage), suppression sûre (vos messages restent sur le cloud).";
+                report.RiskPct = running ? 85 : 25;
+            }
+            else if (n.Contains("spotify") || n.Contains("cache navigateur") || pLower.Contains(@"\default\cache"))
+            {
+                report.Definition = "Cache média/web temporaire (images, flux audio, scripts mis en cache).";
+                report.Origin = "Généré automatiquement par votre navigateur ou Spotify pour accélérer le chargement.";
+                report.SafetyImpact = "🟢 SUPPRESSION 100% SÛRE (Risque 0%). Aucun favori, mot de passe ou playlist n'est supprimé.";
+                report.RiskPct = 0;
+            }
+            else if (n.Contains("corbeille") || pLower.Contains("$recycle.bin"))
+            {
+                report.Definition = "Corbeille Windows contenant des fichiers déjà supprimés par l'utilisateur.";
+                report.Origin = "Fichiers mis à la corbeille sur ce disque.";
+                report.SafetyImpact = "🟢 SUPPRESSION 100% SÛRE (Risque 0%). Vide définitivement les fichiers déjà jetés.";
+                report.RiskPct = 0;
+            }
+            else if (n.Contains("steam workshop") || pLower.Contains(@"\workshop\"))
+            {
+                report.Definition = "Contenu téléchargé depuis le Steam Workshop (mods, cartes, skins communautaires).";
+                report.Origin = "Téléchargé automatiquement par Steam selon vos abonnements Workshop.";
+                report.SafetyImpact = "Suppression sûre : libère souvent plusieurs Go. Steam re-téléchargera les mods si vous êtes toujours abonné.";
                 report.RiskPct = 10;
             }
-            // 20. Recherche dynamique dans le Registre Windows
+            else if (n.Contains("shadercache") || pLower.Contains(@"\shadercache"))
+            {
+                report.Definition = "Cache de shaders pré-compilés par Steam pour vos jeux.";
+                report.Origin = "Téléchargé/compilé par Steam pour éviter les saccades en jeu.";
+                report.SafetyImpact = "🟢 SUPPRESSION 100% SÛRE (Risque 0%). Régénérable automatiquement au lancement des jeux.";
+                report.RiskPct = 0;
+            }
+            // 20. Jeux portables anciens
+            else if (n.Contains("jeu portable") || pLower.Contains("autres jeux") || pLower.Contains(@"\jeux\"))
+            {
+                int ageDays = Math.Max(0, (int)(DateTime.Now - lastWrite).TotalDays);
+                report.Definition = "Dossier de jeu vidéo portable (sans installeur Windows officiel).";
+                report.Origin = $"Dossier de jeu extrait ou téléchargé sur vos disques secondaires (dernière activité : {FormatAgeText(ageDays)}).";
+                report.SafetyImpact = "Suppression sécurisée si vous n'y jouez plus. Conservez vos sauvegardes si le jeu les stocke dans son propre répertoire.";
+                report.RiskPct = ComputeRiskScore("portable_game", ageDays, running, false, false);
+            }
+            // 21. ENQUÊTE FORENSIQUE DYNAMIQUE MULTI-NIVEAUX (Registre + EXE/DLL + Structure interne)
             else
             {
+                int ageDays = Math.Max(0, (int)(DateTime.Now - lastWrite).TotalDays);
                 var regDetails = FindRegistryAppDetails(baseName, name);
+                var exeDetails = FindExeMetadata(path);
+                var forensicSummary = InspectDirectoryForensics(path);
+
                 if (regDetails != null)
                 {
-                    report.Definition = $"Application Windows : {regDetails.DisplayName} (v{regDetails.DisplayVersion}), développée par {regDetails.Publisher}.";
-                    report.Origin = $"Installée officiellement sur votre PC{(string.IsNullOrEmpty(regDetails.InstallDate) ? "" : " le " + regDetails.InstallDate)} (enregistrée dans le Registre Windows).";
-                    report.SafetyImpact = running
-                        ? "⚠️ L'application est actuellement ouverte en mémoire. Fermez-la avant toute désinstallation."
-                        : "Application enregistrée. Peut être désinstallée proprement si vous ne l'utilisez plus.";
-                    report.RiskPct = initialRisk;
+                    bool isCore = IsCoreSystemOrRuntime(regDetails.DisplayName, path);
+                    report.Definition = $"Application Windows : {regDetails.DisplayName}{(string.IsNullOrEmpty(regDetails.DisplayVersion) ? "" : " (v" + regDetails.DisplayVersion + ")")}, développée par {regDetails.Publisher}.{(string.IsNullOrEmpty(forensicSummary) ? "" : " " + forensicSummary)}";
+                    report.Origin = $"Installée officiellement sur votre PC{(string.IsNullOrEmpty(regDetails.InstallDate) ? "" : " le " + regDetails.InstallDate)} (enregistrée dans le Registre Windows). Emplacement : {path}.";
+                    report.SafetyImpact = isCore
+                        ? "🔴 COMPOSANT SYSTÈME OU PLATEFORME ESSENTIELLE. Conservation fortement recommandée."
+                        : (running
+                            ? "⚠️ L'application est actuellement ouverte en mémoire. Fermez-la avant toute désinstallation."
+                            : (ageDays >= 365
+                                ? $"🟢 INUTILISÉE DEPUIS {FormatAgeText(ageDays).ToUpperInvariant()}. Peut être désinstallée proprement sans risque pour libérer de l'espace."
+                                : "Application enregistrée récemment utilisée. Peut être désinstallée proprement si vous n'en avez plus l'usage."));
+                    report.RiskPct = ComputeRiskScore("installed_app", ageDays, running, isCore, IsPathSanctuarized(path));
+                }
+                else if (exeDetails != null)
+                {
+                    bool isCore = IsCoreSystemOrRuntime(exeDetails.ProductName, path);
+                    report.Definition = $"{exeDetails.Description} — Produit : {exeDetails.ProductName}.{(string.IsNullOrEmpty(forensicSummary) ? "" : " " + forensicSummary)}";
+                    report.Origin = $"Développé par {exeDetails.Company}. Emplacement : {path} (dernière activité : {FormatAgeText(ageDays)}).";
+                    report.SafetyImpact = isCore
+                        ? "🔴 COMPOSANT ESSENTIEL. Conservation recommandée."
+                        : (running
+                            ? "⚠️ Un processus lié tourne actuellement en mémoire. Fermez-le avant de nettoyer."
+                            : (ageDays >= 365
+                                ? $"🟢 Dossier logiciel inactif depuis {FormatAgeText(ageDays)}. Suppression sûre si vous n'utilisez plus {exeDetails.ProductName}."
+                                : "Aucun processus actif. Peut être nettoyé si vous n'utilisez plus ce logiciel."));
+                    report.RiskPct = ComputeRiskScore("installed_app", ageDays, running, isCore, IsPathSanctuarized(path));
                 }
                 else
                 {
-                    var exeDetails = FindExeMetadata(path);
-                    if (exeDetails != null)
-                    {
-                        report.Definition = $"{exeDetails.Description} ({exeDetails.ProductName})";
-                        report.Origin = $"Développé par {exeDetails.Company}. Emplacement : {path}.";
-                        report.SafetyImpact = running
-                            ? "⚠️ Un processus lié tourne actuellement en mémoire. Fermez-le avant de nettoyer."
-                            : "Aucun processus actif. Peut être nettoyé si vous n'utilisez plus ce dossier.";
-                        report.RiskPct = initialRisk;
-                    }
-                    else
-                    {
-                        report.Definition = $"Dossier de données ou cache d'application : {name}.";
-                        report.Origin = $"Généré par une application ou un outil dans {Path.GetDirectoryName(path)}.";
-                        report.SafetyImpact = running
-                            ? "⚠️ Processus actif en mémoire. Fermez l'application liée avant de nettoyer."
-                            : "Inactif. Peut être supprimé si l'application associée n'est plus utilisée.";
-                        report.RiskPct = initialRisk;
-                    }
+                    string parentContext = pLower.Contains(@"\appdata\local") ? "AppData\\Local (données et caches locaux d'application)"
+                        : (pLower.Contains(@"\appdata\roaming") ? "AppData\\Roaming (profils, réglages utilisateur et sauvegardes)"
+                        : (pLower.Contains(@"\program files") ? "Program Files (répertoire d'installation logiciel)"
+                        : Path.GetDirectoryName(path) ?? "Disque local"));
+
+                    report.Definition = !string.IsNullOrEmpty(forensicSummary)
+                        ? $"Élément « {name} » — {forensicSummary}"
+                        : $"Dossier de données ou reliquat d'application : {name}.";
+                    report.Origin = $"Situé dans {parentContext}. Dernière modification enregistrée {FormatAgeText(ageDays)} ({lastWrite:dd MMMM yyyy}).";
+                    report.SafetyImpact = running
+                        ? "⚠️ Processus actif en mémoire. Fermez l'application liée avant de nettoyer."
+                        : (ageDays >= 365
+                            ? $"🟢 Élément totalement inactif depuis {FormatAgeText(ageDays)}. Fortement probable qu'il s'agisse d'un reliquat supprimable sans impact sur Windows."
+                            : "Inactif actuellement. Vérifiez le contenu ou utilisez « ✨ Approfondir avec l'IA » pour identifier l'éditeur exact.");
+                    report.RiskPct = ComputeRiskScore(pLower.Contains("cache") ? "appdata_cache" : "appdata_inactive", ageDays, running, false, IsPathSanctuarized(path));
                 }
             }
 
             return report;
+        }
+
+        private static string InspectDirectoryForensics(string path)
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    var fi = new FileInfo(path);
+                    return $"Fichier unique {fi.Extension.ToUpperInvariant()} de {Math.Round(fi.Length / 1024.0 / 1024.0, 1)} Mo.";
+                }
+                if (!Directory.Exists(path)) return "";
+
+                var topFiles = Directory.GetFiles(path, "*", SearchOption.TopDirectoryOnly).Select(Path.GetFileName).Where(x => x != null).ToList();
+                var topDirs = Directory.GetDirectories(path, "*", SearchOption.TopDirectoryOnly).Select(Path.GetFileName).Where(x => x != null).ToList();
+
+                var hints = new List<string>();
+                if (topFiles.Any(f => f!.Equals("UnityPlayer.dll", StringComparison.OrdinalIgnoreCase)) || topDirs.Any(d => d!.EndsWith("_Data", StringComparison.OrdinalIgnoreCase)))
+                    hints.Add("Moteur Unity détecté (jeu ou application 3D)");
+                if (topFiles.Any(f => f!.Equals("app.asar", StringComparison.OrdinalIgnoreCase)) || topDirs.Contains("resources", StringComparer.OrdinalIgnoreCase) && File.Exists(Path.Combine(path, "resources", "app.asar")))
+                    hints.Add("Application bureau basée sur Electron / Chromium");
+                if (topDirs.Any(d => d!.Equals("GPUCache", StringComparison.OrdinalIgnoreCase) || d.Equals("Code Cache", StringComparison.OrdinalIgnoreCase) || d.Equals("Cache_Data", StringComparison.OrdinalIgnoreCase)))
+                    hints.Add("Contient des sous-dossiers de cache web Chromium régénérables");
+                if (topFiles.Any(f => f!.StartsWith("unins", StringComparison.OrdinalIgnoreCase) && f.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)))
+                    hints.Add("Contient un désinstalleur officiel Windows (unins*.exe)");
+                if (topFiles.Any(f => f!.EndsWith(".pak", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".ucas", StringComparison.OrdinalIgnoreCase)) || topDirs.Contains("Engine", StringComparer.OrdinalIgnoreCase))
+                    hints.Add("Ressources de jeu (fichiers .pak / Unreal Engine)");
+                if (topFiles.Any(f => f!.EndsWith(".jar", StringComparison.OrdinalIgnoreCase)))
+                    hints.Add("Contient des archives Java (.jar)");
+                if (topFiles.Any(f => f!.EndsWith(".log", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".dmp", StringComparison.OrdinalIgnoreCase)))
+                    hints.Add("Contient des journaux (.log) ou dumps mémoire (.dmp)");
+
+                if (hints.Count == 0 && (topFiles.Count > 0 || topDirs.Count > 0))
+                {
+                    var sample = topDirs.Take(3).Concat(topFiles.Take(3)).Take(4);
+                    hints.Add($"Contenu principal : {string.Join(", ", sample)}");
+                }
+
+                return string.Join(" • ", hints);
+            }
+            catch
+            {
+                return "";
+            }
         }
 
         private class RegAppInfo
@@ -1455,13 +1936,28 @@ namespace CleanerApp
 
                 if (Directory.Exists(path))
                 {
-                    var exes = Directory.GetFiles(path, "*.exe", SearchOption.TopDirectoryOnly);
+                    var exes = Directory.GetFiles(path, "*.exe", SearchOption.TopDirectoryOnly)
+                                        .Where(f => !Path.GetFileName(f).StartsWith("unins", StringComparison.OrdinalIgnoreCase))
+                                        .ToArray();
+                    if (exes.Length == 0)
+                    {
+                        foreach (var sub in Directory.GetDirectories(path).Take(5))
+                        {
+                            try
+                            {
+                                var subExes = Directory.GetFiles(sub, "*.exe", SearchOption.TopDirectoryOnly);
+                                if (subExes.Length > 0) { exes = subExes; break; }
+                            }
+                            catch { }
+                        }
+                    }
                     if (exes.Length > 0)
                     {
-                        var vi = FileVersionInfo.GetVersionInfo(exes[0]);
+                        var mainExe = exes.OrderByDescending(f => new FileInfo(f).Length).First();
+                        var vi = FileVersionInfo.GetVersionInfo(mainExe);
                         return new ExeMetadata
                         {
-                            ProductName = string.IsNullOrWhiteSpace(vi.ProductName) ? Path.GetFileNameWithoutExtension(exes[0]) : vi.ProductName,
+                            ProductName = string.IsNullOrWhiteSpace(vi.ProductName) ? Path.GetFileNameWithoutExtension(mainExe) : vi.ProductName,
                             Description = string.IsNullOrWhiteSpace(vi.FileDescription) ? "Fichiers exécutables de l'application" : vi.FileDescription,
                             Company = string.IsNullOrWhiteSpace(vi.CompanyName) ? "Éditeur logiciel" : vi.CompanyName
                         };
@@ -1605,6 +2101,141 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
             }
         }
 
+        #region HISTORIQUE DE NETTOYAGE
+
+        private static string GetHistoryFilePath()
+        {
+            var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CleanerApp");
+            Directory.CreateDirectory(folder);
+            return Path.Combine(folder, "clean_history.json");
+        }
+
+        public static List<CleanHistoryEntry> GetCleanHistory()
+        {
+            try
+            {
+                var file = GetHistoryFilePath();
+                if (!File.Exists(file)) return new List<CleanHistoryEntry>();
+                var json = File.ReadAllText(file);
+                return JsonSerializer.Deserialize<List<CleanHistoryEntry>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<CleanHistoryEntry>();
+            }
+            catch { return new List<CleanHistoryEntry>(); }
+        }
+
+        public static void AddCleanHistoryEntry(int count, double freedGB, List<string> names)
+        {
+            if (count <= 0) return;
+            try
+            {
+                var list = GetCleanHistory();
+                list.Insert(0, new CleanHistoryEntry
+                {
+                    Date = DateTime.Now.ToString("dd/MM/yyyy HH:mm"),
+                    ItemsCount = count,
+                    FreedGB = Math.Round(freedGB, 2),
+                    ItemNames = names.Take(30).ToList()
+                });
+                if (list.Count > 50) list = list.Take(50).ToList();
+                var json = JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(GetHistoryFilePath(), json);
+            }
+            catch { }
+        }
+
+        public static void ClearCleanHistory()
+        {
+            try
+            {
+                var file = GetHistoryFilePath();
+                if (File.Exists(file)) File.Delete(file);
+            }
+            catch { }
+        }
+
+        #endregion
+
+        private static bool TryRunSilentUninstall(string uninstallStr)
+        {
+            if (string.IsNullOrWhiteSpace(uninstallStr)) return false;
+            try
+            {
+                string fileName = "";
+                string args = "";
+                var trimmed = uninstallStr.Trim();
+
+                if (trimmed.Contains("msiexec", StringComparison.OrdinalIgnoreCase))
+                {
+                    var m = Regex.Match(trimmed, @"(\{[0-9A-Fa-f\-]+\})");
+                    if (m.Success)
+                    {
+                        fileName = "msiexec.exe";
+                        args = $"/X{m.Groups[1].Value} /qn /norestart";
+                    }
+                }
+                else
+                {
+                    if (trimmed.StartsWith("\""))
+                    {
+                        int endQuote = trimmed.IndexOf('"', 1);
+                        if (endQuote > 1)
+                        {
+                            fileName = trimmed.Substring(1, endQuote - 1);
+                            args = trimmed.Substring(endQuote + 1).Trim();
+                        }
+                    }
+                    else
+                    {
+                        var exeIdx = trimmed.IndexOf(".exe", StringComparison.OrdinalIgnoreCase);
+                        if (exeIdx > 0)
+                        {
+                            fileName = trimmed.Substring(0, exeIdx + 4);
+                            args = trimmed.Substring(exeIdx + 4).Trim();
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(fileName) && File.Exists(fileName))
+                    {
+                        var fnameLower = Path.GetFileName(fileName).ToLowerInvariant();
+                        if (fnameLower.StartsWith("unins"))
+                        {
+                            if (!args.Contains("VERYSILENT", StringComparison.OrdinalIgnoreCase))
+                                args = $"{args} /VERYSILENT /SUPPRESSMSGBOXES /NORESTART".Trim();
+                        }
+                        else if (!args.Contains("/S", StringComparison.Ordinal) && !args.Contains("/qn", StringComparison.OrdinalIgnoreCase))
+                        {
+                            args = $"{args} /S".Trim();
+                        }
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+
+                if (string.IsNullOrEmpty(fileName)) return false;
+
+                using var proc = Process.Start(new ProcessStartInfo
+                {
+                    FileName = fileName,
+                    Arguments = args,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                });
+                if (proc != null)
+                {
+                    if (!proc.WaitForExit(35000))
+                    {
+                        try { proc.Kill(true); } catch { }
+                        return false;
+                    }
+                    return proc.ExitCode == 0;
+                }
+            }
+            catch { }
+            return false;
+        }
+
         public static CleanResult DeleteItem(CleanerItem item)
         {
             // Vérification de la Liste Protégée (choix explicite de l'utilisateur)
@@ -1638,6 +2269,21 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
 
             try
             {
+                // Si c'est une application avec un désinstalleur officiel, tenter d'abord la désinstallation silencieuse
+                if (!string.IsNullOrWhiteSpace(item.UninstallString))
+                {
+                    double estGb = Directory.Exists(item.Path) ? Math.Round(GetDirectorySizeSafe(item.Path) / 1024.0 / 1024.0 / 1024.0, 2) : item.SizeGB;
+                    if (TryRunSilentUninstall(item.UninstallString))
+                    {
+                        // Nettoyer les éventuels reliquats du dossier s'il existe encore
+                        if (Directory.Exists(item.Path))
+                        {
+                            try { Directory.Delete(item.Path, true); } catch { }
+                        }
+                        return new CleanResult { ItemId = item.Id, ItemName = item.Name, FreedGB = estGb, Success = true, Message = "Application désinstallée silencieusement." };
+                    }
+                }
+
                 if (File.Exists(item.Path))
                 {
                     var fi = new FileInfo(item.Path);
@@ -1682,7 +2328,18 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
             }
         }
 
-        private static CleanerItem CreateItem(string name, string path, string category, double bytes, int riskPct, string desc, bool isFolder = true, bool isSanctuarized = false, bool isExtra = false)
+        private static CleanerItem CreateItem(
+            string name,
+            string path,
+            string category,
+            double bytes,
+            int riskPct,
+            string desc,
+            bool isFolder = true,
+            bool isSanctuarized = false,
+            bool isExtra = false,
+            DateTime? lastModified = null,
+            string uninstallString = "")
         {
             var drive = "";
             try { drive = Path.GetPathRoot(path)?.TrimEnd('\\') ?? ""; } catch { }
@@ -1690,10 +2347,14 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
             string level = riskPct switch
             {
                 <= 10 => "Quasi Nul",
-                <= 40 => "Faible",
-                <= 70 => "Modéré",
+                <= 35 => "Faible",
+                <= 65 => "Modéré",
                 _ => "Élevé"
             };
+
+            var modDate = lastModified ?? DateTime.Now;
+            int ageDays = Math.Max(0, (int)(DateTime.Now - modDate).TotalDays);
+            long unixMs = new DateTimeOffset(modDate).ToUnixTimeMilliseconds();
 
             return new CleanerItem
             {
@@ -1706,6 +2367,10 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
                 RiskPct = riskPct,
                 RiskLevel = level,
                 Description = desc,
+                LastModified = modDate.ToString("dd/MM/yyyy"),
+                LastModifiedTimestamp = unixMs,
+                AgeDays = ageDays,
+                UninstallString = uninstallString,
                 IsFolder = isFolder,
                 IsSanctuarized = isSanctuarized,
                 IsExtra = isExtra

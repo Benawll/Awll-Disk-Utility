@@ -92,26 +92,42 @@ namespace CleanerApp
 
                     case "runAudit":
                     {
+                        List<string>? selectedDrives = null;
+                        if (root.TryGetProperty("drives", out var dProp) && dProp.ValueKind == JsonValueKind.Array)
+                        {
+                            selectedDrives = dProp.EnumerateArray()
+                                .Select(x => x.GetString() ?? "")
+                                .Where(x => !string.IsNullOrWhiteSpace(x))
+                                .ToList();
+                        }
                         var items = await CleanerBackend.RunAuditAsync((msg, pct) =>
                         {
                             Dispatcher.Invoke(() =>
                             {
                                 SendJson(new { type = "auditProgress", text = msg, pct });
                             });
-                        });
+                        }, selectedDrives);
                         SendJson(new { type = "auditResult", items, scanType = "smart" });
                         break;
                     }
 
                     case "runExhaustiveScan":
                     {
+                        List<string>? selectedDrives = null;
+                        if (root.TryGetProperty("drives", out var dProp) && dProp.ValueKind == JsonValueKind.Array)
+                        {
+                            selectedDrives = dProp.EnumerateArray()
+                                .Select(x => x.GetString() ?? "")
+                                .Where(x => !string.IsNullOrWhiteSpace(x))
+                                .ToList();
+                        }
                         var items = await CleanerBackend.RunExhaustiveScanAsync((msg, pct) =>
                         {
                             Dispatcher.Invoke(() =>
                             {
                                 SendJson(new { type = "auditProgress", text = msg, pct });
                             });
-                        });
+                        }, selectedDrives);
                         SendJson(new { type = "auditResult", items, scanType = "exhaustive" });
                         break;
                     }
@@ -210,6 +226,20 @@ namespace CleanerApp
                         break;
                     }
 
+                    case "getHistory":
+                    {
+                        var history = CleanerBackend.GetCleanHistory();
+                        SendJson(new { type = "cleanHistory", history });
+                        break;
+                    }
+
+                    case "clearHistory":
+                    {
+                        CleanerBackend.ClearCleanHistory();
+                        SendJson(new { type = "cleanHistory", history = new List<CleanHistoryEntry>() });
+                        break;
+                    }
+
                     case "executeClean":
                     {
                         var itemsJson = root.GetProperty("items").GetRawText();
@@ -217,6 +247,7 @@ namespace CleanerApp
 
                         double totalFreed = 0;
                         var deletedIds = new List<string>();
+                        var deletedNames = new List<string>();
 
                         await Task.Run(() =>
                         {
@@ -227,9 +258,12 @@ namespace CleanerApp
                                 {
                                     totalFreed += res.FreedGB;
                                     deletedIds.Add(it.Id);
+                                    deletedNames.Add(it.Name);
                                 }
                             }
                         });
+
+                        CleanerBackend.AddCleanHistoryEntry(deletedIds.Count, totalFreed, deletedNames);
 
                         SendJson(new
                         {
