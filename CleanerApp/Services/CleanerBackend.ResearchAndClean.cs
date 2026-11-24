@@ -792,9 +792,9 @@ namespace CleanerApp
             return null;
         }
 
-        public static async Task<ResearchReport> ResearchItemWithAIAsync(string name, string path, int initialRisk = 5, string? customApiKey = null)
+        public static async Task<ResearchReport> ResearchItemWithAIAsync(string name, string path, int initialRisk = 5, string? customApiKey = null, HttpMessageHandler? httpHandler = null)
         {
-            var report = ResearchItem(name, path, initialRisk, bypassAiCache: true);
+            var report = await Task.Run(() => ResearchItem(name, path, initialRisk, bypassAiCache: true));
 
             var settings = GetSettings();
             string apiKey = !string.IsNullOrWhiteSpace(customApiKey)
@@ -809,7 +809,7 @@ namespace CleanerApp
 
             try
             {
-                using var http = new HttpClient();
+                using var http = httpHandler != null ? new HttpClient(httpHandler, disposeHandler: false) : new HttpClient();
                 http.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
 
                 var prompt = $@"Tu es un expert système Windows et rétro-ingénierie logicielle. Un utilisateur analyse son PC avec un logiciel de nettoyage et souhaite comprendre exactement ce qu'est cet élément détecté sur son disque :
@@ -849,7 +849,7 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
                 };
 
                 var jsonPayload = JsonSerializer.Serialize(payload);
-                string[] modelsToTry = { "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.8-flash" };
+                string[] modelsToTry = { "gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash" };
                 HttpResponseMessage? response = null;
                 string usedModel = modelsToTry[0];
 
@@ -861,7 +861,7 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
                         usedModel = modelName;
                         try
                         {
-                            using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(7));
+                            using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(15));
                             using var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
                             string url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={apiKey}";
                             response = await http.PostAsync(url, content, cts.Token);
@@ -1433,16 +1433,22 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
             {
                 DateTime nowLimit = DateTime.Now.AddDays(1);
                 DateTime latest = (di.CreationTime > di.LastWriteTime && di.CreationTime <= nowLimit) ? di.CreationTime : di.LastWriteTime;
+                bool hasExe = false;
                 foreach (var f in di.EnumerateFiles("*", SafeRecurseOpts))
                 {
                     try
                     {
+                        if (f.Extension.Equals(".exe", StringComparison.OrdinalIgnoreCase)) hasExe = true;
                         var lw = f.LastWriteTime;
                         var ct = f.CreationTime;
                         var eff = (ct > lw && ct <= nowLimit) ? ct : lw;
                         if (eff > latest && eff <= nowLimit) latest = eff;
                     }
                     catch { }
+                }
+                if (hasExe && di.CreationTime < latest && di.CreationTime.Year >= 2010)
+                {
+                    return di.CreationTime;
                 }
                 return latest;
             }

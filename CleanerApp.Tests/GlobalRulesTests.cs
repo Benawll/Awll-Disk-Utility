@@ -1,6 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 using CleanerApp;
 
@@ -161,6 +166,74 @@ namespace CleanerApp.Tests
             Assert.True(ExecutionHistoryService.TryGetFolderLastExecution(@"D:\SteamLibrary\steamapps\common\rocketleague", out var dt, execMap));
             Assert.Equal(new DateTime(2026, 11, 24, 22, 7, 23), dt);
             Assert.False(ExecutionHistoryService.TryGetFolderLastExecution(@"E:\Epic Games\rocketleague", out _, execMap));
+        }
+
+        private class MockHttpHandler : HttpMessageHandler
+        {
+            private readonly Func<HttpRequestMessage, HttpResponseMessage> _responder;
+            public MockHttpHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) => _responder = responder;
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+                => Task.FromResult(_responder(request));
+        }
+
+        [Fact]
+        public async Task ResearchItemWithAIAsync_EnrichesReportOn200()
+        {
+            var handler = new MockHttpHandler(_ =>
+            {
+                var geminiPayload = "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"{\\\"definition\\\":\\\"Jeu d'action\\\",\\\"origin\\\":\\\"Epic Games\\\",\\\"usageActivity\\\":\\\"Inactif\\\",\\\"safetyImpact\\\":\\\"SUPPRESSION CONSEILLÉE\\\",\\\"riskPct\\\":5}\"}]}}]}";
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(geminiPayload, Encoding.UTF8, "application/json")
+                };
+            });
+
+            var report = await CleanerBackend.ResearchItemWithAIAsync("TestApp", @"C:\Windows\System32\notepad.exe", 10, "fake-key-for-test", handler);
+            Assert.True(report.IsAiEnriched);
+            Assert.Equal("Jeu d'action", report.Definition);
+            Assert.Equal("Epic Games", report.Origin);
+            Assert.Equal(5, report.RiskPct);
+            Assert.Equal("gemini-2.5-flash-lite", report.AiModelUsed);
+        }
+
+        [Fact]
+        public async Task ResearchItemWithAIAsync_FallsBackToSecondModelOn503()
+        {
+            int calls = 0;
+            var handler = new MockHttpHandler(_ =>
+            {
+                calls++;
+                if (calls == 1)
+                {
+                    return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+                    {
+                        Content = new StringContent("{\"error\":{\"message\":\"High demand\"}}", Encoding.UTF8, "application/json")
+                    };
+                }
+                var okPayload = "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"{\\\"definition\\\":\\\"Outil OK\\\",\\\"origin\\\":\\\"Test\\\",\\\"usageActivity\\\":\\\"Inactif\\\",\\\"safetyImpact\\\":\\\"Sûr\\\",\\\"riskPct\\\":0}\"}]}}]}";
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(okPayload, Encoding.UTF8, "application/json")
+                };
+            });
+
+            var report = await CleanerBackend.ResearchItemWithAIAsync("TestApp", @"C:\Windows\System32\notepad.exe", 10, "fake-key-for-test", handler);
+            Assert.True(report.IsAiEnriched);
+            Assert.Equal(2, calls);
+            Assert.Equal("gemini-2.5-flash", report.AiModelUsed);
+        }
+
+        [Fact]
+        public async Task ResearchItemWithAIAsync_ReportsClearErrorWhenAllModels503()
+        {
+            var handler = new MockHttpHandler(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+            {
+                Content = new StringContent("{\"error\":{\"message\":\"High demand\"}}", Encoding.UTF8, "application/json")
+            });
+
+            var report = await CleanerBackend.ResearchItemWithAIAsync("TestApp", @"C:\Windows\System32\notepad.exe", 10, "fake-key-for-test", handler);
+            Assert.False(report.IsAiEnriched);
+            Assert.Contains("503", report.AiModelUsed);
         }
     }
 }
