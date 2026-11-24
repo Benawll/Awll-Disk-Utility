@@ -47,9 +47,13 @@ namespace CleanerApp
                 else
                 {
                     roots = (selectedDrives != null && selectedDrives.Count > 0)
-                        ? selectedDrives.Where(d => Directory.Exists(d)).ToList()
+                        ? selectedDrives
+                            .Select(d => { var t = (d ?? "").Trim(); return (t.Length == 2 && t[1] == ':') ? t + @"\" : t; })
+                            .Where(d => Directory.Exists(d))
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .ToList()
                         : DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed).Select(d => d.Name).ToList();
-                    progressCallback?.Invoke($"Étape 1/3 : Parcours global sur {roots.Count} disque(s)...", 5);
+                    progressCallback?.Invoke($"Étape 1/3 : Parcours sur {string.Join(", ", roots.Select(r => r.TrimEnd('\\')))}...", 5);
                 }
 
                 var result = FindDuplicateGroupsInDirectories(roots, minBytes, progressCallback);

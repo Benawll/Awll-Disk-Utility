@@ -118,6 +118,14 @@ namespace CleanerApp
                                 .Where(x => !string.IsNullOrWhiteSpace(x))
                                 .ToList();
                         }
+                        List<string>? customPaths = null;
+                        if (root.TryGetProperty("paths", out var pProp) && pProp.ValueKind == JsonValueKind.Array)
+                        {
+                            customPaths = pProp.EnumerateArray()
+                                .Select(x => x.GetString() ?? "")
+                                .Where(x => !string.IsNullOrWhiteSpace(x))
+                                .ToList();
+                        }
                         var prevSnapshots = CleanerBackend.GetAuditSnapshots();
                         var previousSnapshot = prevSnapshots.Count > 0 ? prevSnapshots[0] : null;
                         var items = await CleanerBackend.RunAuditAsync((msg, pct) =>
@@ -126,7 +134,7 @@ namespace CleanerApp
                             {
                                 SendJson(new { type = "auditProgress", text = msg, pct });
                             });
-                        }, selectedDrives);
+                        }, selectedDrives, customPaths);
                         CleanerBackend.SaveAuditSnapshot(items.Where(x => !x.IsExtra).ToList());
                         SendJson(new { type = "auditResult", items, scanType = "smart", previousSnapshot });
                         break;
@@ -153,6 +161,21 @@ namespace CleanerApp
                         }, selectedDrives);
                         CleanerBackend.SaveAuditSnapshot(items.Where(x => !x.IsExtra).ToList());
                         SendJson(new { type = "auditResult", items, scanType = "exhaustive", previousSnapshot });
+                        break;
+                    }
+
+                    case "pickFolders":
+                    {
+                        var target = root.TryGetProperty("target", out var tProp) ? (tProp.GetString() ?? "duplicates") : "duplicates";
+                        List<string> picked = new();
+                        Dispatcher.Invoke(() =>
+                        {
+                            picked = NativeFolderPicker.PickMultipleFolders("Sélectionnez un ou plusieurs dossiers (Ctrl+Clic pour multi-sélection)");
+                        });
+                        if (picked.Count > 0)
+                        {
+                            SendJson(new { type = "foldersPicked", target, paths = picked });
+                        }
                         break;
                     }
 

@@ -142,7 +142,7 @@ namespace CleanerApp
             return Math.Clamp(score, 0, 98);
         }
 
-        public static async Task<List<CleanerItem>> RunAuditAsync(Action<string, int>? progressCallback = null, List<string>? selectedDrives = null)
+        public static async Task<List<CleanerItem>> RunAuditAsync(Action<string, int>? progressCallback = null, List<string>? selectedDrives = null, List<string>? customPaths = null)
         {
             return await Task.Run(() =>
             {
@@ -158,6 +158,12 @@ namespace CleanerApp
                 var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+                if (customPaths != null && customPaths.Count > 0)
+                {
+                    AuditCustomFolders(customPaths, recommendedItems, extraItems, seenPaths, runningProcs, progressCallback);
+                }
+                else
+                {
                 // 1. Découverte dynamique de Steam & Epic Games
                 progressCallback?.Invoke("Détection des bibliothèques de jeux...", 10);
                 var steamLibs = DiscoverSteamLibraries().Where(p => IsDriveSelected(p, targetDrives)).ToList();
@@ -187,19 +193,20 @@ namespace CleanerApp
                 progressCallback?.Invoke("Analyse dynamique des dossiers racines multi-disques...", 86);
                 AuditDriveRootsDynamic(recommendedItems, extraItems, seenPaths, targetDrives, runningProcs);
                 AuditPersonalFolders(extraItems, seenPaths, targetDrives);
+                }
 
                 // 6b. Normalisation & déduplication globale (règles appliquées uniformément à tous les scanners)
                 NormalizeAuditItemsGlobal(recommendedItems, extraItems, runningProcs);
 
                 // 7. Tri par défaut : Recommandés par Risque croissant puis Taille décroissante ; Extra par Taille décroissante
                 var orderedRecommended = recommendedItems
-                    .Where(x => IsDriveSelected(x.Path, targetDrives))
+                    .Where(x => (customPaths != null && customPaths.Count > 0) || IsDriveSelected(x.Path, targetDrives))
                     .OrderBy(x => x.RiskPct)
                     .ThenByDescending(x => x.SizeGB)
                     .ToList();
 
                 var orderedExtra = extraItems
-                    .Where(x => IsDriveSelected(x.Path, targetDrives))
+                    .Where(x => (customPaths != null && customPaths.Count > 0) || IsDriveSelected(x.Path, targetDrives))
                     .OrderBy(x => x.RiskPct)
                     .ThenByDescending(x => x.SizeGB)
                     .ToList();
@@ -443,6 +450,87 @@ namespace CleanerApp
         {
             if (string.IsNullOrWhiteSpace(path)) return false;
             return GetSanctuarizedRoots().Any(sp => path.StartsWith(sp, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static void AuditCustomFolders(
+            List<string> customPaths,
+            List<CleanerItem> recommendedItems,
+            List<CleanerItem> extraItems,
+            HashSet<string> seenPaths,
+            HashSet<string> runningProcs,
+            Action<string, int>? progressCallback)
+        {
+            const long minDirBytes = 50L * 1024 * 1024;
+            const long minFileBytes = 25L * 1024 * 1024;
+            var targets = customPaths.Where(p => Directory.Exists(p)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            for (int idx = 0; idx < targets.Count; idx++)
+            {
+                var root = targets[idx];
+                int pct = 10 + (int)Math.Round(75.0 * (idx + 1) / Math.Max(1, targets.Count));
+                progressCallback?.Invoke($"Analyse du dossier ciblé ({idx + 1}/{targets.Count}) : {Path.GetFileName(root)}", pct);
+
+                try
+                {
+                    foreach (var sub in Directory.GetDirectories(root))
+                    {
+                        if (!seenPaths.Add(sub)) continue;
+                        var di = new DirectoryInfo(sub);
+                        if ((di.Attributes & FileAttributes.ReparsePoint) != 0) continue;
+                        double bytes = GetDirectorySizeSafe(sub);
+                        if (bytes < minDirBytes) continue;
+
+                        var last = GetLastWriteTimeSafe(di);
+                        int daysAgo = Math.Max(0, (int)(DateTime.Now - last).TotalDays);
+                        bool running = IsLikelyRunning(di.Name, sub, runningProcs);
+                        bool isCore = IsCoreSystemOrRuntime(di.Name, sub);
+                        bool isCache = IsPureCacheOrDisposable(di.Name, sub);
+                        string kind = isCache ? "pure_cache" : "appdata_inactive";
+                        int risk = ComputeRiskScore(kind, daysAgo, running && !isCache, isCore, IsPathSanctuarized(sub));
+                        bool isExtra = risk > 35 || running || isCore;
+                        var item = CreateItem(
+                            di.Name,
+                            sub,
+                            "system",
+                            bytes,
+                            risk,
+                            $"Sous-dossier dans {Path.GetFileName(root)} ({FormatAgeText(daysAgo)}, {last:dd/MM/yyyy}).",
+                            lastModified: last,
+                            isFolder: true,
+                            isExtra: isExtra
+                        );
+                        if (isExtra) extraItems.Add(item);
+                        else recommendedItems.Add(item);
+                    }
+
+                    foreach (var file in Directory.GetFiles(root))
+                    {
+                        if (!seenPaths.Add(file)) continue;
+                        var fi = new FileInfo(file);
+                        if (fi.Length < minFileBytes) continue;
+                        var eff = GetFileEffectiveActivityDate(fi);
+                        int daysAgo = Math.Max(0, (int)(DateTime.Now - eff).TotalDays);
+                        string ext = fi.Extension.ToLowerInvariant();
+                        string kind = (ext == ".exe" || ext == ".msi") ? "installer"
+                            : (ext == ".zip" || ext == ".rar" || ext == ".7z" || ext == ".iso") ? "archive" : "other";
+                        int risk = ComputeRiskScore(kind, daysAgo, false, false, IsPathSanctuarized(file));
+                        bool isExtra = risk > 35;
+                        var item = CreateItem(
+                            fi.Name,
+                            file,
+                            "downloads",
+                            fi.Length,
+                            risk,
+                            $"Fichier dans {Path.GetFileName(root)} ({FormatAgeText(daysAgo)}, {eff:dd/MM/yyyy}).",
+                            lastModified: eff,
+                            isFolder: false,
+                            isExtra: isExtra
+                        );
+                        if (isExtra) extraItems.Add(item);
+                        else recommendedItems.Add(item);
+                    }
+                }
+                catch { }
+            }
         }
 
         public static async Task<List<CleanerItem>> RunExhaustiveScanAsync(Action<string, int>? progressCallback = null, List<string>? selectedDrives = null)

@@ -10,6 +10,11 @@
     let duplicateGroups = [];
     let selectedDuplicateIds = new Set();
     let duplicateCustomFolders = [];
+    let auditCustomFolders = [];
+    let auditScanDrives = new Set();
+    let dupScanDrives = new Set();
+    let auditInProgress = false;
+    let dupInProgress = false;
     let sortField = 'recommended';
     let sortAsc = true;
     let mainExpanded = true;
@@ -82,8 +87,16 @@
         if (activeDrives.size === 0) {
           drivesList.forEach(d => activeDrives.add((d.name || d.Name || '').toUpperCase()));
         }
+        if (auditScanDrives.size === 0) {
+          drivesList.forEach(d => auditScanDrives.add((d.name || d.Name || '').toUpperCase()));
+        }
+        if (dupScanDrives.size === 0) {
+          drivesList.forEach(d => dupScanDrives.add((d.name || d.Name || '').toUpperCase()));
+        }
         renderSidebarDrives();
         renderExplorerDrivePills();
+        renderScanDrivePills('audit');
+        renderScanDrivePills('duplicates');
         updateHeaderSubtitle();
       } else if (type === 'auditProgress') {
         showProgress(data.text || data.Text || 'Analyse en cours...', data.pct ?? data.Pct ?? 0);
@@ -109,11 +122,21 @@
         duplicateGroups = data.groups || data.Groups || [];
         renderDuplicatesView();
         showToast(`Doublons : ${duplicateGroups.length} groupe(s) détecté(s).`, 'success');
+      } else if (type === 'foldersPicked') {
+        const target = data.target || data.Target || 'duplicates';
+        const paths = data.paths || data.Paths || [];
+        const arr = target === 'audit' ? auditCustomFolders : duplicateCustomFolders;
+        paths.forEach(p => {
+          if (p && !arr.some(x => x.toLowerCase() === p.toLowerCase())) {
+            arr.push(p);
+          }
+        });
+        renderCustomFolders(target);
       } else if (type === 'duplicateFolderPicked') {
         const p = data.path || data.Path;
         if (p && !duplicateCustomFolders.some(x => x.toLowerCase() === p.toLowerCase())) {
           duplicateCustomFolders.push(p);
-          renderDuplicateCustomFolders();
+          renderCustomFolders('duplicates');
         }
       } else if (type === 'winSxSResult') {
         renderWinSxSResult(data.report || data.Report);
@@ -310,19 +333,34 @@
 
     // ================= AUDIT =================
     function startAudit() {
-      if (activeDrives.size === 0) {
-        showToast('Sélectionnez au moins un disque.', 'warn');
+      if (auditCustomFolders.length === 0 && auditScanDrives.size === 0) {
+        showToast('Sélectionnez au moins un disque ou un dossier à analyser.', 'warn');
         return;
       }
-      scannedDrives = new Set(activeDrives);
-      const btn = document.getElementById('btn-smart-scan');
-      btn.disabled = true;
-      btn.classList.add('opacity-60');
-      showProgress(`Scan en cours (${Array.from(activeDrives).sort().join(', ')})...`, 5);
+      auditInProgress = true;
+      if (auditCustomFolders.length === 0) {
+        scannedDrives = new Set(auditScanDrives);
+        // Aligner le filtre d'affichage initial sur les disques scannés
+        activeDrives = new Set(auditScanDrives);
+      } else {
+        scannedDrives = new Set(drivesList.map(d => (d.name || d.Name || '').toUpperCase()));
+        activeDrives = new Set(scannedDrives);
+      }
+      renderSidebarDrives();
+      renderScanDrivePills('audit');
+      const btn = document.getElementById('btn-audit-launch');
+      const pickBtn = document.getElementById('btn-audit-pick-folders');
+      if (btn) { btn.disabled = true; btn.innerText = 'Audit en cours...'; }
+      if (pickBtn) pickBtn.disabled = true;
+      const scopeLabel = auditCustomFolders.length > 0
+        ? `${auditCustomFolders.length} dossier(s) ciblé(s)`
+        : Array.from(auditScanDrives).sort().join(', ');
+      showProgress(`Scan en cours (${scopeLabel})...`, 5);
       if (currentView !== 'audit') switchView('audit');
       postToBridge({
         action: 'runAudit',
-        drives: Array.from(activeDrives)
+        drives: Array.from(auditScanDrives),
+        paths: auditCustomFolders
       });
     }
 
@@ -336,10 +374,11 @@
     }
 
     function hideProgress() {
+      auditInProgress = false;
       document.getElementById('progress-banner').classList.add('hidden');
-      const btn = document.getElementById('btn-smart-scan');
-      btn.disabled = false;
-      btn.classList.remove('opacity-60');
+      const pickBtn = document.getElementById('btn-audit-pick-folders');
+      if (pickBtn) pickBtn.disabled = false;
+      renderScanDrivePills('audit');
     }
 
     function syncProtectedStatus() {
@@ -1464,53 +1503,119 @@
       txt.innerHTML = `<strong>WinSxS :</strong> Taille réelle <span class="font-mono text-cyan-300">${escapeHtml(actual)}</span> • Packages récupérables : <span class="font-mono text-emerald-400">${escapeHtml(String(reclaim))}</span> — <span class="text-slate-400">${escapeHtml(msg)}</span>`;
     }
 
-    // ================= GLOBAL DUPLICATES VIEW =================
-    function pickDuplicateFolder() {
-      postToBridge({ action: 'pickDuplicateFolder' });
+    // ================= SCAN TARGETS (DRIVES & MULTI-FOLDERS FOR AUDIT & DUPLICATES) =================
+    function pickFolders(target) {
+      postToBridge({ action: 'pickFolders', target });
     }
 
-    function removeDuplicateFolder(idx) {
-      duplicateCustomFolders.splice(idx, 1);
-      renderDuplicateCustomFolders();
+    function removeCustomFolder(target, idx) {
+      const arr = target === 'audit' ? auditCustomFolders : duplicateCustomFolders;
+      arr.splice(idx, 1);
+      renderCustomFolders(target);
     }
 
-    function clearDuplicateFolders() {
-      duplicateCustomFolders = [];
-      renderDuplicateCustomFolders();
+    function clearCustomFolders(target) {
+      if (target === 'audit') auditCustomFolders = [];
+      else duplicateCustomFolders = [];
+      renderCustomFolders(target);
     }
 
-    function renderDuplicateCustomFolders() {
-      const wrap = document.getElementById('dup-custom-folders-wrap');
-      const list = document.getElementById('dup-custom-folders');
-      const btn = document.getElementById('btn-scan-duplicates');
+    function toggleScanDrive(target, encName) {
+      const locked = target === 'audit' ? auditInProgress : dupInProgress;
+      if (locked) return;
+      const set = target === 'audit' ? auditScanDrives : dupScanDrives;
+      const name = decodeURIComponent(encName).toUpperCase();
+      if (set.has(name)) {
+        if (set.size === 1) {
+          showToast('Au moins un disque doit rester sélectionné pour le scan.', 'warn');
+          return;
+        }
+        set.delete(name);
+      } else {
+        set.add(name);
+      }
+      renderScanDrivePills(target);
+    }
+
+    function renderScanDrivePills(target) {
+      const el = document.getElementById(target === 'audit' ? 'audit-scan-drives' : 'dup-scan-drives');
+      const set = target === 'audit' ? auditScanDrives : dupScanDrives;
+      const locked = target === 'audit' ? auditInProgress : dupInProgress;
+      const customArr = target === 'audit' ? auditCustomFolders : duplicateCustomFolders;
+      const drivesWrap = document.getElementById(target === 'audit' ? 'audit-scan-drives-wrap' : 'dup-scan-drives-wrap');
+
+      if (drivesWrap) {
+        drivesWrap.classList.toggle('opacity-50', customArr.length > 0);
+      }
+      if (el && drivesList) {
+        el.innerHTML = drivesList.map(d => {
+          const name = (d.name || d.Name || 'C:').toUpperCase();
+          const active = set.has(name);
+          return `<button onclick="toggleScanDrive('${target}', '${safeEnc(name)}')" ${locked ? 'disabled' : ''} class="px-2.5 py-1 rounded-lg font-mono text-[11px] font-semibold border transition-all disabled:opacity-50 disabled:pointer-events-none ${active ? 'bg-blue-600/25 border-blue-500/60 text-blue-200' : 'bg-slate-900 border-white/[0.08] text-slate-400 hover:text-white'}">${active ? '✓ ' : ''}${escapeHtml(name)} <span class="opacity-70 font-normal">(${(d.freeGB ?? d.FreeGB ?? 0).toFixed(0)} Go libres)</span></button>`;
+        }).join('');
+      }
+      updateScanButtonLabel(target);
+    }
+
+    function updateScanButtonLabel(target) {
+      const btn = document.getElementById(target === 'audit' ? 'btn-audit-launch' : 'btn-scan-duplicates');
+      const set = target === 'audit' ? auditScanDrives : dupScanDrives;
+      const customArr = target === 'audit' ? auditCustomFolders : duplicateCustomFolders;
+      const locked = target === 'audit' ? auditInProgress : dupInProgress;
+      if (!btn || locked) return;
+      btn.disabled = false;
+
+      if (customArr.length > 0) {
+        btn.innerText = target === 'audit'
+          ? `🚀 Lancer l'Audit (${customArr.length} dossier${customArr.length > 1 ? 's' : ''})`
+          : `🔍 Scanner (${customArr.length} dossier${customArr.length > 1 ? 's' : ''})`;
+      } else {
+        const allSelected = drivesList.length > 0 && set.size === drivesList.length;
+        const listStr = Array.from(set).sort().join(', ');
+        btn.innerText = target === 'audit'
+          ? (allSelected ? '🚀 Lancer l’Audit (tous les disques)' : `🚀 Lancer l’Audit (${listStr})`)
+          : (allSelected ? '🔍 Scanner tous les disques' : `🔍 Scanner sur ${listStr}`);
+      }
+    }
+
+    function renderCustomFolders(target) {
+      const wrap = document.getElementById(target === 'audit' ? 'audit-custom-folders-wrap' : 'dup-custom-folders-wrap');
+      const list = document.getElementById(target === 'audit' ? 'audit-custom-folders' : 'dup-custom-folders');
+      const arr = target === 'audit' ? auditCustomFolders : duplicateCustomFolders;
       if (!wrap || !list) return;
 
-      if (duplicateCustomFolders.length === 0) {
+      if (arr.length === 0) {
         wrap.classList.add('hidden');
         wrap.classList.remove('flex');
-        if (btn && !btn.disabled) btn.innerText = '🔍 Scanner Partout';
-        return;
+      } else {
+        wrap.classList.remove('hidden');
+        wrap.classList.add('flex');
+        list.innerHTML = arr.map((p, idx) => `
+          <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-800 border border-white/[0.1] text-slate-200 font-mono text-[10px]">
+            <span>${escapeHtml(p)}</span>
+            <button onclick="removeCustomFolder('${target}', ${idx})" class="text-rose-400 hover:text-rose-300 font-bold">✕</button>
+          </span>
+        `).join('');
       }
-
-      wrap.classList.remove('hidden');
-      wrap.classList.add('flex');
-      list.innerHTML = duplicateCustomFolders.map((p, idx) => `
-        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-800 border border-white/[0.1] text-slate-200 font-mono text-[10px]">
-          <span>${escapeHtml(p)}</span>
-          <button onclick="removeDuplicateFolder(${idx})" class="text-rose-400 hover:text-rose-300 font-bold">✕</button>
-        </span>
-      `).join('');
-      if (btn && !btn.disabled) btn.innerText = `🔍 Scanner (${duplicateCustomFolders.length} dossier${duplicateCustomFolders.length > 1 ? 's' : ''})`;
+      renderScanDrivePills(target);
     }
 
     function startDuplicatesScan() {
+      if (duplicateCustomFolders.length === 0 && dupScanDrives.size === 0) {
+        showToast('Sélectionnez au moins un disque ou un dossier.', 'warn');
+        return;
+      }
       const minMB = parseInt(document.getElementById('dup-min-mb')?.value || '50', 10);
-      const drives = Array.from(activeDrives);
+      const drives = Array.from(dupScanDrives);
       selectedDuplicateIds.clear();
       updateSelectionCalc();
+      dupInProgress = true;
+      renderScanDrivePills('duplicates');
       const btn = document.getElementById('btn-scan-duplicates');
+      const pickBtn = document.getElementById('btn-dup-pick-folders');
       if (btn) { btn.disabled = true; btn.innerText = 'Scan en cours...'; }
-      showDupProgress(duplicateCustomFolders.length > 0 ? 'Étape 1/3 : Parcours des dossiers ciblés...' : 'Étape 1/3 : Initialisation du scan global...', 5);
+      if (pickBtn) pickBtn.disabled = true;
+      showDupProgress(duplicateCustomFolders.length > 0 ? 'Étape 1/3 : Parcours des dossiers ciblés...' : `Étape 1/3 : Parcours sur ${drives.join(', ')}...`, 5);
       postToBridge({ action: 'scanDuplicates', drives, minMB, paths: duplicateCustomFolders });
     }
 
@@ -1524,15 +1629,12 @@
     }
 
     function hideDupProgress() {
+      dupInProgress = false;
       const wrap = document.getElementById('dup-progress-wrap');
       if (wrap) wrap.classList.add('hidden');
-      const btn = document.getElementById('btn-scan-duplicates');
-      if (btn) {
-        btn.disabled = false;
-        btn.innerText = duplicateCustomFolders.length > 0
-          ? `🔍 Scanner (${duplicateCustomFolders.length} dossier${duplicateCustomFolders.length > 1 ? 's' : ''})`
-          : '🔍 Scanner Partout';
-      }
+      const pickBtn = document.getElementById('btn-dup-pick-folders');
+      if (pickBtn) pickBtn.disabled = false;
+      renderScanDrivePills('duplicates');
     }
 
     function renderDuplicatesView() {
