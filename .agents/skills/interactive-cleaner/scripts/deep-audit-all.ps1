@@ -1,17 +1,17 @@
 ﻿# Master Deep Audit Script for Cleaner
-# Runs all specialized audits and scores cleanup candidates with Risk %
+# Performs an exhaustive threshold scan across AppData (Local, Roaming, LocalLow), User Profile, System & Root
 param(
-    [switch]$JsonOutput
+    [int]$ThresholdMB = 150
 )
 
 $ErrorActionPreference = "SilentlyContinue"
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "         AUDIT DE DISQUE APPROFONDI & ANALYSE DE RISQUE   " -ForegroundColor Cyan
+Write-Host "       AUDIT DYNAMIQUE EXHAUSTIF DU LECTEUR C:            " -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 # 1. État des lecteurs
-Write-Host "`n[1/4] VÉRIFICATION DE L'ESPACE DISQUE..." -ForegroundColor Yellow
+Write-Host "`n[1/5] VÉRIFICATION DE L'ESPACE DISQUE..." -ForegroundColor Yellow
 $drives = Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' | ForEach-Object {
     $totalGB = [math]::Round($_.Size / 1GB, 2)
     $freeGB = [math]::Round($_.FreeSpace / 1GB, 2)
@@ -27,115 +27,92 @@ $drives = Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' | ForEach-Obje
 }
 $drives | Format-Table -AutoSize
 
-# 2. Caches Développeurs et IA
-Write-Host "`n[2/4] SCAN DES CACHES DE DÉVELOPPEMENT & RUNTIMES..." -ForegroundColor Yellow
-$devTargets = @(
-    @{ Name = "Pip Cache (Python)"; Path = "$env:LOCALAPPDATA\pip\cache"; Risk = 0 },
-    @{ Name = "Npm Cache (Node.js)"; Path = "$env:APPDATA\npm-cache"; Risk = 0 },
-    @{ Name = "Yarn Cache"; Path = "$env:LOCALAPPDATA\Yarn\Cache"; Risk = 0 },
-    @{ Name = "Cargo Cache (Rust)"; Path = "$env:USERPROFILE\.cargo\registry"; Risk = 5 },
-    @{ Name = "Gradle Caches"; Path = "$env:USERPROFILE\.gradle\caches"; Risk = 5 },
-    @{ Name = "Maven Repository (.m2)"; Path = "$env:USERPROFILE\.m2\repository"; Risk = 5 },
-    @{ Name = "HuggingFace (Modèles IA)"; Path = "$env:USERPROFILE\.cache\huggingface"; Risk = 30 },
-    @{ Name = "PyTorch Cache"; Path = "$env:USERPROFILE\.cache\torch"; Risk = 10 },
-    @{ Name = "Unity Package Cache"; Path = "$env:LOCALAPPDATA\Unity\cache"; Risk = 10 }
-)
-
-$devFound = foreach ($t in $devTargets) {
-    if (Test-Path $t.Path) {
-        $files = Get-ChildItem -Path $t.Path -File -Recurse -Force -ErrorAction SilentlyContinue
-        $bytes = ($files | Measure-Object -Property Length -Sum).Sum
-        if ($bytes -gt 10MB) {
-            [PSCustomObject]@{
-                Cible        = $t.Name
-                "Taille (Go)"= [math]::Round($bytes / 1GB, 2)
-                "Taille (Mo)"= [math]::Round($bytes / 1MB, 1)
-                "Risque %"   = "$($t.Risk)%"
-                Chemin       = $t.Path
-            }
+# 2. Scan dynamique de AppData\Local (> ThresholdMB)
+Write-Host "`n[2/5] SCAN DYNAMIQUE DE APPDATA\LOCAL (> $ThresholdMB Mo)..." -ForegroundColor Yellow
+$localDirs = Get-ChildItem "$env:LOCALAPPDATA" -Directory -Force
+$localResults = foreach ($dir in $localDirs) {
+    if ($dir.Name -match '^(Microsoft|Packages|Programs)$') { continue }
+    $files = Get-ChildItem $dir.FullName -File -Recurse -Force -ErrorAction SilentlyContinue
+    $bytes = ($files | Measure-Object -Property Length -Sum).Sum
+    if (($bytes / 1MB) -ge $ThresholdMB) {
+        $risk = 10
+        if ($dir.Name -match '(cache|temp|log|dump|updater)' -or $dir.Name -in @('VortxEngine','WhirlwindFX','Medal','VoicemodV3','MultiVersus','yuzu')) {
+            $risk = 5
         }
-    }
-}
-if ($devFound) {
-    $devFound | Format-Table -AutoSize
-} else {
-    Write-Host "Aucun cache développeur volumineux (>10 Mo) résiduel." -ForegroundColor Green
-}
-
-# 3. Fichiers Temporaires Système
-Write-Host "`n[3/4] SCAN DES TEMPORAIRES & LOGS SYSTÈME..." -ForegroundColor Yellow
-$tempTargets = @(
-    @{ Name = "User Temp"; Path = "$env:TEMP"; Risk = 0 },
-    @{ Name = "Windows Temp"; Path = "$env:windir\Temp"; Risk = 0 },
-    @{ Name = "Crash Dumps Windows"; Path = "$env:LOCALAPPDATA\CrashDumps"; Risk = 0 }
-)
-$tempFound = foreach ($t in $tempTargets) {
-    if (Test-Path $t.Path) {
-        $files = Get-ChildItem -Path $t.Path -File -Recurse -Force -ErrorAction SilentlyContinue
-        $bytes = ($files | Measure-Object -Property Length -Sum).Sum
-        if ($bytes -gt 50MB) {
-            [PSCustomObject]@{
-                Zone         = $t.Name
-                "Taille (Mo)"= [math]::Round($bytes / 1MB, 1)
-                "Risque %"   = "$($t.Risk)%"
-                Chemin       = $t.Path
-            }
-        }
-    }
-}
-if ($tempFound) {
-    $tempFound | Format-Table -AutoSize
-} else {
-    Write-Host "Temporaires système propres (<50 Mo)." -ForegroundColor Green
-}
-
-# 4. Éléments Restants et Évaluation des Risques
-Write-Host "`n[4/4] CANDIDATS DE NETTOYAGE & RISQUE ASSOCIÉ..." -ForegroundColor Yellow
-$candidates = @(
-    @{
-        Nom = "Thunderstore Mod Manager (Roaming)"
-        Path = "$env:APPDATA\Thunderstore Mod Manager"
-        Type = "Mod Manager"
-        Risk = 5
-        Justification = "Mods de jeux installés. Risque quasi nul si les jeux associés ne sont plus moddés."
-    },
-    @{
-        Nom = "OpenAI Codex App"
-        Path = "$env:LOCALAPPDATA\Programs\OpenAI Codex"
-        Type = "Application"
-        Risk = 65
-        Justification = "Actif récemment (service actif ou modification récente). Risque moyen à élevé si utilisé."
-    },
-    @{
-        Nom = "Radmin VPN"
-        Path = "C:\Program Files (x86)\Radmin VPN"
-        Type = "Logiciel VPN"
-        Risk = 0
-        Justification = "VPN de réseau local de jeu. Zéro processus en cours. Zéro risque de casse système."
-    }
-)
-
-$candidatesEvaluated = foreach ($c in $candidates) {
-    if (Test-Path $c.Path) {
-        $files = Get-ChildItem -Path $c.Path -File -Recurse -Force -ErrorAction SilentlyContinue
-        $bytes = ($files | Measure-Object -Property Length -Sum).Sum
-        $sizeGB = [math]::Round($bytes / 1GB, 2)
-        $sizeMB = [math]::Round($bytes / 1MB, 1)
-
         [PSCustomObject]@{
-            "Élément"       = $c.Nom
-            "Taille (Go)"   = $sizeGB
-            "Taille (Mo)"   = $sizeMB
-            "Risque"        = "$($c.Risk)%"
-            "Évaluation"    = $c.Justification
+            Dossier      = "AppData\Local\$($dir.Name)"
+            "Taille (Go)"= [math]::Round($bytes / 1GB, 2)
+            "Taille (Mo)"= [math]::Round($bytes / 1MB, 1)
+            "Risque %"   = "$risk%"
+            RawBytes     = $bytes
         }
     }
 }
+$localResults | Sort-Object RawBytes -Descending | Select-Object Dossier, "Taille (Go)", "Taille (Mo)", "Risque %" | Format-Table -AutoSize
 
-if ($candidatesEvaluated) {
-    $candidatesEvaluated | Format-Table -AutoSize
-} else {
-    Write-Host "Tous les candidats audités ont été traités." -ForegroundColor Green
+# 3. Scan dynamique de AppData\Roaming (> ThresholdMB)
+Write-Host "`n[3/5] SCAN DYNAMIQUE DE APPDATA\ROAMING (> $ThresholdMB Mo)..." -ForegroundColor Yellow
+$roamDirs = Get-ChildItem "$env:APPDATA" -Directory -Force
+$roamResults = foreach ($dir in $roamDirs) {
+    if ($dir.Name -match '^(Microsoft)$') { continue }
+    $files = Get-ChildItem $dir.FullName -File -Recurse -Force -ErrorAction SilentlyContinue
+    $bytes = ($files | Measure-Object -Property Length -Sum).Sum
+    if (($bytes / 1MB) -ge $ThresholdMB) {
+        $risk = 15
+        if ($dir.Name -in @('Thunderstore Mod Manager','r2modman','r2modmanPlus-local','EasyAntiCheat')) { $risk = 5 }
+        if ($dir.Name -in @('Slack','Pulse Secure','Rocket.Chat','TabNine')) { $risk = 10 }
+        [PSCustomObject]@{
+            Dossier      = "AppData\Roaming\$($dir.Name)"
+            "Taille (Go)"= [math]::Round($bytes / 1GB, 2)
+            "Taille (Mo)"= [math]::Round($bytes / 1MB, 1)
+            "Risque %"   = "$risk%"
+            RawBytes     = $bytes
+        }
+    }
 }
+$roamResults | Sort-Object RawBytes -Descending | Select-Object Dossier, "Taille (Go)", "Taille (Mo)", "Risque %" | Format-Table -AutoSize
 
-Write-Host "`nAudit terminé avec succès." -ForegroundColor Cyan
+# 4. Scan dynamique de AppData\LocalLow (> 100 Mo)
+Write-Host "`n[4/5] SCAN DYNAMIQUE DE APPDATA\LOCALLOW (> 100 Mo)..." -ForegroundColor Yellow
+$lowDirs = Get-ChildItem "$env:USERPROFILE\AppData\LocalLow" -Directory -Force
+$lowResults = foreach ($dir in $lowDirs) {
+    $files = Get-ChildItem $dir.FullName -File -Recurse -Force -ErrorAction SilentlyContinue
+    $bytes = ($files | Measure-Object -Property Length -Sum).Sum
+    if (($bytes / 1MB) -ge 100) {
+        $risk = 5
+        [PSCustomObject]@{
+            Dossier      = "AppData\LocalLow\$($dir.Name)"
+            "Taille (Go)"= [math]::Round($bytes / 1GB, 2)
+            "Taille (Mo)"= [math]::Round($bytes / 1MB, 1)
+            "Risque %"   = "$risk%"
+            RawBytes     = $bytes
+        }
+    }
+}
+$lowResults | Sort-Object RawBytes -Descending | Select-Object Dossier, "Taille (Go)", "Taille (Mo)", "Risque %" | Format-Table -AutoSize
+
+# 5. Scan dynamique du profil C:\Users\benja (dossiers cachés et racine utilisateur > 100 Mo)
+Write-Host "`n[5/5] SCAN DYNAMIQUE DU PROFIL UTILISATEUR (> 100 Mo)..." -ForegroundColor Yellow
+$userDirs = Get-ChildItem "$env:USERPROFILE" -Directory -Force | Where-Object {
+    $_.Name -notmatch '^(AppData|Videos|Downloads|New Doc|CrossDevice|Documents|Pictures|Music|Desktop)$'
+}
+$userResults = foreach ($dir in $userDirs) {
+    $files = Get-ChildItem $dir.FullName -File -Recurse -Force -ErrorAction SilentlyContinue
+    $bytes = ($files | Measure-Object -Property Length -Sum).Sum
+    if (($bytes / 1MB) -ge 100) {
+        $risk = 10
+        if ($dir.Name -in @('.gradle','.m2','Skyblock Hypixel','career-ops-data')) { $risk = 5 }
+        if ($dir.Name -in @('.lunarclient','curseforge')) { $risk = 10 }
+        if ($dir.Name -in @('.jdks')) { $risk = 80 } # Sanctuarisé (Java 17 / 24)
+        [PSCustomObject]@{
+            Dossier      = "Profil\$($dir.Name)"
+            "Taille (Go)"= [math]::Round($bytes / 1GB, 2)
+            "Taille (Mo)"= [math]::Round($bytes / 1MB, 1)
+            "Risque %"   = "$risk%"
+            RawBytes     = $bytes
+        }
+    }
+}
+$userResults | Sort-Object RawBytes -Descending | Select-Object Dossier, "Taille (Go)", "Taille (Mo)", "Risque %" | Format-Table -AutoSize
+
+Write-Host "`nAudit dynamique complet terminé." -ForegroundColor Cyan

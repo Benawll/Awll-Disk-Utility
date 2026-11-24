@@ -19,13 +19,19 @@ Ce document définit les règles impératives, la politique de sécurité et les
 
 ## 2. Déroulement d'un Audit Approfondi & Restitution
 
-### 2.1. Audit Récursif Multi-Niveaux
-Tout audit doit inspecter :
-1. Les applications du Windows Store (`WindowsApps`) qui cachent souvent des jeux géants.
-2. Le profil utilisateur (`C:\Users\benja`) : `.cache`, `.jdks`, répertoires cachés.
-3. Les branches `AppData` (`Local`, `Roaming`, `LocalLow`) : caches d'émulateurs, mods, réunions, crash dumps.
+### 2.1. Audit Récursif Multi-Niveaux et Découverte Dynamique
+Tout audit doit inspecter dynamiquement et exhaustivement :
+1. **Zéro Oubli par Scan Dynamique au Seuil (>= 150 Mo)** : Interdiction absolue de se limiter à une liste codée en dur de logiciels ou de caches. Le script doit scanner dynamiquement chaque sous-dossier de `AppData\Local`, `AppData\Roaming`, `AppData\LocalLow` et du profil `C:\Users\benja`.
+2. **Couverture Exhaustive Obligatoire** :
+   - Moteurs RGB et overlays de jeu : `VortxEngine`, `WhirlwindFX`, `Overwolf`, `Medal.tv`, `VoicemodV3`.
+   - Messageries et communications : `Slack`, `Microsoft Teams`, `Discord`, `Rocket.Chat`.
+   - Mod managers, jeux et sauvegardes : `Thunderstore Mod Manager`, `r2modman`, `Dry Cactus` (Poly Bridge), `Lunar Client`, `CurseForge`.
+   - VPN et outils réseau : `Pulse Secure`, `Radmin VPN`.
+   - Caches de développement & build : `.gradle`, `.m2`, `npm-cache`, `pip`, `ms-playwright`.
+   - Updaters résiduels Electron : `*-updater` dans LocalAppData.
+3. Les applications du Windows Store (`WindowsApps`) qui cachent souvent des jeux géants.
 4. Les logiciels résiduels dans `Program Files` et `Program Files (x86)`.
-5. Les répertoires racine atypiques de `C:\` (`AlphaAntiLeak`, `AMD`, `cygwin64`, etc.).
+5. Les répertoires racine atypiques de `C:\` (`Jeux dolphin`, `Jts`, `iMyfone`, etc.).
 
 ### 2.2. Format de Restitution Interactif Obligatoire
 - Présenter les résultats sous forme de **tableau de bord interactif HTML** (`cleaner-checklist.html`) avec :

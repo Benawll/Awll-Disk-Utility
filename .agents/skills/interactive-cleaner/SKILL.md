@@ -49,13 +49,20 @@ Chaque élément détecté lors de l'audit reçoit une note de risque objective 
 
 ---
 
-## 3. Déroulement du Workflow
+## 3. Déroulement du Workflow & Découverte Dynamique
+
+### Règle d'Exhaustivité : Zéro Oubli par Scan au Seuil (>= 150 Mo)
+Pour éviter tout angle mort, l'audit ne se base jamais sur une liste statique. Il scanne l'intégralité de l'arborescence :
+- `AppData\Local` : Overlays, enregistreurs de jeu (Medal), moteurs RGB (VortxEngine/WhirlwindFX), caches de navigateurs, updaters.
+- `AppData\Roaming` : Messageries (Slack), gestionnaires de mods (Thunderstore, r2modman), VPN (Pulse Secure).
+- `AppData\LocalLow` : Sauvegardes de jeux (Poly Bridge / Dry Cactus), données graphiques.
+- `C:\Users\benja` : Caches de build (.gradle, .m2, .vscode), profils de launchers (Lunar Client, CurseForge).
 
 ```
-[1. Audit Récursif Multi-Niveaux]
+[1. Audit Récursif Dynamique Multi-Niveaux (Seuil >= 150 Mo)]
        │
        ▼
-[2. Calcul Automatique des Risques (%) et Justifications]
+[2. Calcul Automatique des Risques (%) et Justifications Factuelles]
        │
        ▼
 [3. Génération du Dashboard Interactif (Artifact HTML & Liste Numérotée)]
