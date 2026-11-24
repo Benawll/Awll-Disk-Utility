@@ -389,7 +389,7 @@ namespace CleanerApp
                             "games",
                             sizeEpic,
                             5,
-                            $"Jeu installé à la fois sur Epic Games ({epicPath}) et sur Steam ({steamPath}).",
+                            $"Jeu installé à la fois sur Epic Games ({epicPath}) et sur Steam ({steamPath}). La date affichée correspond à la dernière écriture fichiers (souvent une mise à jour automatique Epic, pas un lancement).",
                             lastModified: last
                         ));
                     }

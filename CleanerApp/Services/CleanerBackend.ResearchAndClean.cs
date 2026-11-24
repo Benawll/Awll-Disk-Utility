@@ -240,6 +240,7 @@ namespace CleanerApp
             {
                 report.Definition = "Jeu vidéo installé en double exemplaire à la fois sur Steam et sur Epic Games.";
                 report.Origin = "Téléchargé sur deux plateformes de jeux différentes pour le même titre.";
+                report.UsageActivity = $"Dernière écriture fichiers : {report.LastAccessDate} (peut correspondre à une mise à jour automatique du launcher sans avoir lancé le jeu).";
                 report.SafetyImpact = "La suppression de l'un des deux exemplaires libère l'espace sans perdre votre progression (les sauvegardes sont synchronisées sur le cloud du jeu).";
                 report.RiskPct = 5;
             }
