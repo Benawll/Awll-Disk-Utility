@@ -403,7 +403,7 @@ namespace CleanerApp
                         di.Name.Equals("Programs", StringComparison.OrdinalIgnoreCase)) continue;
 
                     double size = GetDirectorySizeSafe(dir);
-                    if (size > 150 * 1024 * 1024) // >= 150 MB
+                    if (size > 150 * 1024 * 1024)
                     {
                         int risk = 10;
                         if (di.Name.Contains("cache", StringComparison.OrdinalIgnoreCase) ||
@@ -422,6 +422,54 @@ namespace CleanerApp
                             risk,
                             $"Dossier d'application volumineux dans AppData ({Math.Round(size / 1024.0 / 1024.0, 1)} Mo)."
                         ));
+                    }
+                }
+            }
+
+            // D. Scan des dossiers temporaires, caches racine et Program Files sur TOUS les disques fixes
+            foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed))
+            {
+                // 1. Dossiers temporaires et caches à la racine de chaque disque
+                var rootCaches = new[] { "msdownld.tmp", "MSOCache", "MobiSaverCache", "Temp", "Tmp", "TeraBoxDownload" };
+                foreach (var rc in rootCaches)
+                {
+                    var p = Path.Combine(drive.Name, rc);
+                    if (Directory.Exists(p))
+                    {
+                        double size = GetDirectorySizeSafe(p);
+                        if (size > 10 * 1024 * 1024) // > 10 Mo
+                        {
+                            items.Add(CreateItem($"Cache / Dossier Temporaire : {rc} ({drive.Name.TrimEnd('\\')})", p, "system", size, 0, "Dossier temporaire ou cache d'installation résiduel à la racine du disque."));
+                        }
+                    }
+                }
+
+                // 2. Logiciels installés dans Program Files / Program Files (x86) sur chaque disque secondaire
+                foreach (var pfName in new[] { "Program Files", "Program Files (x86)" })
+                {
+                    var pfPath = Path.Combine(drive.Name, pfName);
+                    if (Directory.Exists(pfPath))
+                    {
+                        foreach (var sub in Directory.GetDirectories(pfPath))
+                        {
+                            var di = new DirectoryInfo(sub);
+                            if (di.Name.Equals("Microsoft", StringComparison.OrdinalIgnoreCase) ||
+                                di.Name.Equals("Common Files", StringComparison.OrdinalIgnoreCase) ||
+                                di.Name.Equals("ModifiableWindowsApps", StringComparison.OrdinalIgnoreCase)) continue;
+
+                            double size = GetDirectorySizeSafe(sub);
+                            if (size > 100 * 1024 * 1024) // > 100 Mo
+                            {
+                                items.Add(CreateItem(
+                                    $"Logiciel résiduel : {di.Name} ({drive.Name.TrimEnd('\\')})",
+                                    sub,
+                                    "apps",
+                                    size,
+                                    5,
+                                    $"Application installée dans {pfPath}."
+                                ));
+                            }
+                        }
                     }
                 }
             }

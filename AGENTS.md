@@ -21,7 +21,14 @@ Ce document définit les règles impératives, la politique de sécurité et les
 
 ### 2.1. Audit Récursif Multi-Niveaux et Découverte Dynamique
 Tout audit doit inspecter dynamiquement et exhaustivement :
-1. **Couverture Multi-Disques par Défaut (C:, D:, E:)** : Ne jamais limiter l'audit au seul disque système. Analyser automatiquement tous les disques fixes connectés.
+1. **Principe de Symétrie Totale Multi-Disques (C:, D:, E:)** :
+   - **Aucun skill n'est réservé à un disque spécifique**. Chaque moteur d'analyse (développeur, logiciels, jeux, téléchargements, caches temporaires) doit s'exécuter de manière **rigoureusement identique sur TOUS les disques connectés**.
+   - **La seule et unique exception exclusive à C:** est le dossier système d'exploitation Windows (`C:\Windows\System32`, `SoftwareDistribution`).
+   - Pour tout le reste, vérifier systématiquement sur chaque disque (C:, D:, E:) :
+     - Les logiciels résiduels et installeurs dans `Program Files`, `Program Files (x86)` et dossiers racines.
+     - Les bibliothèques de jeux (Steam, Epic, Ubisoft, XboxGames / WindowsApps).
+     - Les caches de build et développeur (.gradle, .m2, venv, Unity, Unreal).
+     - Les dossiers temporaires (`Temp`, `Tmp`, `$Recycle.Bin`, caches de logiciels tiers).
 2. **Zéro Oubli par Scan Dynamique au Seuil (>= 150 Mo)** : Interdiction absolue de se limiter à une liste codée en dur de logiciels ou de caches. Le script doit scanner dynamiquement chaque sous-dossier de `AppData\Local`, `AppData\Roaming`, `AppData\LocalLow` et du profil `C:\Users\benja`.
 3. **Couverture Exhaustive Obligatoire** :
    - Caches internes Steam cachés : `steamapps\downloading` (téléchargements corrompus/bloqués souvent géants), `steamapps\workshop`, `shadercache`.
