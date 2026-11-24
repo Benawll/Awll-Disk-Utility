@@ -36,6 +36,7 @@ namespace CleanerApp
         public bool IsFolder { get; set; }
         public bool IsSanctuarized { get; set; }
         public bool IsProtected { get; set; }
+        public bool IsExtra { get; set; }
     }
 
     public class ProtectedItem
@@ -120,139 +121,201 @@ namespace CleanerApp
         {
             return await Task.Run(() =>
             {
-                var items = new List<CleanerItem>();
+                var recommendedItems = new List<CleanerItem>();
+                var extraItems = new List<CleanerItem>();
+                var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                // 1. Découverte dynamique de Steam & Epic Games (Universelle)
-                progressCallback?.Invoke("Détection dynamique des bibliothèques de jeux (Steam, Epic)...", 15);
+                // 1. Découverte dynamique de Steam & Epic Games
+                progressCallback?.Invoke("Détection des bibliothèques de jeux...", 10);
                 var steamLibs = DiscoverSteamLibraries();
                 var epicGames = DiscoverEpicGames();
 
-                // 2. Audit Jeux & Bibliothèques
-                progressCallback?.Invoke("Scan des caches de téléchargement et doublons...", 35);
-                AuditGamesUniversal(items, steamLibs, epicGames);
+                // 2. Audit Recommandé : Caches de téléchargement Steam, démos abandonnées (> 120j), doublons
+                progressCallback?.Invoke("Scan des caches de jeux et reliquats...", 25);
+                AuditGamesUniversal(recommendedItems, steamLibs, epicGames);
+                foreach (var it in recommendedItems) seenPaths.Add(it.Path);
 
-                // 3. Audit Système & Caches Développeurs
-                progressCallback?.Invoke("Scan des caches système, GPU et outils de build...", 55);
-                AuditSystemUniversal(items);
+                // 3. Audit Recommandé : Caches système, GPU Shaders et outils de build (.gradle, .m2, nuget, playwright)
+                progressCallback?.Invoke("Scan des caches système, GPU et builds dev...", 40);
+                AuditSystemUniversal(recommendedItems);
+                foreach (var it in recommendedItems) seenPaths.Add(it.Path);
 
-                // 4. Audit Téléchargements Universel
-                progressCallback?.Invoke("Analyse du dossier Téléchargements et disques secondaires...", 75);
-                AuditDownloadsUniversal(items);
+                // 4. Audit Recommandé : Téléchargements et disques secondaires (archives, installeurs > 60j)
+                progressCallback?.Invoke("Analyse des fichiers téléchargés et archives...", 55);
+                AuditDownloadsUniversal(recommendedItems);
+                foreach (var it in recommendedItems) seenPaths.Add(it.Path);
 
-                // 5. Audit Logiciels et Émulateurs
-                progressCallback?.Invoke("Recherche des émulateurs et applications résiduelles...", 90);
-                AuditEmulatorsUniversal(items);
+                // 5. Audit Recommandé : Émulateurs inactifs
+                progressCallback?.Invoke("Recherche des émulateurs inactifs...", 70);
+                AuditEmulatorsUniversal(recommendedItems);
+                foreach (var it in recommendedItems) seenPaths.Add(it.Path);
 
-                // 6. Marquage des éléments protégés
+                // 6. Inventaire Déroulant Complémentaire : Autres jeux et logiciels installés (Actifs / Conservables)
+                progressCallback?.Invoke("Inventaire des jeux Steam, Epic et logiciels installés...", 85);
+                DiscoverInstalledGamesAndApps(extraItems, steamLibs, epicGames, seenPaths, seenNames);
+
+                // 7. Tri des listes :
+                // Les éléments recommandés sont triés par risque (0% d'abord) puis taille décroissante
+                var orderedRecommended = recommendedItems.OrderBy(x => x.RiskPct).ThenByDescending(x => x.SizeGB).ToList();
+                // Les éléments secondaires sont triés par taille décroissante
+                var orderedExtra = extraItems.OrderByDescending(x => x.SizeGB).ToList();
+
+                var allCombined = orderedRecommended.Concat(orderedExtra).ToList();
+
+                // 8. Application de la liste protégée permanente
+                progressCallback?.Invoke("Application de la liste protégée...", 95);
                 var protectedList = GetProtectedItems();
-                foreach (var it in items)
+                foreach (var it in allCombined)
                 {
                     it.IsProtected = protectedList.Any(p => p.Path.Equals(it.Path, StringComparison.OrdinalIgnoreCase) || p.Name.Equals(it.Name, StringComparison.OrdinalIgnoreCase));
                 }
 
-                progressCallback?.Invoke("Finalisation de l'audit...", 100);
-                return items.OrderBy(x => x.RiskPct).ThenByDescending(x => x.SizeGB).ToList();
+                progressCallback?.Invoke("Audit et inventaire terminés !", 100);
+                return allCombined;
             });
         }
 
         // =========================================================================
-        // DEUXIÈME SCAN : INVENTAIRE EXHAUSTIF (TOUS LES JEUX & LOGICIELS DU PC)
+        // DÉCOUVERTE DE TOUS LES JEUX & LOGICIELS INSTALLÉS (SECTION DÉROULANTE)
         // =========================================================================
-        public static async Task<List<CleanerItem>> RunExhaustiveScanAsync(Action<string, int>? progressCallback = null)
+        public static void DiscoverInstalledGamesAndApps(
+            List<CleanerItem> extraItems, 
+            List<string> steamLibs, 
+            Dictionary<string, string> epicGames, 
+            HashSet<string> seenPaths, 
+            HashSet<string> seenNames)
         {
-            return await Task.Run(() =>
+            // A. Jeux et démos Steam installés
+            foreach (var lib in steamLibs)
             {
-                var items = new List<CleanerItem>();
-                var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                // 1. Découverte de toutes les bibliothèques
-                progressCallback?.Invoke("Découverte des bibliothèques de jeux sur tous les disques...", 10);
-                var steamLibs = DiscoverSteamLibraries();
-                var epicGames = DiscoverEpicGames();
-
-                // 2. Inventaire exhaustif de TOUS les jeux Steam (sur tous les disques)
-                progressCallback?.Invoke("Inventaire exhaustif de tous les jeux Steam...", 25);
-                foreach (var lib in steamLibs)
+                var common = Path.Combine(lib, "steamapps", "common");
+                if (Directory.Exists(common))
                 {
-                    var common = Path.Combine(lib, "steamapps", "common");
-                    if (Directory.Exists(common))
+                    foreach (var gameDir in Directory.GetDirectories(common))
                     {
-                        foreach (var gameDir in Directory.GetDirectories(common))
+                        var di = new DirectoryInfo(gameDir);
+                        if (seenPaths.Add(gameDir))
                         {
-                            var di = new DirectoryInfo(gameDir);
-                            if (seenPaths.Add(gameDir))
-                            {
-                                double size = GetDirectorySizeSafe(gameDir);
-                                var steamInfo = GetSteamAppInfo(gameDir);
-                                var last = steamInfo?.LastPlayed ?? steamInfo?.LastUpdated ?? GetLastWriteTimeSafe(di);
-                                var drive = Path.GetPathRoot(gameDir)?.TrimEnd('\\') ?? "C:";
-                                string appTitle = steamInfo?.Name ?? di.Name;
-                                string activityDetail = steamInfo?.LastPlayed != null 
-                                    ? $"Dernière partie : {steamInfo.LastPlayed.Value:dd/MM/yyyy}" 
-                                    : $"Dernière mise à jour : {last:dd/MM/yyyy}";
+                            double size = GetDirectorySizeSafe(gameDir);
+                            var steamInfo = GetSteamAppInfo(gameDir);
+                            var last = steamInfo?.LastPlayed ?? steamInfo?.LastUpdated ?? GetLastWriteTimeSafe(di);
+                            var drive = Path.GetPathRoot(gameDir)?.TrimEnd('\\') ?? "C:";
+                            string appTitle = steamInfo?.Name ?? di.Name;
+                            string activityDetail = steamInfo?.LastPlayed != null 
+                                ? $"Dernière partie : {steamInfo.LastPlayed.Value:dd/MM/yyyy}" 
+                                : $"Dernière mise à jour : {last:dd/MM/yyyy}";
 
-                                items.Add(CreateItem(
-                                    appTitle,
-                                    gameDir,
+                            bool isDemo = appTitle.Contains("demo", StringComparison.OrdinalIgnoreCase) || 
+                                          appTitle.Contains("playtest", StringComparison.OrdinalIgnoreCase);
+
+                            extraItems.Add(CreateItem(
+                                appTitle,
+                                gameDir,
+                                "games",
+                                size,
+                                isDemo ? 10 : 25,
+                                isDemo ? $"Démo jouable Steam sur {drive} ({activityDetail})" : $"Jeu Steam complet sur {drive} ({activityDetail})",
+                                isExtra: true
+                            ));
+                            seenNames.Add(di.Name);
+                            if (!string.IsNullOrEmpty(steamInfo?.Name)) seenNames.Add(steamInfo.Name);
+                        }
+                    }
+                }
+            }
+
+            // B. Jeux Epic Games
+            foreach (var eg in epicGames)
+            {
+                if (seenPaths.Add(eg.Value))
+                {
+                    double size = GetDirectorySizeSafe(eg.Value);
+                    var di = new DirectoryInfo(eg.Value);
+                    var last = GetLastWriteTimeSafe(di);
+                    var drive = Path.GetPathRoot(eg.Value)?.TrimEnd('\\') ?? "C:";
+                    extraItems.Add(CreateItem(
+                        eg.Key,
+                        eg.Value,
+                        "games",
+                        size,
+                        25,
+                        $"Jeu Epic Games complet sur {drive} (Dernière activité : {last:dd/MM/yyyy})",
+                        isExtra: true
+                    ));
+                    seenNames.Add(eg.Key);
+                }
+            }
+
+            // C. Launchers et répertoires de jeux portables sur tous les disques
+            foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed))
+            {
+                var gameFolders = new[] { "Autres Jeux", "Jeux", "Games", "Old Games", "Riot Games", "GOG Games", "Ubisoft", "Battle.net" };
+                foreach (var gf in gameFolders)
+                {
+                    var full = Path.Combine(drive.Name, gf);
+                    if (Directory.Exists(full))
+                    {
+                        foreach (var sub in Directory.GetDirectories(full))
+                        {
+                            if (seenPaths.Add(sub))
+                            {
+                                var di = new DirectoryInfo(sub);
+                                double size = GetDirectorySizeSafe(sub);
+                                var last = GetLastWriteTimeSafe(di);
+                                extraItems.Add(CreateItem(
+                                    $"{di.Name} ({gf} {drive.Name.TrimEnd('\\')})",
+                                    sub,
                                     "games",
                                     size,
-                                    5,
-                                    $"Jeu Steam complet sur {drive} ({activityDetail})"
+                                    25,
+                                    $"Jeu ou composant ({gf}) sur {drive.Name.TrimEnd('\\')}. Dernière activité : {last:dd/MM/yyyy}",
+                                    isExtra: true
                                 ));
                                 seenNames.Add(di.Name);
-                                if (!string.IsNullOrEmpty(steamInfo?.Name)) seenNames.Add(steamInfo.Name);
                             }
                         }
                     }
                 }
+            }
 
-                // 3. Inventaire exhaustif de TOUS les jeux Epic Games
-                progressCallback?.Invoke("Inventaire exhaustif des jeux Epic Games...", 40);
-                foreach (var eg in epicGames)
-                {
-                    if (seenPaths.Add(eg.Value))
-                    {
-                        double size = GetDirectorySizeSafe(eg.Value);
-                        var di = new DirectoryInfo(eg.Value);
-                        var last = GetLastWriteTimeSafe(di);
-                        var drive = Path.GetPathRoot(eg.Value)?.TrimEnd('\\') ?? "C:";
-                        items.Add(CreateItem(
-                            eg.Key,
-                            eg.Value,
-                            "games",
-                            size,
-                            5,
-                            $"Jeu Epic Games complet sur {drive} (Dernière activité : {last:dd/MM/yyyy})"
-                        ));
-                        seenNames.Add(eg.Key);
-                    }
-                }
+            // D. Applications enregistrées dans le Registre Windows
+            var regApps = GetRegistryInstalledApps(seenPaths, seenNames);
+            foreach (var app in regApps)
+            {
+                app.IsExtra = true;
+                extraItems.Add(app);
+            }
 
-                // 4. Inventaire des launchers & dossiers de jeux portables sur tous les disques
-                progressCallback?.Invoke("Scan de Riot Games, Ubisoft, GOG, Battle.net et jeux portables...", 55);
-                foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed))
+            // E. Scan complémentaire des répertoires Program Files multi-disques
+            foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed))
+            {
+                foreach (var pf in new[] { "Program Files", "Program Files (x86)" })
                 {
-                    var gameFolders = new[] { "Autres Jeux", "Jeux", "Games", "Old Games", "Riot Games", "GOG Games", "Ubisoft", "Battle.net" };
-                    foreach (var gf in gameFolders)
+                    var pfp = Path.Combine(drive.Name, pf);
+                    if (Directory.Exists(pfp))
                     {
-                        var full = Path.Combine(drive.Name, gf);
-                        if (Directory.Exists(full))
+                        foreach (var sub in Directory.GetDirectories(pfp))
                         {
-                            foreach (var sub in Directory.GetDirectories(full))
+                            var di = new DirectoryInfo(sub);
+                            if (di.Name.Equals("Microsoft", StringComparison.OrdinalIgnoreCase) ||
+                                di.Name.Equals("Common Files", StringComparison.OrdinalIgnoreCase) ||
+                                di.Name.Equals("Windows Defender", StringComparison.OrdinalIgnoreCase) ||
+                                di.Name.Equals("Windows NT", StringComparison.OrdinalIgnoreCase)) continue;
+
+                            if (seenPaths.Add(sub) && !seenNames.Contains(di.Name))
                             {
-                                if (seenPaths.Add(sub))
+                                double size = GetDirectorySizeSafe(sub);
+                                if (size > 30 * 1024 * 1024) // > 30 Mo
                                 {
-                                    var di = new DirectoryInfo(sub);
-                                    double size = GetDirectorySizeSafe(sub);
-                                    var last = GetLastWriteTimeSafe(di);
-                                    items.Add(CreateItem(
-                                        $"{di.Name} ({gf} {drive.Name.TrimEnd('\\')})",
+                                    extraItems.Add(CreateItem(
+                                        di.Name,
                                         sub,
-                                        "games",
+                                        "apps",
                                         size,
-                                        5,
-                                        $"Jeu ou composant ({gf}) sur {drive.Name.TrimEnd('\\')}. Dernière activité : {last:dd/MM/yyyy}"
+                                        25,
+                                        $"Logiciel installé dans {pfp}",
+                                        isExtra: true
                                     ));
                                     seenNames.Add(di.Name);
                                 }
@@ -260,65 +323,12 @@ namespace CleanerApp
                         }
                     }
                 }
+            }
+        }
 
-                // 5. Inventaire de TOUTES les applications enregistrées dans le Registre Windows
-                progressCallback?.Invoke("Inventaire des applications installées (Registre Windows HKLM/HKCU)...", 75);
-                var regApps = GetRegistryInstalledApps(seenPaths, seenNames);
-                items.AddRange(regApps);
-
-                // 6. Scan complémentaire de Program Files & Program Files (x86) sur tous les disques
-                progressCallback?.Invoke("Vérification des répertoires Program Files multi-disques...", 85);
-                foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed))
-                {
-                    foreach (var pf in new[] { "Program Files", "Program Files (x86)" })
-                    {
-                        var pfp = Path.Combine(drive.Name, pf);
-                        if (Directory.Exists(pfp))
-                        {
-                            foreach (var sub in Directory.GetDirectories(pfp))
-                            {
-                                var di = new DirectoryInfo(sub);
-                                if (di.Name.Equals("Microsoft", StringComparison.OrdinalIgnoreCase) ||
-                                    di.Name.Equals("Common Files", StringComparison.OrdinalIgnoreCase) ||
-                                    di.Name.Equals("Windows Defender", StringComparison.OrdinalIgnoreCase) ||
-                                    di.Name.Equals("Windows NT", StringComparison.OrdinalIgnoreCase)) continue;
-
-                                if (seenPaths.Add(sub) && !seenNames.Contains(di.Name))
-                                {
-                                    double size = GetDirectorySizeSafe(sub);
-                                    if (size > 20 * 1024 * 1024) // > 20 Mo
-                                    {
-                                        items.Add(CreateItem(
-                                            di.Name,
-                                            sub,
-                                            "apps",
-                                            size,
-                                            5,
-                                            $"Logiciel installé dans {pfp}"
-                                        ));
-                                        seenNames.Add(di.Name);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // 7. Émulateurs sur tous les disques
-                progressCallback?.Invoke("Inventaire des émulateurs sur tous les disques...", 92);
-                AuditEmulatorsUniversal(items);
-
-                // 8. Marquage des éléments protégés
-                progressCallback?.Invoke("Application de la liste protégée...", 98);
-                var protectedList = GetProtectedItems();
-                foreach (var it in items)
-                {
-                    it.IsProtected = protectedList.Any(p => p.Path.Equals(it.Path, StringComparison.OrdinalIgnoreCase) || p.Name.Equals(it.Name, StringComparison.OrdinalIgnoreCase));
-                }
-
-                progressCallback?.Invoke("Inventaire exhaustif terminé !", 100);
-                return items.OrderByDescending(x => x.SizeGB).ToList();
-            });
+        public static async Task<List<CleanerItem>> RunExhaustiveScanAsync(Action<string, int>? progressCallback = null)
+        {
+            return await RunAuditAsync(progressCallback);
         }
 
         private static List<CleanerItem> GetRegistryInstalledApps(HashSet<string> seenPaths, HashSet<string> seenNames)
@@ -1483,7 +1493,7 @@ namespace CleanerApp
             }
         }
 
-        private static CleanerItem CreateItem(string name, string path, string category, double bytes, int riskPct, string desc, bool isFolder = true, bool isSanctuarized = false)
+        private static CleanerItem CreateItem(string name, string path, string category, double bytes, int riskPct, string desc, bool isFolder = true, bool isSanctuarized = false, bool isExtra = false)
         {
             var drive = "";
             try { drive = Path.GetPathRoot(path)?.TrimEnd('\\') ?? ""; } catch { }
@@ -1508,7 +1518,8 @@ namespace CleanerApp
                 RiskLevel = level,
                 Description = desc,
                 IsFolder = isFolder,
-                IsSanctuarized = isSanctuarized
+                IsSanctuarized = isSanctuarized,
+                IsExtra = isExtra
             };
         }
 

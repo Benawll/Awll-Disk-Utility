@@ -34,24 +34,18 @@
         <div>
           <h1 class="text-base font-bold tracking-tight text-white flex items-center gap-2">
             Workspace Cleaner Pro
-            <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">v2.1 Dual-Scan</span>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">v2.2 Pro</span>
           </h1>
-          <p class="text-xs text-slate-400">Audit Recommandé • Inventaire Exhaustif • Liste Protégée Permanente</p>
+          <p class="text-xs text-slate-400">Audit Intelligent • Inventaire Déroulant • Liste Protégée Permanente</p>
         </div>
       </div>
 
       <!-- Action buttons in header -->
       <div class="flex items-center gap-3">
-        <!-- Scan 1 : Audit Recommandé -->
-        <button id="btn-smart-scan" onclick="startAudit('smart')" title="Détecte intelligemment les angles morts, caches, doublons et résidus" class="px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-md shadow-blue-600/30 transition-all flex items-center gap-2 active:scale-95">
+        <!-- Scan Unique avec Liste Déroulante Complète -->
+        <button id="btn-smart-scan" onclick="startAudit()" title="Lancer l'audit de nettoyage et l'inventaire complet de vos disques" class="px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-md shadow-blue-600/30 transition-all flex items-center gap-2 active:scale-95">
           <span>🔍</span>
-          <span id="scan-smart-label">Audit Recommandé</span>
-        </button>
-
-        <!-- Scan 2 : Inventaire Complet (Tous les jeux et logiciels) -->
-        <button id="btn-exhaustive-scan" onclick="startAudit('exhaustive')" title="Lister l'intégralité de tous les jeux et logiciels installés sur le PC" class="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs shadow-md shadow-indigo-600/30 transition-all flex items-center gap-2 active:scale-95">
-          <span>📋</span>
-          <span id="scan-exhaustive-label">Inventaire Complet (Tous)</span>
+          <span id="scan-smart-label">Lancer l'Audit</span>
         </button>
 
         <div class="h-6 w-px bg-slate-800"></div>
@@ -130,38 +124,17 @@
     <!-- Results Container -->
     <div id="items-container" class="space-y-2.5">
       <!-- Default Empty State -->
-      <div id="empty-state" class="p-8 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 space-y-4">
+      <div id="empty-state" class="p-8 text-center rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 space-y-4 max-w-xl mx-auto">
         <div class="text-4xl">🚀</div>
         <h3 class="text-base font-semibold text-white">Prêt pour l'analyse multi-disques</h3>
-        <p class="text-xs text-slate-400 max-w-xl mx-auto">
-          Choisissez le type d'analyse adapté à votre besoin :
+        <p class="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+          Analyse globale de tous vos disques (C:, D:, E:) : détection des caches résiduels et ordures prioritaires, avec inventaire déroulant de tous vos jeux et logiciels installés.
         </p>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto pt-2">
-          <!-- Carte 1 -->
-          <div class="bg-slate-950/70 border border-blue-500/30 hover:border-blue-500/60 p-4 rounded-xl text-left space-y-2.5 transition-all">
-            <div class="flex items-center gap-2 text-blue-400 font-bold text-xs">
-              <span class="text-lg">🔍</span> Mode 1 : Audit Recommandé
-            </div>
-            <p class="text-[11px] text-slate-400 leading-relaxed">
-              Scan intelligent des <strong>angles morts, caches corrompus, téléchargements orphelins, doublons</strong> et installeurs résiduels à supprimer en priorité.
-            </p>
-            <button onclick="startAudit('smart')" class="w-full px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-md transition-all flex items-center justify-center gap-1.5">
-              <span>Lancer l'Audit Recommandé</span>
-            </button>
-          </div>
-
-          <!-- Carte 2 -->
-          <div class="bg-slate-950/70 border border-indigo-500/30 hover:border-indigo-500/60 p-4 rounded-xl text-left space-y-2.5 transition-all">
-            <div class="flex items-center gap-2 text-indigo-400 font-bold text-xs">
-              <span class="text-lg">📋</span> Mode 2 : Inventaire Complet
-            </div>
-            <p class="text-[11px] text-slate-400 leading-relaxed">
-              Liste <strong>100% de tous les jeux</strong> (Steam, Epic, Riot, etc.) et de <strong>tous les logiciels</strong> enregistrés sur le PC pour faire un tri exhaustif et protéger vos favoris.
-            </p>
-            <button onclick="startAudit('exhaustive')" class="w-full px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs shadow-md transition-all flex items-center justify-center gap-1.5">
-              <span>Lancer l'Inventaire Complet</span>
-            </button>
-          </div>
+        <div class="pt-2">
+          <button onclick="startAudit()" class="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 mx-auto active:scale-95">
+            <span>🔍</span>
+            <span>Lancer l'Audit Global</span>
+          </button>
         </div>
       </div>
     </div>
@@ -379,19 +352,10 @@
       }).join('');
     }
 
-    // 3. Lancement de l'audit (Mode 1 Smart ou Mode 2 Exhaustif)
-    function startAudit(mode = 'smart') {
-      currentScanType = mode;
-      const msg = mode === 'exhaustive'
-        ? "Inventaire complet de TOUS les jeux et logiciels du PC..."
-        : "Initialisation de l'audit recommandé...";
-      showProgress(msg, 10);
-
-      if (mode === 'exhaustive') {
-        postToBridge({ action: 'runExhaustiveScan' });
-      } else {
-        postToBridge({ action: 'runAudit' });
-      }
+    // 3. Lancement de l'audit complet
+    function startAudit() {
+      showProgress("Initialisation de l'audit et inventaire de vos disques...", 10);
+      postToBridge({ action: 'runAudit' });
     }
 
     function showProgress(text, pct) {
@@ -400,17 +364,101 @@
       document.getElementById('progress-text').innerText = text;
       document.getElementById('progress-pct').innerText = `${pct}%`;
       document.getElementById('progress-bar').style.width = `${pct}%`;
-      document.getElementById('btn-smart-scan').disabled = true;
-      document.getElementById('btn-exhaustive-scan').disabled = true;
+      const btn = document.getElementById('btn-smart-scan');
+      if (btn) btn.disabled = true;
     }
 
     function hideProgress() {
       document.getElementById('progress-banner').classList.add('hidden');
-      document.getElementById('btn-smart-scan').disabled = false;
-      document.getElementById('btn-exhaustive-scan').disabled = false;
+      const btn = document.getElementById('btn-smart-scan');
+      if (btn) btn.disabled = false;
     }
 
-    // 4. Rendu des Éléments de Scan
+    // Gestion de l'état de la liste déroulante supplémentaire
+    let isExtraExpanded = false;
+
+    function toggleExtraSection() {
+      isExtraExpanded = !isExtraExpanded;
+      const list = document.getElementById('extra-items-list');
+      const lbl = document.getElementById('extra-toggle-label');
+      const chv = document.getElementById('extra-chevron');
+      if (list) {
+        if (isExtraExpanded) {
+          list.classList.remove('hidden');
+          if (lbl) lbl.innerText = 'Masquer la liste';
+          if (chv) chv.classList.add('rotate-180');
+        } else {
+          list.classList.add('hidden');
+          if (lbl) lbl.innerText = 'Afficher la liste';
+          if (chv) chv.classList.remove('rotate-180');
+        }
+      }
+    }
+
+    // Rendu d'une carte d'élément individuelle
+    function renderItemRow(raw) {
+      const item = {
+        id: raw.id || raw.Id,
+        name: raw.name || raw.Name || 'Élément',
+        path: raw.path || raw.Path || '',
+        category: (raw.category || raw.Category || 'system').toLowerCase(),
+        drive: raw.drive || raw.Drive || 'Système',
+        sizeGB: raw.sizeGB ?? raw.SizeGB ?? 0,
+        sizeMB: raw.sizeMB ?? raw.SizeMB ?? 0,
+        riskPct: raw.riskPct ?? raw.RiskPct ?? 0,
+        description: raw.description || raw.Description || '',
+        isProtected: raw.isProtected ?? raw.IsProtected ?? false,
+        isExtra: raw.isExtra ?? raw.IsExtra ?? false
+      };
+
+      const riskColor = item.riskPct <= 10 ? 'emerald' : (item.riskPct <= 40 ? 'blue' : (item.riskPct <= 70 ? 'amber' : 'red'));
+      const driveColor = item.drive.startsWith('C') ? 'emerald' : (item.drive.startsWith('D') ? 'blue' : 'purple');
+      const sz = item.sizeGB > 0 ? (item.sizeGB.toFixed(2) + ' Go') : (item.sizeMB.toFixed(1) + ' Mo');
+
+      return `
+        <div class="p-3 rounded-xl bg-slate-900 border ${item.isProtected ? 'border-emerald-500/40 bg-slate-900/90' : 'border-slate-800/80'} hover:border-slate-700 transition-all flex flex-wrap items-center justify-between gap-3 shadow-sm" id="row-${item.id}">
+          <div class="flex-1 min-w-[280px]">
+            <div class="flex items-center gap-2 mb-1 flex-wrap">
+              <span class="font-bold text-white text-xs">${item.name}</span>
+              <span class="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">${sz}</span>
+              <span class="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-${riskColor}-500/10 text-${riskColor}-400 border border-${riskColor}-500/30">Risque : ${item.riskPct}%</span>
+              <span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-${driveColor}-500/10 text-${driveColor}-400 font-bold">${item.drive || 'Système'}</span>
+              ${item.isProtected ? '<span class="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">🛡️ Protégé</span>' : ''}
+              ${item.isExtra ? '<span class="font-mono text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">Installé</span>' : ''}
+            </div>
+            <p class="text-[11px] text-slate-400">${item.description}</p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            ${item.isProtected ? `
+              <button onclick="removeFromProtected('${item.id}')" title="Retirer de la Liste Protégée" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-red-600 hover:text-white text-slate-300 border border-slate-700 transition-colors flex items-center gap-1">
+                <span>🔓</span><span>Déprotéger</span>
+              </button>
+            ` : `
+              <label class="cursor-pointer px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-700 hover:bg-slate-800 transition-colors flex items-center gap-1.5 has-[:checked]:bg-red-600 has-[:checked]:text-white has-[:checked]:border-red-600">
+                <input type="radio" name="action-${item.id}" value="delete" class="sr-only" onchange="updateSelectionCalc()">
+                <span>Supprimer</span>
+              </label>
+              <label class="cursor-pointer px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-700 hover:bg-slate-800 transition-colors flex items-center gap-1.5 has-[:checked]:bg-emerald-600 has-[:checked]:text-white has-[:checked]:border-emerald-600">
+                <input type="radio" name="action-${item.id}" value="keep" class="sr-only" checked onchange="updateSelectionCalc()">
+                <span>Garder</span>
+              </label>
+              <button onclick="protectItem('${item.id}')" title="Ajouter à la Liste Protégée permanente (ne pourra jamais être supprimé)" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-emerald-600 hover:text-white text-emerald-400 border border-slate-700 hover:border-emerald-600 transition-all flex items-center gap-1">
+                <span>🛡️ Protéger</span>
+              </button>
+            `}
+            <button onclick="askResearch('${item.id}')" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 transition-colors flex items-center gap-1">
+              <span>❓ Infos</span>
+            </button>
+            <button onclick="openFolder('${encodeURIComponent(item.path)}')" title="Ouvrir dans l'Explorateur" class="p-1.5 rounded-lg text-xs text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors">
+              📂
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    // 4. Rendu des Éléments de Scan (Scission Recommandé + Section Déroulante)
     function renderItems() {
       const container = document.getElementById('items-container');
 
@@ -419,7 +467,7 @@
           <div class="p-12 text-center rounded-2xl border border-dashed border-emerald-500/30 bg-emerald-500/5 space-y-2">
             <div class="text-4xl">✨</div>
             <h3 class="text-sm font-semibold text-emerald-400">Aucun élément à afficher</h3>
-            <p class="text-xs text-slate-400">Lancez l'« Audit Recommandé » ou l'« Inventaire Complet » pour scanner vos disques.</p>
+            <p class="text-xs text-slate-400">Cliquez sur « Lancer l'Audit » pour scanner vos disques.</p>
           </div>
         `;
         return;
@@ -444,65 +492,66 @@
         return;
       }
 
-      container.innerHTML = filtered.map(raw => {
-        const item = {
-          id: raw.id || raw.Id,
-          name: raw.name || raw.Name || 'Élément',
-          path: raw.path || raw.Path || '',
-          category: (raw.category || raw.Category || 'system').toLowerCase(),
-          drive: raw.drive || raw.Drive || 'Système',
-          sizeGB: raw.sizeGB ?? raw.SizeGB ?? 0,
-          sizeMB: raw.sizeMB ?? raw.SizeMB ?? 0,
-          riskPct: raw.riskPct ?? raw.RiskPct ?? 0,
-          description: raw.description || raw.Description || '',
-          isProtected: raw.isProtected ?? raw.IsProtected ?? false
-        };
+      const recommended = filtered.filter(x => !(x.isExtra || x.IsExtra));
+      const extra = filtered.filter(x => (x.isExtra || x.IsExtra));
 
-        const riskColor = item.riskPct <= 10 ? 'emerald' : (item.riskPct <= 40 ? 'blue' : (item.riskPct <= 70 ? 'amber' : 'red'));
-        const driveColor = item.drive.startsWith('C') ? 'emerald' : (item.drive.startsWith('D') ? 'blue' : 'purple');
-        const sz = item.sizeGB > 0 ? (item.sizeGB.toFixed(2) + ' Go') : (item.sizeMB.toFixed(1) + ' Mo');
+      // Si l'utilisateur tape une recherche, déplier automatiquement pour voir les correspondances
+      if (q && q.trim().length > 0 && extra.length > 0) {
+        isExtraExpanded = true;
+      }
 
-        return `
-          <div class="p-3 rounded-xl bg-slate-900 border ${item.isProtected ? 'border-emerald-500/40 bg-slate-900/90' : 'border-slate-800/80'} hover:border-slate-700 transition-all flex flex-wrap items-center justify-between gap-3 shadow-sm" id="row-${item.id}">
-            <div class="flex-1 min-w-[280px]">
-              <div class="flex items-center gap-2 mb-1 flex-wrap">
-                <span class="font-bold text-white text-xs">${item.name}</span>
-                <span class="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">${sz}</span>
-                <span class="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-${riskColor}-500/10 text-${riskColor}-400 border border-${riskColor}-500/30">Risque : ${item.riskPct}%</span>
-                <span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-${driveColor}-500/10 text-${driveColor}-400 font-bold">${item.drive || 'Système'}</span>
-                ${item.isProtected ? '<span class="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">🛡️ Protégé</span>' : ''}
-              </div>
-              <p class="text-[11px] text-slate-400">${item.description}</p>
+      let html = '';
+
+      // 1. Liste Principale : Éléments Recommandés à Supprimer
+      if (recommended.length > 0) {
+        html += `
+          <div class="space-y-2">
+            <div class="flex items-center justify-between text-xs font-semibold text-slate-400 px-1 py-1">
+              <span class="flex items-center gap-1.5 text-blue-400">
+                <span>🎯</span> <strong>Éléments recommandés à nettoyer (${recommended.length})</strong>
+              </span>
+              <span class="text-[11px] text-slate-500">Caches, résidus d'installation & ordures prioritaires</span>
             </div>
+            ${recommended.map(renderItemRow).join('')}
+          </div>
+        `;
+      } else if (extra.length > 0) {
+        html += `
+          <div class="p-4 rounded-xl bg-slate-900/50 border border-slate-800 text-center text-xs text-slate-400 mb-2">
+            ✨ Aucun déchet ou résidu recommandé trouvé dans cette catégorie.
+          </div>
+        `;
+      }
 
-            <div class="flex items-center gap-2">
-              ${item.isProtected ? `
-                <button onclick="removeFromProtected('${item.id}')" title="Retirer de la Liste Protégée" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-red-600 hover:text-white text-slate-300 border border-slate-700 transition-colors flex items-center gap-1">
-                  <span>🔓</span><span>Déprotéger</span>
-                </button>
-              ` : `
-                <label class="cursor-pointer px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-700 hover:bg-slate-800 transition-colors flex items-center gap-1.5 has-[:checked]:bg-red-600 has-[:checked]:text-white has-[:checked]:border-red-600">
-                  <input type="radio" name="action-${item.id}" value="delete" class="sr-only" onchange="updateSelectionCalc()">
-                  <span>Supprimer</span>
-                </label>
-                <label class="cursor-pointer px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-700 hover:bg-slate-800 transition-colors flex items-center gap-1.5 has-[:checked]:bg-emerald-600 has-[:checked]:text-white has-[:checked]:border-emerald-600">
-                  <input type="radio" name="action-${item.id}" value="keep" class="sr-only" checked onchange="updateSelectionCalc()">
-                  <span>Garder</span>
-                </label>
-                <button onclick="protectItem('${item.id}')" title="Ajouter à la Liste Protégée permanente (ne pourra jamais être supprimé)" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-emerald-600 hover:text-white text-emerald-400 border border-slate-700 hover:border-emerald-600 transition-all flex items-center gap-1">
-                  <span>🛡️ Protéger</span>
-                </button>
-              `}
-              <button onclick="askResearch('${item.id}')" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 transition-colors flex items-center gap-1">
-                <span>❓ Infos</span>
-              </button>
-              <button onclick="openFolder('${encodeURIComponent(item.path)}')" title="Ouvrir dans l'Explorateur" class="p-1.5 rounded-lg text-xs text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors">
-                📂
-              </button>
+      // 2. Section Déroulante : Autres Jeux et Logiciels Installés (Actifs / Conservables)
+      if (extra.length > 0) {
+        const totalExtraGB = extra.reduce((acc, it) => acc + (it.sizeGB ?? it.SizeGB ?? 0), 0);
+        html += `
+          <div class="mt-6 border border-slate-700/60 rounded-xl overflow-hidden bg-slate-900/30 shadow-lg">
+            <button type="button" onclick="toggleExtraSection()" class="w-full p-4 flex items-center justify-between text-left hover:bg-slate-800/40 transition-colors">
+              <div class="flex items-center gap-3">
+                <span class="text-xl">📦</span>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <h4 class="text-xs font-bold text-white uppercase tracking-wider">Autres jeux & logiciels installés (Actifs / Probablement à conserver)</h4>
+                    <span class="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">${extra.length} élément${extra.length > 1 ? 's' : ''} • ${totalExtraGB.toFixed(2)} Go</span>
+                  </div>
+                  <p class="text-[11px] text-slate-400 mt-0.5">Jeux complets, démos récentes et logiciels enregistrés détectés sur vos disques. Ne cochez que si vous souhaitez vraiment vous en séparer.</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 text-slate-400">
+                <span id="extra-toggle-label" class="text-xs font-medium">${isExtraExpanded ? 'Masquer la liste' : 'Afficher la liste'}</span>
+                <span id="extra-chevron" class="text-xs transition-transform duration-200 ${isExtraExpanded ? 'rotate-180' : ''}">▼</span>
+              </div>
+            </button>
+            <div id="extra-items-list" class="${isExtraExpanded ? '' : 'hidden'} p-3 pt-0 space-y-2 border-t border-slate-800/60 bg-slate-950/40">
+              ${extra.map(renderItemRow).join('')}
             </div>
           </div>
         `;
-      }).join('');
+      }
+
+      container.innerHTML = html;
     }
 
     // 5. Rendu Spécifique de la Liste Protégée
