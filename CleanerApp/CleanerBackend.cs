@@ -1462,16 +1462,22 @@ namespace CleanerApp
                             }
                             else if (isOld && !isRunning)
                             {
-                                int risk = ComputeRiskScore("appdata_inactive", daysAgo, false, false, false);
-                                items.Add(CreateItem(
-                                    $"Dossier Inactif AppData : {di.Name}",
+                                bool isCore = IsCoreSystemOrRuntime(di.Name, dir);
+                                int risk = ComputeRiskScore("appdata_inactive", daysAgo, false, isCore, false);
+                                var appItem = CreateItem(
+                                    isCore ? $"Composant Actif AppData : {di.Name}" : $"Dossier Inactif AppData : {di.Name}",
                                     dir,
                                     "system",
                                     size,
                                     risk,
-                                    $"Données d'application inactives depuis {FormatAgeText(daysAgo)} ({lastWrite:dd/MM/yyyy}).",
-                                    lastModified: lastWrite
-                                ));
+                                    isCore
+                                        ? $"Données d'outil essentiel ({Math.Round(size / 1024.0 / 1024.0, 1)} Mo)."
+                                        : $"Données d'application inactives depuis {FormatAgeText(daysAgo)} ({lastWrite:dd/MM/yyyy}).",
+                                    lastModified: lastWrite,
+                                    isExtra: isCore
+                                );
+                                if (isCore) extraItems.Add(appItem);
+                                else items.Add(appItem);
                             }
                             else if (isRunning)
                             {
@@ -1611,10 +1617,11 @@ namespace CleanerApp
                     }
                     catch { }
 
-                    if (isTempName || hasMatchingArchive || daysAgo >= 60)
+                    bool isRunning = IsLikelyRunning(di.Name, sub, runningProcs);
+                    if (isRunning || isTempName || hasMatchingArchive || daysAgo >= 60)
                     {
                         int risk;
-                        if ((isTempName || hasMatchingArchive) && !hasMediaOrDocs)
+                        if ((isTempName || hasMatchingArchive) && !hasMediaOrDocs && !isRunning)
                         {
                             risk = 0;
                         }
@@ -1626,15 +1633,29 @@ namespace CleanerApp
                         {
                             risk = daysAgo >= 365 ? 5 : (daysAgo >= 180 ? 10 : 20);
                         }
+                        if (isRunning) risk = Math.Max(risk + 25, 55);
 
-                        string reason = hasMatchingArchive
-                            ? $"Dossier déjà extrait à côté de son archive ({di.Name}.zip/.rar/.7z){(hasMediaOrDocs ? " — contient des médias/documents" : "")}."
-                            : (hasMediaOrDocs
-                                ? $"Contient des images, vidéos ou documents (inactif depuis {FormatAgeText(daysAgo)}, {last:dd/MM/yyyy})."
-                                : (isTempName
-                                    ? "Dossier de build ou temporaire dans Téléchargements."
-                                    : $"Dossier téléchargé inactif depuis {FormatAgeText(daysAgo)} ({last:dd/MM/yyyy})."));
-                        items.Add(CreateItem($"Dossier Téléchargé : {di.Name}", sub, "downloads", size, risk, reason, lastModified: last));
+                        string reason = isRunning
+                            ? "Dossier associé à un processus actuellement actif en mémoire."
+                            : (hasMatchingArchive
+                                ? $"Dossier déjà extrait à côté de son archive ({di.Name}.zip/.rar/.7z){(hasMediaOrDocs ? " — contient des médias/documents" : "")}."
+                                : (hasMediaOrDocs
+                                    ? $"Contient des images, vidéos ou documents (inactif depuis {FormatAgeText(daysAgo)}, {last:dd/MM/yyyy})."
+                                    : (isTempName
+                                        ? "Dossier de build ou temporaire dans Téléchargements."
+                                        : $"Dossier téléchargé inactif depuis {FormatAgeText(daysAgo)} ({last:dd/MM/yyyy}).")));
+                        var dlItem = CreateItem(
+                            isRunning ? $"Dossier Actif (Téléchargements) : {di.Name}" : $"Dossier Téléchargé : {di.Name}",
+                            sub,
+                            "downloads",
+                            size,
+                            risk,
+                            reason,
+                            lastModified: last,
+                            isExtra: isRunning
+                        );
+                        if (isRunning) extraItems.Add(dlItem);
+                        else items.Add(dlItem);
                     }
                 }
             }
@@ -2180,7 +2201,7 @@ namespace CleanerApp
                 report.Definition = $"Fichier d'installation autonome de : {prod} ({desc}).";
                 report.Origin = $"Téléchargé depuis internet ({comp}) le {lastWrite:dd MMMM yyyy} ({FormatAgeText(ageDays)}) dans {Path.GetFileName(Path.GetDirectoryName(path))}.";
                 report.SafetyImpact = "🟢 SUPPRESSION 100% SÛRE (Risque 0%). Ce n'est que l'installeur temporaire. Une fois le logiciel installé sur votre PC, ce fichier exécutable ne sert plus à rien et peut être supprimé sans affecter l'application installée.";
-                report.RiskPct = ComputeRiskScore("installer", ageDays, false, false, false);
+                report.RiskPct = ComputeRiskScore("installer", ageDays, running, false, false);
             }
             // 19. Caches & Outils Dev / IA / Navigateurs / Système étendus
             else if (n.Contains("npm") || pLower.Contains("npm-cache"))
@@ -2967,6 +2988,16 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
         {
             var drive = "";
             try { drive = Path.GetPathRoot(path)?.TrimEnd('\\') ?? ""; } catch { }
+
+            if (!isSanctuarized && IsPathSanctuarized(path))
+            {
+                isSanctuarized = true;
+            }
+            if (isSanctuarized)
+            {
+                riskPct = Math.Max(riskPct, 95);
+                isExtra = true;
+            }
 
             string level = riskPct switch
             {
