@@ -240,6 +240,14 @@ namespace CleanerApp
                         break;
                     }
 
+                    case "scanFolderTree":
+                    {
+                        var treePath = root.TryGetProperty("path", out var pProp) ? (pProp.GetString() ?? @"C:\") : @"C:\";
+                        var node = await CleanerBackend.ScanFolderTreeAsync(treePath);
+                        SendJson(new { type = "folderTreeResult", node });
+                        break;
+                    }
+
                     case "executeClean":
                     {
                         var itemsJson = root.GetProperty("items").GetRawText();
@@ -247,7 +255,9 @@ namespace CleanerApp
 
                         double totalFreed = 0;
                         var deletedIds = new List<string>();
+                        var deletedPaths = new List<string>();
                         var deletedNames = new List<string>();
+                        var errors = new List<string>();
 
                         await Task.Run(() =>
                         {
@@ -258,7 +268,12 @@ namespace CleanerApp
                                 {
                                     totalFreed += res.FreedGB;
                                     deletedIds.Add(it.Id);
+                                    deletedPaths.Add(it.Path);
                                     deletedNames.Add(it.Name);
+                                }
+                                else
+                                {
+                                    errors.Add($"{it.Name}: {res.Message}");
                                 }
                             }
                         });
@@ -269,7 +284,9 @@ namespace CleanerApp
                         {
                             type = "cleanResult",
                             freedGB = Math.Round(totalFreed, 2),
-                            deletedIds
+                            deletedIds,
+                            deletedPaths,
+                            errors
                         });
                         break;
                     }

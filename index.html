@@ -3,296 +3,429 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Workspace Cleaner Pro — v3.0 Studio</title>
+  <title>Workspace Cleaner Pro — v4.0 Studio</title>
   <script src="https://cleaner.app/tailwindcss.min.js"></script>
   <style>
     @layer base {
-      body {
-        background-color: #070b14;
-        background-image:
-          radial-gradient(ellipse 80% 50% at 15% -10%, rgba(59, 130, 246, 0.14), transparent),
-          radial-gradient(ellipse 60% 45% at 85% 0%, rgba(139, 92, 246, 0.11), transparent);
+      html, body {
+        height: 100%;
+        background-color: #070a12;
         color: #f1f5f9;
-        font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
         user-select: none;
-        overflow-x: hidden;
+        overflow: hidden;
       }
     }
+    .ambient-bg {
+      background-color: #070a12;
+      background-image:
+        radial-gradient(ellipse 65% 45% at 25% 0%, rgba(37, 99, 235, 0.10), transparent 70%),
+        radial-gradient(ellipse 50% 40% at 90% 10%, rgba(139, 92, 246, 0.08), transparent 70%);
+    }
     .tabular-nums { font-variant-numeric: tabular-nums; }
-    .glass-panel {
-      background: rgba(15, 23, 42, 0.72);
-      backdrop-filter: blur(16px);
+    .surface-card {
+      background: rgba(15, 22, 38, 0.72);
       border: 1px solid rgba(255, 255, 255, 0.07);
+      backdrop-filter: blur(12px);
     }
-    .glass-card {
-      background: rgba(15, 23, 42, 0.65);
-      border: 1px solid rgba(255, 255, 255, 0.07);
-      transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+    .item-row {
+      background: rgba(14, 20, 34, 0.78);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      transition: background-color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
     }
-    .glass-card:hover {
-      background: rgba(20, 30, 52, 0.88);
-      border-color: rgba(148, 163, 184, 0.22);
-      transform: translateY(-1px);
-      box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.45);
+    .item-row:hover {
+      background: rgba(20, 29, 48, 0.92);
+      border-color: rgba(148, 163, 184, 0.2);
     }
-    ::-webkit-scrollbar { width: 7px; height: 7px; }
-    ::-webkit-scrollbar-track { background: #070b14; }
-    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 999px; }
-    ::-webkit-scrollbar-thumb:hover { background: #334155; }
-    .tab-btn.active {
-      background: linear-gradient(135deg, #2563eb, #4f46e5);
+    .nav-item {
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+    }
+    .nav-item:hover {
+      background: rgba(255, 255, 255, 0.04);
+      color: #f8fafc;
+    }
+    .nav-item.active {
+      background: linear-gradient(90deg, rgba(37, 99, 235, 0.22), rgba(79, 70, 229, 0.10));
+      border-color: rgba(59, 130, 246, 0.35);
       color: #ffffff;
+    }
+    .tab-pill {
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      transition: all 0.15s ease;
+    }
+    .tab-pill.active {
+      background: linear-gradient(135deg, #2563eb, #4f46e5);
       border-color: rgba(96, 165, 250, 0.5);
-      box-shadow: 0 4px 14px -3px rgba(37, 99, 235, 0.45);
+      color: #ffffff;
+      box-shadow: 0 4px 14px -4px rgba(37, 99, 235, 0.55);
+    }
+    .chip-btn {
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      transition: all 0.15s ease;
     }
     .chip-btn.active {
-      background: rgba(59, 130, 246, 0.2);
+      background: rgba(59, 130, 246, 0.18);
+      border-color: rgba(59, 130, 246, 0.45);
       color: #93c5fd;
-      border-color: rgba(59, 130, 246, 0.5);
     }
-    .drive-card-active {
-      border-color: rgba(59, 130, 246, 0.7) !important;
-      box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.35), 0 8px 20px -6px rgba(37, 99, 235, 0.25);
+    .drive-pill {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      transition: all 0.16s ease;
     }
+    .drive-pill:hover {
+      border-color: rgba(148, 163, 184, 0.25);
+      background: rgba(20, 30, 50, 0.85);
+    }
+    .drive-pill.active {
+      background: rgba(30, 41, 70, 0.72);
+      border-color: rgba(59, 130, 246, 0.55);
+      box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.2);
+    }
+    ::-webkit-scrollbar { width: 7px; height: 7px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(51, 65, 85, 0.65); border-radius: 999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(71, 85, 105, 0.9); }
     @keyframes slideUp {
-      from { opacity: 0; transform: translateY(12px); }
+      from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    .toast-anim { animation: slideUp 0.22s ease-out forwards; }
+    .toast-anim { animation: slideUp 0.2s ease-out forwards; }
   </style>
 </head>
-<body class="min-h-screen flex flex-col">
+<body class="h-screen flex overflow-hidden bg-[#070a12] text-slate-100">
 
-  <!-- ================= HEADER ================= -->
-  <header class="sticky top-0 z-30 glass-panel border-b border-white/[0.07] px-6 py-3.5 shadow-2xl">
-    <div class="max-w-7xl mx-auto space-y-3">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <!-- Brand -->
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/25 ring-1 ring-white/15">
-            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/>
-            </svg>
-          </div>
-          <div>
-            <h1 class="text-base font-bold tracking-tight text-white flex items-center gap-2">
-              Workspace Cleaner Pro
-              <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-gradient-to-r from-blue-500/20 to-purple-500/20 text-blue-300 border border-blue-400/30">v3.0 Studio</span>
-            </h1>
-            <p class="text-[11px] text-slate-400">Audit Forensique Multi-Disques • Tri Avancé • Désinstallation Headless • IA Gemini</p>
-          </div>
+  <!-- ================= LEFT SIDEBAR ================= -->
+  <aside class="w-64 shrink-0 bg-[#0b101d] border-r border-white/[0.06] flex flex-col justify-between z-20">
+    <div class="flex flex-col flex-1 min-h-0 overflow-y-auto p-4 space-y-5">
+      <!-- Brand -->
+      <div class="flex items-center gap-3 px-1">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-600/25 ring-1 ring-white/15 shrink-0">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/>
+          </svg>
         </div>
-
-        <!-- Actions -->
-        <div class="flex flex-wrap items-center gap-2.5">
-          <button onclick="openHistoryModal()" title="Journal des nettoyages effectués" class="px-3 py-2 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-white/[0.08] text-slate-300 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-all active:scale-95">
-            <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            <span>Historique</span>
-          </button>
-
-          <button id="btn-ai-header" onclick="openAiSettingsModal()" title="Paramètres du Mode IA Gemini" class="px-3 py-2 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-purple-500/25 text-purple-300 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-all active:scale-95">
-            <span>✨</span>
-            <span id="ai-header-label">Mode IA</span>
-            <span id="ai-header-indicator" class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
-          </button>
-
-          <button id="btn-smart-scan" onclick="startAudit()" title="Scanner les disques sélectionnés ci-dessous" class="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-lg shadow-blue-600/30 transition-all flex items-center gap-2 active:scale-95">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
-            <span id="scan-smart-label">Lancer l'Audit</span>
-          </button>
-
-          <div class="h-6 w-px bg-slate-800 hidden sm:block"></div>
-
-          <div class="bg-slate-900/90 border border-white/[0.08] px-3 py-1.5 rounded-lg flex items-center gap-2">
-            <span class="text-[11px] text-slate-400">Sélection :</span>
-            <span id="live-selected-gb" class="font-mono font-bold text-blue-400 text-sm tabular-nums">0.00 Go</span>
+        <div class="min-w-0">
+          <div class="flex items-center gap-1.5">
+            <span class="text-sm font-bold tracking-tight text-white truncate">Cleaner Pro</span>
+            <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-400/30">v4.0</span>
           </div>
-
-          <button id="btn-clean" onclick="openCleanModal()" disabled class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-35 disabled:pointer-events-none text-white font-semibold text-xs shadow-lg shadow-emerald-600/25 transition-all flex items-center gap-1.5 active:scale-95">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
-            <span>Nettoyer</span>
-          </button>
+          <p class="text-[10px] text-slate-400 truncate">Studio Multi-Disques & IA</p>
         </div>
       </div>
 
-      <!-- Drives Selector & Status Bar -->
-      <div class="pt-2.5 border-t border-white/[0.06] space-y-2">
-        <div class="flex items-center justify-between text-[11px] text-slate-400">
-          <span class="flex items-center gap-1.5">
-            <svg class="w-3.5 h-3.5 text-blue-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m0 0a3 3 0 01-3 3m0 3h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008zm-3 6h.008v.008h-.008v-.008zm0-6h.008v.008h-.008v-.008z"/></svg>
-            Cochez les disques à scanner • Cliquez sur un disque pour filtrer les résultats
+      <!-- Primary Navigation -->
+      <nav class="space-y-1">
+        <div class="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Navigation</div>
+
+        <button onclick="switchView('audit')" id="nav-audit" class="nav-item active w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300">
+          <span class="flex items-center gap-2.5">
+            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/></svg>
+            <span>Audit Intelligent</span>
           </span>
-          <button onclick="setDriveFilter('all')" id="btn-reset-drive-filter" class="hidden text-blue-400 hover:text-blue-300 font-medium underline">Afficher tous les disques</button>
+          <span id="nav-count-audit" class="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-white/[0.06] text-slate-300 tabular-nums">0</span>
+        </button>
+
+        <button onclick="switchView('explorer')" id="nav-explorer" class="nav-item w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300">
+          <span class="flex items-center gap-2.5">
+            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/></svg>
+            <span>Explorateur d'Espace</span>
+          </span>
+          <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/25">Arbre</span>
+        </button>
+
+        <button onclick="switchView('protected')" id="nav-protected" class="nav-item w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300">
+          <span class="flex items-center gap-2.5">
+            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
+            <span>Liste Protégée</span>
+          </span>
+          <span id="nav-count-protected" class="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-indigo-500/15 text-indigo-300 tabular-nums">0</span>
+        </button>
+
+        <button onclick="switchView('history')" id="nav-history" class="nav-item w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300">
+          <span class="flex items-center gap-2.5">
+            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span>Historique</span>
+          </span>
+        </button>
+      </nav>
+
+      <!-- Multi-Drive Selector -->
+      <div class="space-y-2 pt-2 border-t border-white/[0.06]">
+        <div class="flex items-center justify-between px-1">
+          <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Disques (Multi-choix)</span>
+          <button onclick="selectAllDrives()" class="text-[10px] font-medium text-blue-400 hover:text-blue-300">Tous</button>
         </div>
-        <div id="drives-container" class="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div class="p-3 text-center text-xs text-slate-500 col-span-full">
-            <span class="inline-block animate-spin mr-1.5">⏳</span> Détection automatique des disques en cours...
-          </div>
+        <p class="text-[10px] text-slate-500 px-1 leading-snug">Cochez 1, 2 ou 3+ disques pour filtrer l'affichage ou cibler le scan.</p>
+        <div id="sidebar-drives" class="space-y-2">
+          <div class="p-3 text-center text-[11px] text-slate-500">Détection des disques...</div>
         </div>
       </div>
     </div>
-  </header>
 
-  <!-- ================= MAIN CONTENT ================= -->
-  <main class="flex-1 p-6 space-y-4 max-w-7xl w-full mx-auto">
-
-    <!-- Progress Banner -->
-    <div id="progress-banner" class="hidden p-3.5 rounded-xl bg-blue-950/50 border border-blue-500/40 space-y-2">
-      <div class="flex items-center justify-between text-xs text-blue-300 font-medium">
-        <span id="progress-text" class="flex items-center gap-2">
-          <svg class="animate-spin h-4 w-4 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
-          Scan en cours...
+    <!-- Sidebar Footer: AI Settings -->
+    <div class="p-3.5 border-t border-white/[0.06] bg-[#090d18]">
+      <button id="btn-ai-header" onclick="openAiSettingsModal()" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800/90 border border-purple-500/25 transition-all group">
+        <span class="flex items-center gap-2 text-xs font-medium text-purple-200 group-hover:text-white">
+          <span>✨</span>
+          <span id="ai-header-label">Mode IA Gemini</span>
         </span>
-        <span id="progress-pct" class="font-mono font-bold tabular-nums">0%</span>
-      </div>
-      <div class="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
-        <div id="progress-bar" class="bg-gradient-to-r from-blue-500 to-indigo-400 h-1.5 rounded-full transition-all duration-300" style="width: 0%;"></div>
-      </div>
+        <span id="ai-header-indicator" class="w-2 h-2 rounded-full bg-slate-500"></span>
+      </button>
     </div>
+  </aside>
 
-    <!-- Analytics KPI & Distribution Bar -->
-    <section id="analytics-bar" class="hidden space-y-3">
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div class="glass-panel rounded-xl p-3 flex items-center justify-between">
+  <!-- ================= MAIN CONTENT SHELL ================= -->
+  <div class="flex-1 flex flex-col min-w-0 overflow-hidden ambient-bg">
+
+    <!-- TOP BAR -->
+    <header class="h-16 shrink-0 border-b border-white/[0.06] bg-[#0b101d]/60 backdrop-blur-md px-6 flex items-center justify-between gap-4">
+      <div class="min-w-0">
+        <h2 id="view-title" class="text-sm font-bold text-white truncate">Audit Intelligent Multi-Disques</h2>
+        <p id="view-subtitle" class="text-[11px] text-slate-400 truncate">Disques actifs : détection...</p>
+      </div>
+
+      <div class="flex items-center gap-2.5 shrink-0">
+        <!-- Global Search (shown in Audit) -->
+        <div id="topbar-search-wrap" class="relative w-56 hidden md:block">
+          <input type="text" id="search-input" oninput="renderItems()" placeholder="Rechercher..." class="w-full bg-slate-950/80 border border-white/[0.09] rounded-lg px-3 py-1.5 pl-8 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500" />
+          <svg class="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+        </div>
+
+        <button id="btn-smart-scan" onclick="startAudit()" class="px-3.5 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-lg shadow-blue-600/25 transition-all flex items-center gap-2 active:scale-95">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+          <span>Lancer l'Audit</span>
+        </button>
+
+        <div class="bg-slate-950/80 border border-white/[0.08] px-3 py-1.5 rounded-lg flex items-center gap-2">
+          <span class="text-[11px] text-slate-400">Sélection :</span>
+          <span id="live-selected-gb" class="font-mono font-bold text-blue-400 text-xs tabular-nums">0.00 Go</span>
+        </div>
+
+        <button id="btn-clean" onclick="openCleanModal()" disabled class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-35 disabled:pointer-events-none text-white font-semibold text-xs shadow-lg shadow-emerald-600/25 transition-all flex items-center gap-1.5 active:scale-95">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+          <span>Nettoyer</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- SCROLLABLE WORKSPACE -->
+    <main class="flex-1 overflow-y-auto p-6 space-y-5">
+
+      <!-- Progress Banner -->
+      <div id="progress-banner" class="hidden p-3.5 rounded-xl bg-blue-950/50 border border-blue-500/40 space-y-2">
+        <div class="flex items-center justify-between text-xs text-blue-200 font-medium">
+          <span id="progress-text" class="flex items-center gap-2">
+            <svg class="animate-spin h-4 w-4 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+            Analyse en cours...
+          </span>
+          <span id="progress-pct" class="font-mono font-bold tabular-nums">0%</span>
+        </div>
+        <div class="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
+          <div id="progress-bar" class="bg-gradient-to-r from-blue-500 to-indigo-400 h-1.5 rounded-full transition-all duration-300" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <!-- ==================== VIEW 1: AUDIT INTELLIGENT ==================== -->
+      <section id="view-audit" class="space-y-4">
+        <!-- KPI & Distribution Strip -->
+        <div id="analytics-bar" class="hidden space-y-3">
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div class="surface-card rounded-xl p-3.5 flex items-center justify-between">
+              <div>
+                <div class="text-[11px] text-slate-400">Récupérable Sûr (0–10%)</div>
+                <div id="kpi-safe-gb" class="text-lg font-bold font-mono text-emerald-400 tabular-nums mt-0.5">0.00 Go</div>
+              </div>
+              <div class="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center text-emerald-400">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+              </div>
+            </div>
+            <div class="surface-card rounded-xl p-3.5 flex items-center justify-between">
+              <div>
+                <div class="text-[11px] text-slate-400">Inactifs (&ge; 1 an)</div>
+                <div id="kpi-old-gb" class="text-lg font-bold font-mono text-amber-400 tabular-nums mt-0.5">0.00 Go</div>
+              </div>
+              <div class="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center text-amber-400">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              </div>
+            </div>
+            <div class="surface-card rounded-xl p-3.5 flex items-center justify-between">
+              <div>
+                <div class="text-[11px] text-slate-400">Audit Recommandé</div>
+                <div id="kpi-rec-gb" class="text-lg font-bold font-mono text-blue-400 tabular-nums mt-0.5">0.00 Go</div>
+              </div>
+              <div class="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/25 flex items-center justify-center text-blue-400">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
+              </div>
+            </div>
+            <div class="surface-card rounded-xl p-3.5 flex items-center justify-between">
+              <div>
+                <div class="text-[11px] text-slate-400">Éléments Affichés</div>
+                <div id="kpi-visible-count" class="text-lg font-bold font-mono text-indigo-300 tabular-nums mt-0.5">0</div>
+              </div>
+              <div class="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center text-indigo-400">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z"/></svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="surface-card rounded-xl p-3 space-y-2">
+            <div class="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+              <span class="text-slate-300 font-medium">Répartition sur les disques actifs</span>
+              <div class="flex flex-wrap items-center gap-4 text-slate-400">
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-500"></span>Jeux (<span id="dist-games" class="text-slate-200 font-mono">0 Go</span>)</span>
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Système & Dev (<span id="dist-system" class="text-slate-200 font-mono">0 Go</span>)</span>
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500"></span>Téléchargements (<span id="dist-downloads" class="text-slate-200 font-mono">0 Go</span>)</span>
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-purple-500"></span>Logiciels (<span id="dist-apps" class="text-slate-200 font-mono">0 Go</span>)</span>
+              </div>
+            </div>
+            <div class="w-full h-2 rounded-full bg-slate-950 overflow-hidden flex">
+              <div id="bar-games" class="bg-blue-500 h-full transition-all duration-500" style="width: 0%"></div>
+              <div id="bar-system" class="bg-emerald-500 h-full transition-all duration-500" style="width: 0%"></div>
+              <div id="bar-downloads" class="bg-amber-500 h-full transition-all duration-500" style="width: 0%"></div>
+              <div id="bar-apps" class="bg-purple-500 h-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Category Tabs -->
+        <div id="audit-tabs-bar" class="hidden flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-1.5 overflow-x-auto pb-1">
+            <button onclick="switchAuditCat('all')" id="cat-all" class="tab-pill active px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap">
+              <span>Tous</span><span id="count-all" class="text-[10px] font-mono opacity-80">0</span>
+            </button>
+            <button onclick="switchAuditCat('games')" id="cat-games" class="tab-pill px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-300 hover:bg-white/[0.04] flex items-center gap-1.5 whitespace-nowrap">
+              <span>Jeux</span><span id="count-games" class="text-[10px] font-mono opacity-80">0</span>
+            </button>
+            <button onclick="switchAuditCat('system')" id="cat-system" class="tab-pill px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-300 hover:bg-white/[0.04] flex items-center gap-1.5 whitespace-nowrap">
+              <span>Système & Dev</span><span id="count-system" class="text-[10px] font-mono opacity-80">0</span>
+            </button>
+            <button onclick="switchAuditCat('downloads')" id="cat-downloads" class="tab-pill px-3 py-1.5 rounded-lg text-xs font-semibold text-amber-300 hover:bg-white/[0.04] flex items-center gap-1.5 whitespace-nowrap">
+              <span>Téléchargements</span><span id="count-downloads" class="text-[10px] font-mono opacity-80">0</span>
+            </button>
+            <button onclick="switchAuditCat('apps')" id="cat-apps" class="tab-pill px-3 py-1.5 rounded-lg text-xs font-semibold text-purple-300 hover:bg-white/[0.04] flex items-center gap-1.5 whitespace-nowrap">
+              <span>Logiciels</span><span id="count-apps" class="text-[10px] font-mono opacity-80">0</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Sort & Filter Toolbar (decoupled from Drives!) -->
+        <div id="toolbar-controls" class="hidden flex-wrap items-center justify-between gap-3 surface-card rounded-xl px-3.5 py-2.5">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-[11px] text-slate-400 font-medium">Trier :</span>
+            <select id="sort-select" onchange="onSortChange()" class="bg-slate-950 border border-white/[0.1] rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-blue-500">
+              <option value="recommended">Recommandé (Risque ↑, Taille ↓)</option>
+              <option value="risk">Pourcentage de risque (%)</option>
+              <option value="size">Taille (Go / Mo)</option>
+              <option value="age">Ancienneté / Date</option>
+              <option value="name">Nom (A → Z)</option>
+              <option value="drive">Disque</option>
+            </select>
+            <button id="btn-sort-dir" onclick="toggleSortDir()" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/[0.09] text-[11px] text-slate-200 font-mono">
+              ↑ Croissant
+            </button>
+
+            <div class="h-4 w-px bg-white/[0.08] mx-1 hidden md:block"></div>
+
+            <button onclick="setQuickFilter('all')" id="chip-all" class="chip-btn active px-2.5 py-1 rounded-md text-[11px] text-slate-300 hover:bg-white/[0.05]">Tout</button>
+            <button onclick="setQuickFilter('safe')" id="chip-safe" class="chip-btn px-2.5 py-1 rounded-md text-[11px] text-emerald-400 hover:bg-white/[0.05]">Sûrs (0–10%)</button>
+            <button onclick="setQuickFilter('old')" id="chip-old" class="chip-btn px-2.5 py-1 rounded-md text-[11px] text-amber-400 hover:bg-white/[0.05]">Inactifs (&ge; 1 an)</button>
+            <button onclick="setQuickFilter('large')" id="chip-large" class="chip-btn px-2.5 py-1 rounded-md text-[11px] text-blue-400 hover:bg-white/[0.05]">&ge; 1 Go</button>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-1.5">
+            <button onclick="selectBulk('zero')" class="px-2.5 py-1 rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-[11px] font-medium">✓ Cocher Sûrs (0%)</button>
+            <button onclick="selectBulk('old')" class="px-2.5 py-1 rounded-md bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[11px] font-medium">🕒 Cocher Inactifs</button>
+            <button onclick="selectBulk('none')" class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/[0.08] text-slate-300 text-[11px] font-medium">✕ Décocher</button>
+          </div>
+        </div>
+
+        <!-- Audit Items List -->
+        <div id="items-container" class="space-y-2.5">
+          <div class="surface-card rounded-2xl p-12 text-center space-y-4">
+            <div class="w-14 h-14 mx-auto rounded-2xl bg-blue-500/10 border border-blue-500/25 flex items-center justify-center text-blue-400">
+              <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+            </div>
+            <h3 class="text-base font-bold text-white">Prêt pour l'analyse de vos disques</h3>
+            <p class="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+              Choisissez un ou plusieurs disques dans la barre latérale à gauche, puis cliquez sur <strong class="text-blue-400">Lancer l'Audit</strong>.
+              Vous pouvez aussi ouvrir <strong class="text-cyan-400">Explorateur d'Espace</strong> pour visualiser les dossiers les plus volumineux en arborescence.
+            </p>
+            <div class="flex items-center justify-center gap-3 pt-1">
+              <button onclick="startAudit()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-600/25">Lancer l'Audit maintenant</button>
+              <button onclick="switchView('explorer')" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-medium border border-white/[0.08]">Ouvrir l'Explorateur d'Espace</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== VIEW 2: EXPLORATEUR D'ESPACE (SPACE LENS) ==================== -->
+      <section id="view-explorer" class="hidden space-y-4">
+        <!-- Quick Drive & Shortcut Pills + Breadcrumb -->
+        <div class="surface-card rounded-2xl p-4 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div id="explorer-drive-pills" class="flex flex-wrap items-center gap-1.5"></div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="explorerOpenShortcut('profile')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/[0.08] text-[11px] text-slate-300">Profil Utilisateur</button>
+              <button onclick="explorerOpenShortcut('downloads')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/[0.08] text-[11px] text-slate-300">Téléchargements</button>
+              <button onclick="explorerGoParent()" id="btn-explorer-up" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/[0.08] text-[11px] text-slate-200 flex items-center gap-1">
+                <span>↑</span> Parent
+              </button>
+              <button onclick="explorerRefresh()" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/[0.08] text-[11px] text-blue-300 flex items-center gap-1">
+                <span>↻</span> Actualiser
+              </button>
+            </div>
+          </div>
+
+          <!-- Breadcrumb -->
+          <div id="explorer-breadcrumb" class="flex flex-wrap items-center gap-1 bg-slate-950/75 border border-white/[0.07] rounded-xl px-3 py-2 text-xs font-mono"></div>
+
+          <!-- Space Lens Proportional Visual Treemap Bar -->
+          <div id="explorer-visual-wrap" class="space-y-2 pt-1 hidden">
+            <div class="flex items-center justify-between text-[11px]">
+              <span class="text-slate-300 font-medium">Poids des plus gros sous-dossiers / fichiers</span>
+              <span id="explorer-total-meta" class="font-mono text-cyan-300 font-semibold tabular-nums"></span>
+            </div>
+            <div id="explorer-treemap-bar" class="w-full h-7 rounded-xl bg-slate-950 overflow-hidden flex gap-0.5 p-0.5 border border-white/[0.07]"></div>
+            <div id="explorer-treemap-legend" class="flex flex-wrap gap-2 pt-0.5"></div>
+          </div>
+        </div>
+
+        <!-- Tree Rows Container -->
+        <div id="explorer-tree-container" class="space-y-1.5"></div>
+      </section>
+
+      <!-- ==================== VIEW 3: LISTE PROTÉGÉE ==================== -->
+      <section id="view-protected" class="hidden space-y-3">
+        <div id="protected-container" class="space-y-2.5"></div>
+      </section>
+
+      <!-- ==================== VIEW 4: HISTORIQUE ==================== -->
+      <section id="view-history" class="hidden space-y-4">
+        <div class="surface-card rounded-2xl p-4 flex items-center justify-between">
           <div>
-            <div class="text-[11px] text-slate-400">Récupérable Sûr (0–10%)</div>
-            <div id="kpi-safe-gb" class="text-lg font-bold font-mono text-emerald-400 tabular-nums">0.00 Go</div>
+            <div class="text-xs text-slate-400">Espace total récupéré depuis le début</div>
+            <div id="history-total-gb" class="text-2xl font-bold font-mono text-emerald-400 tabular-nums mt-0.5">0.00 Go</div>
           </div>
-          <div class="w-9 h-9 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-sm">✓</div>
+          <button onclick="clearHistory()" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-rose-950/60 border border-white/[0.08] hover:border-rose-500/40 text-xs text-slate-300 hover:text-rose-300 transition-all">Effacer l'historique</button>
         </div>
-        <div class="glass-panel rounded-xl p-3 flex items-center justify-between">
-          <div>
-            <div class="text-[11px] text-slate-400">Inactifs (&ge; 1 an)</div>
-            <div id="kpi-old-gb" class="text-lg font-bold font-mono text-amber-400 tabular-nums">0.00 Go</div>
-          </div>
-          <div class="w-9 h-9 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 text-sm">🕒</div>
-        </div>
-        <div class="glass-panel rounded-xl p-3 flex items-center justify-between">
-          <div>
-            <div class="text-[11px] text-slate-400">Total Audit Recommandé</div>
-            <div id="kpi-rec-gb" class="text-lg font-bold font-mono text-blue-400 tabular-nums">0.00 Go</div>
-          </div>
-          <div class="w-9 h-9 rounded-lg bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400 text-sm">📊</div>
-        </div>
-        <div class="glass-panel rounded-xl p-3 flex items-center justify-between">
-          <div>
-            <div class="text-[11px] text-slate-400">Éléments Protégés</div>
-            <div id="kpi-prot-count" class="text-lg font-bold font-mono text-indigo-400 tabular-nums">0</div>
-          </div>
-          <div class="w-9 h-9 rounded-lg bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 text-sm">🛡️</div>
-        </div>
-      </div>
+        <div id="history-list" class="space-y-2"></div>
+      </section>
 
-      <!-- Category Stacked Bar -->
-      <div class="glass-panel rounded-xl p-3 space-y-2">
-        <div class="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-          <span class="text-slate-300 font-medium">Répartition de l'espace analysé</span>
-          <div class="flex flex-wrap items-center gap-3 text-slate-400">
-            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-500"></span>Jeux (<span id="dist-games" class="text-slate-200 font-mono">0 Go</span>)</span>
-            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Système & Dev (<span id="dist-system" class="text-slate-200 font-mono">0 Go</span>)</span>
-            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500"></span>Téléchargements (<span id="dist-downloads" class="text-slate-200 font-mono">0 Go</span>)</span>
-            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-purple-500"></span>Logiciels (<span id="dist-apps" class="text-slate-200 font-mono">0 Go</span>)</span>
-          </div>
-        </div>
-        <div class="w-full h-2 rounded-full bg-slate-950 overflow-hidden flex">
-          <div id="bar-games" class="bg-blue-500 h-full transition-all duration-500" style="width: 0%"></div>
-          <div id="bar-system" class="bg-emerald-500 h-full transition-all duration-500" style="width: 0%"></div>
-          <div id="bar-downloads" class="bg-amber-500 h-full transition-all duration-500" style="width: 0%"></div>
-          <div id="bar-apps" class="bg-purple-500 h-full transition-all duration-500" style="width: 0%"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Navigation Tabs -->
-    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] pb-3">
-      <div class="flex items-center gap-1.5 overflow-x-auto pb-1">
-        <button onclick="switchTab('all')" id="tab-all" class="tab-btn active px-3.5 py-1.5 rounded-lg text-xs font-semibold border border-white/[0.08] transition-all flex items-center gap-1.5 whitespace-nowrap">
-          <span>🌐</span> Tous (<span id="count-all">0</span>)
-        </button>
-        <button onclick="switchTab('games')" id="tab-games" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold border border-white/[0.08] text-blue-400 hover:bg-slate-900 transition-all flex items-center gap-1.5 whitespace-nowrap">
-          <span>🎮</span> Jeux (<span id="count-games">0</span>)
-        </button>
-        <button onclick="switchTab('system')" id="tab-system" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold border border-white/[0.08] text-emerald-400 hover:bg-slate-900 transition-all flex items-center gap-1.5 whitespace-nowrap">
-          <span>🧹</span> Système & Dev (<span id="count-system">0</span>)
-        </button>
-        <button onclick="switchTab('downloads')" id="tab-downloads" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold border border-white/[0.08] text-amber-400 hover:bg-slate-900 transition-all flex items-center gap-1.5 whitespace-nowrap">
-          <span>📥</span> Téléchargements (<span id="count-downloads">0</span>)
-        </button>
-        <button onclick="switchTab('apps')" id="tab-apps" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold border border-white/[0.08] text-purple-400 hover:bg-slate-900 transition-all flex items-center gap-1.5 whitespace-nowrap">
-          <span>📦</span> Logiciels (<span id="count-apps">0</span>)
-        </button>
-        <button onclick="switchTab('protected')" id="tab-protected" class="tab-btn px-3.5 py-1.5 rounded-lg text-xs font-semibold border border-indigo-500/30 bg-indigo-950/20 text-indigo-300 hover:bg-indigo-900/30 transition-all flex items-center gap-1.5 whitespace-nowrap">
-          <span>🛡️</span> Protégés (<span id="count-protected">0</span>)
-        </button>
-      </div>
-
-      <!-- Search Input -->
-      <div class="relative w-full sm:w-64">
-        <input type="text" id="search-input" oninput="renderItems()" placeholder="Filtrer par nom, chemin..." class="w-full bg-slate-900/90 border border-white/[0.1] rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500 pl-8" />
-        <svg class="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
-      </div>
-    </div>
-
-    <!-- Sort, Quick Filters & Bulk Selection Toolbar -->
-    <div id="toolbar-controls" class="hidden flex-wrap items-center justify-between gap-3 glass-panel rounded-xl px-3.5 py-2.5">
-      <!-- Sort Controls -->
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="text-[11px] text-slate-400 font-medium">Trier par :</span>
-        <select id="sort-select" onchange="onSortChange()" class="bg-slate-950 border border-white/[0.1] rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-blue-500">
-          <option value="recommended">Recommandé (Risque ↑, Taille ↓)</option>
-          <option value="size">Taille (Go / Mo)</option>
-          <option value="risk">Pourcentage de risque (%)</option>
-          <option value="age">Ancienneté / Date d'activité</option>
-          <option value="name">Nom (Alphabétique)</option>
-          <option value="drive">Disque (C:, D:, E:...)</option>
-        </select>
-        <button id="btn-sort-dir" onclick="toggleSortDir()" title="Inverser l'ordre de tri" class="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/[0.1] text-xs text-slate-300 font-mono">
-          ↓ Décroissant
-        </button>
-
-        <div class="h-4 w-px bg-slate-800 mx-1 hidden md:block"></div>
-
-        <!-- Quick Filter Chips -->
-        <button onclick="setQuickFilter('all')" id="chip-all" class="chip-btn active px-2.5 py-1 rounded-md border border-white/[0.08] text-[11px] text-slate-300 hover:bg-slate-800 transition-all">Tout</button>
-        <button onclick="setQuickFilter('safe')" id="chip-safe" class="chip-btn px-2.5 py-1 rounded-md border border-white/[0.08] text-[11px] text-emerald-400 hover:bg-slate-800 transition-all">🟢 Sûrs (0–10%)</button>
-        <button onclick="setQuickFilter('old')" id="chip-old" class="chip-btn px-2.5 py-1 rounded-md border border-white/[0.08] text-[11px] text-amber-400 hover:bg-slate-800 transition-all">🕒 Inactifs (&ge; 1 an)</button>
-        <button onclick="setQuickFilter('large')" id="chip-large" class="chip-btn px-2.5 py-1 rounded-md border border-white/[0.08] text-[11px] text-blue-400 hover:bg-slate-800 transition-all">💾 &ge; 1 Go</button>
-      </div>
-
-      <!-- Bulk Actions -->
-      <div class="flex flex-wrap items-center gap-1.5">
-        <button onclick="selectBulk('zero')" class="px-2.5 py-1 rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-[11px] font-medium transition-all">✓ Cocher Sûrs (0%)</button>
-        <button onclick="selectBulk('old')" class="px-2.5 py-1 rounded-md bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[11px] font-medium transition-all">🕒 Cocher Inactifs (&ge; 1 an)</button>
-        <button onclick="selectBulk('none')" class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/[0.08] text-slate-300 text-[11px] font-medium transition-all">✕ Tout décocher</button>
-      </div>
-    </div>
-
-    <!-- Items Container -->
-    <div id="items-container" class="space-y-2.5">
-      <div class="glass-panel rounded-2xl p-12 text-center space-y-4">
-        <div class="w-16 h-16 mx-auto rounded-2xl bg-blue-500/10 border border-blue-500/25 flex items-center justify-center text-3xl shadow-inner">🛡️</div>
-        <h2 class="text-lg font-bold text-white">Prêt pour l'audit intelligent multi-disques</h2>
-        <p class="text-xs text-slate-400 max-w-lg mx-auto leading-relaxed">
-          Sélectionnez les disques à analyser en haut, puis cliquez sur <strong class="text-blue-400">Lancer l'Audit</strong>.
-          Les caches sûrs et les logiciels/jeux inutilisés depuis plus d'un an seront mis en avant ; les applications récentes seront rangées dans l'inventaire déroulant en bas de liste.
-        </p>
-      </div>
-    </div>
-
-  </main>
+    </main>
+  </div>
 
   <!-- ================= RESEARCH MODAL ================= -->
   <div id="modal-research" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-white/[0.12] rounded-2xl max-w-xl w-full p-5 space-y-4 shadow-2xl">
+    <div class="bg-[#0e1526] border border-white/[0.12] rounded-2xl max-w-xl w-full p-5 space-y-4 shadow-2xl">
       <div class="flex items-center justify-between border-b border-white/[0.08] pb-3">
         <div class="flex items-center gap-2 flex-wrap">
-          <span class="text-xl">🔍</span>
+          <span class="text-lg">🔍</span>
           <h3 class="text-sm font-bold text-white" id="res-title">Enquête sur l'Élément</h3>
-          <span id="res-ai-badge" class="hidden text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1">
-            <span>✨</span> Enrichi par Gemini IA
-          </span>
+          <span id="res-ai-badge" class="hidden text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40">✨ Enrichi par Gemini IA</span>
         </div>
-        <button onclick="closeResearchModal()" class="text-slate-400 hover:text-white text-xs px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700">✕ Fermer</button>
+        <button onclick="closeResearchModal()" class="text-slate-400 hover:text-white text-xs px-2.5 py-1 rounded-lg bg-slate-800">✕ Fermer</button>
       </div>
 
       <div class="space-y-3 text-xs max-h-[68vh] overflow-y-auto pr-1">
@@ -302,41 +435,41 @@
         </div>
 
         <div class="grid grid-cols-2 gap-3">
-          <div class="bg-slate-950/70 p-2.5 rounded-xl border border-white/[0.07]">
+          <div class="bg-slate-950/75 p-2.5 rounded-xl border border-white/[0.07]">
             <span class="text-slate-400 block text-[11px]">Dernière Activité</span>
             <span class="font-semibold text-slate-200" id="res-date">Inconnu</span>
           </div>
-          <div class="bg-slate-950/70 p-2.5 rounded-xl border border-white/[0.07]">
+          <div class="bg-slate-950/75 p-2.5 rounded-xl border border-white/[0.07]">
             <span class="text-slate-400 block text-[11px]">Risque Estimé</span>
             <span class="font-bold font-mono text-sm" id="res-risk">0%</span>
           </div>
         </div>
 
-        <div class="bg-slate-950/70 p-3 rounded-xl border border-white/[0.07] space-y-1">
+        <div class="bg-slate-950/75 p-3 rounded-xl border border-white/[0.07] space-y-1">
           <span class="font-semibold text-blue-400 flex items-center gap-1.5"><span>📋</span> 1. Définition & Rôle :</span>
           <p class="text-slate-300 text-[11px] leading-relaxed" id="res-def"></p>
         </div>
 
-        <div class="bg-slate-950/70 p-3 rounded-xl border border-white/[0.07] space-y-1">
+        <div class="bg-slate-950/75 p-3 rounded-xl border border-white/[0.07] space-y-1">
           <span class="font-semibold text-indigo-400 flex items-center gap-1.5"><span>🏷️</span> 2. Origine de l'Installation :</span>
           <p class="text-slate-300 text-[11px] leading-relaxed" id="res-origin"></p>
         </div>
 
-        <div class="bg-slate-950/70 p-3 rounded-xl border border-white/[0.07] space-y-1">
+        <div class="bg-slate-950/75 p-3 rounded-xl border border-white/[0.07] space-y-1">
           <span class="font-semibold text-emerald-400 flex items-center gap-1.5"><span>⚡</span> 3. Activité & Usage :</span>
           <p class="text-slate-300 text-[11px] leading-relaxed" id="res-activity"></p>
         </div>
 
-        <div class="bg-slate-950/70 p-3 rounded-xl border border-white/[0.07] space-y-1">
+        <div class="bg-slate-950/75 p-3 rounded-xl border border-white/[0.07] space-y-1">
           <span class="font-semibold text-amber-400 flex items-center gap-1.5"><span>🛡️</span> 4. Sécurité & Réversibilité :</span>
           <p class="text-slate-300 text-[11px] leading-relaxed" id="res-safety"></p>
         </div>
       </div>
 
       <div class="flex items-center justify-between pt-2 border-t border-white/[0.08]">
-        <button id="btn-ai-deep-research" onclick="askAiDeepResearch()" title="Interroger Gemini 2.5 Flash pour une explication approfondie en direct" class="px-3.5 py-2 rounded-lg bg-purple-600/20 hover:bg-purple-600/35 border border-purple-500/40 text-purple-300 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-all active:scale-95">
+        <button id="btn-ai-deep-research" onclick="askAiDeepResearch()" class="px-3.5 py-2 rounded-lg bg-purple-600/20 hover:bg-purple-600/35 border border-purple-500/40 text-purple-300 hover:text-white text-xs font-medium flex items-center gap-1.5">
           <span id="ai-spinner" class="hidden animate-spin">⏳</span>
-          <span id="ai-icon">✨</span>
+          <span>✨</span>
           <span id="ai-deep-label">Approfondir avec l'IA</span>
         </button>
         <button onclick="closeResearchModal()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs">J'ai compris</button>
@@ -346,25 +479,25 @@
 
   <!-- ================= CLEAN CONFIRMATION MODAL ================= -->
   <div id="modal-clean" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-white/[0.12] rounded-2xl max-w-lg w-full p-5 space-y-4 shadow-2xl">
+    <div class="bg-[#0e1526] border border-white/[0.12] rounded-2xl max-w-lg w-full p-5 space-y-4 shadow-2xl">
       <div class="flex items-center justify-between border-b border-white/[0.08] pb-3">
         <h3 class="text-sm font-bold text-white flex items-center gap-2"><span>🗑️</span> Confirmer le Nettoyage Headless</h3>
         <button onclick="closeCleanModal()" class="text-slate-400 hover:text-white text-xs px-2.5 py-1 rounded-lg bg-slate-800">✕ Annuler</button>
       </div>
 
       <div class="space-y-3 text-xs">
-        <p class="text-slate-300">Les éléments sélectionnés seront supprimés ou désinstallés de façon <strong>silencieuse (headless)</strong> :</p>
+        <p class="text-slate-300">Les éléments suivants seront supprimés ou désinstallés de façon <strong>silencieuse (headless)</strong> :</p>
         <div class="bg-slate-950 p-3 rounded-xl border border-white/[0.08] max-h-48 overflow-y-auto space-y-1 font-mono text-[11px]" id="clean-summary-list"></div>
         <div class="p-3 rounded-xl bg-blue-950/40 border border-blue-500/30 flex items-center justify-between">
           <span class="text-slate-300">Total à récupérer :</span>
           <span id="clean-modal-total" class="font-mono font-bold text-emerald-400 text-sm tabular-nums">0.00 Go</span>
         </div>
-        <p class="text-[11px] text-slate-400">🛡️ Sanctuarisations actives : La Liste Protégée, C:\New Doc, Videos, Java 17/24 et NVIDIA DLSS sont intouchables.</p>
+        <p class="text-[11px] text-slate-400">🛡️ Sanctuarisations garanties : Liste Protégée, C:\New Doc, Vidéos, Java 17/24 et NVIDIA DLSS sont intouchables.</p>
       </div>
 
       <div class="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.08]">
         <button onclick="closeCleanModal()" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs">Annuler</button>
-        <button id="btn-confirm-delete" onclick="executeSelectedClean()" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold text-xs shadow-lg shadow-red-600/30 active:scale-95 flex items-center gap-1.5">
+        <button id="btn-confirm-delete" onclick="executeSelectedClean()" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold text-xs shadow-lg shadow-red-600/30 flex items-center gap-1.5">
           <span>🚀</span> Lancer le Nettoyage Silencieux
         </button>
       </div>
@@ -373,7 +506,7 @@
 
   <!-- ================= AI SETTINGS MODAL ================= -->
   <div id="modal-ai-settings" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-white/[0.12] rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+    <div class="bg-[#0e1526] border border-white/[0.12] rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
       <div class="flex items-center justify-between border-b border-white/[0.08] pb-3">
         <h3 class="text-sm font-bold text-white flex items-center gap-2"><span>✨</span> Configuration du Mode IA (Gemini)</h3>
         <button onclick="closeAiSettingsModal()" class="text-slate-400 hover:text-white text-xs px-2.5 py-1 rounded-lg bg-slate-800">✕ Fermer</button>
@@ -416,36 +549,18 @@
     </div>
   </div>
 
-  <!-- ================= HISTORY MODAL ================= -->
-  <div id="modal-history" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-white/[0.12] rounded-2xl max-w-xl w-full p-5 space-y-4 shadow-2xl">
-      <div class="flex items-center justify-between border-b border-white/[0.08] pb-3">
-        <h3 class="text-sm font-bold text-white flex items-center gap-2"><span>📜</span> Historique des Nettoyages</h3>
-        <button onclick="closeHistoryModal()" class="text-slate-400 hover:text-white text-xs px-2.5 py-1 rounded-lg bg-slate-800">✕ Fermer</button>
-      </div>
-      <div id="history-summary" class="p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/30 flex items-center justify-between text-xs">
-        <span class="text-slate-300">Espace total libéré cumulé :</span>
-        <span id="history-total-gb" class="font-mono font-bold text-emerald-400 text-sm tabular-nums">0.00 Go</span>
-      </div>
-      <div id="history-list" class="max-h-72 overflow-y-auto space-y-2 text-xs"></div>
-      <div class="flex items-center justify-between pt-2 border-t border-white/[0.08]">
-        <button onclick="clearHistory()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-900/50 text-slate-400 hover:text-rose-300 text-xs transition-all">Effacer l'historique</button>
-        <button onclick="closeHistoryModal()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs">Fermer</button>
-      </div>
-    </div>
-  </div>
-
   <!-- ================= TOAST CONTAINER ================= -->
   <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2 pointer-events-none"></div>
 
   <!-- ================= LOGIC & WEBVIEW2 BRIDGE ================= -->
   <script>
+    let currentView = 'audit';
     let allItems = [];
     let protectedItems = [];
     let drivesList = [];
-    let selectedScanDrives = new Set();
-    let driveFilter = 'all';
-    let currentTab = 'all';
+    let activeDrives = new Set();     // Multi-sélection active (1, 2, 3+ disques)
+    let scannedDrives = new Set();    // Disques inclus dans le dernier audit
+    let currentAuditCat = 'all';
     let quickFilter = 'all';
     let sortField = 'recommended';
     let sortAsc = true;
@@ -454,6 +569,23 @@
     let activeResearchItem = null;
     let aiReportCache = {};
     let selectedDeleteIds = new Set();
+    let pendingDirectDeleteItems = null; // Utilisé si suppression depuis l'Explorateur d'Espace
+
+    // Space Explorer state
+    let currentTreeNode = null;
+    let currentTreePath = '';
+    let explorerLoading = false;
+
+    const TREEMAP_COLORS = [
+      { bg: 'bg-blue-500', dot: 'bg-blue-400', text: 'text-blue-300' },
+      { bg: 'bg-cyan-500', dot: 'bg-cyan-400', text: 'text-cyan-300' },
+      { bg: 'bg-indigo-500', dot: 'bg-indigo-400', text: 'text-indigo-300' },
+      { bg: 'bg-purple-500', dot: 'bg-purple-400', text: 'text-purple-300' },
+      { bg: 'bg-emerald-500', dot: 'bg-emerald-400', text: 'text-emerald-300' },
+      { bg: 'bg-amber-500', dot: 'bg-amber-400', text: 'text-amber-300' },
+      { bg: 'bg-rose-500', dot: 'bg-rose-400', text: 'text-rose-300' },
+      { bg: 'bg-teal-500', dot: 'bg-teal-400', text: 'text-teal-300' }
+    ];
 
     window.addEventListener('DOMContentLoaded', () => {
       if (window.chrome && window.chrome.webview) {
@@ -461,6 +593,7 @@
         postToBridge({ action: 'getDrives' });
         postToBridge({ action: 'getProtected' });
         postToBridge({ action: 'getSettings' });
+        postToBridge({ action: 'getHistory' });
       }
     });
 
@@ -470,6 +603,19 @@
       }
     }
 
+    function safeEnc(s) {
+      return encodeURIComponent(s || '').replace(/'/g, '%27');
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     function onBridgeMessage(event) {
       const data = event.data;
       if (!data) return;
@@ -477,39 +623,46 @@
 
       if (type === 'drivesUpdate') {
         drivesList = data.drives || data.Drives || [];
-        if (selectedScanDrives.size === 0) {
-          drivesList.forEach(d => selectedScanDrives.add(d.name || d.Name));
+        if (activeDrives.size === 0) {
+          drivesList.forEach(d => activeDrives.add((d.name || d.Name || '').toUpperCase()));
         }
-        renderDrives();
+        renderSidebarDrives();
+        renderExplorerDrivePills();
+        updateHeaderSubtitle();
       } else if (type === 'auditProgress') {
-        showProgress(data.text || data.Text || 'Scan en cours...', data.pct ?? data.Pct ?? 0);
+        showProgress(data.text || data.Text || 'Analyse en cours...', data.pct ?? data.Pct ?? 0);
       } else if (type === 'auditResult') {
         hideProgress();
         allItems = data.items || data.Items || [];
         selectedDeleteIds.clear();
         syncProtectedStatus();
         document.getElementById('analytics-bar').classList.remove('hidden');
+        document.getElementById('audit-tabs-bar').classList.remove('hidden');
+        document.getElementById('audit-tabs-bar').classList.add('flex');
         document.getElementById('toolbar-controls').classList.remove('hidden');
         document.getElementById('toolbar-controls').classList.add('flex');
-        updateAnalytics();
-        updateCounters();
-        if (currentTab === 'protected') renderProtectedItems();
-        else renderItems();
-        updateSelectionCalc();
+        renderSidebarDrives();
+        refreshAuditUI();
         showToast(`Audit terminé : ${allItems.length} éléments analysés.`, 'success');
       } else if (type === 'protectedList') {
         protectedItems = data.items || data.Items || [];
         syncProtectedStatus();
-        updateCounters();
-        updateAnalytics();
-        if (currentTab === 'protected') renderProtectedItems();
-        else if (allItems.length > 0) renderItems();
+        document.getElementById('nav-count-protected').innerText = protectedItems.length;
+        renderProtectedView();
+        if (allItems.length > 0) refreshAuditUI();
       } else if (type === 'researchResult') {
         const rep = data.report || data.Report;
         if (rep && (rep.isAiEnriched || rep.IsAiEnriched) && (rep.itemPath || rep.ItemPath)) {
           aiReportCache[(rep.itemPath || rep.ItemPath).toLowerCase()] = rep;
         }
         showResearchModal(rep);
+      } else if (type === 'folderTreeResult') {
+        explorerLoading = false;
+        currentTreeNode = data.node || data.Node;
+        if (currentTreeNode) {
+          currentTreePath = currentTreeNode.path || currentTreeNode.Path || currentTreePath;
+        }
+        renderExplorerTree();
       } else if (type === 'cleanResult') {
         onCleanCompleted(data);
       } else if (type === 'appSettings') {
@@ -518,99 +671,155 @@
       } else if (type === 'apiKeyTestResult') {
         handleApiKeyTestResult(data.success);
       } else if (type === 'cleanHistory') {
-        renderHistoryModal(data.history || data.History || []);
+        renderHistoryView(data.history || data.History || []);
       }
     }
 
     function showToast(message, kind = 'info') {
       const container = document.getElementById('toast-container');
       const colors = kind === 'success'
-        ? 'bg-emerald-950/90 border-emerald-500/40 text-emerald-200'
-        : (kind === 'warn' ? 'bg-amber-950/90 border-amber-500/40 text-amber-200' : 'bg-slate-900/95 border-blue-500/40 text-slate-200');
+        ? 'bg-emerald-950/95 border-emerald-500/45 text-emerald-200'
+        : (kind === 'warn' ? 'bg-amber-950/95 border-amber-500/45 text-amber-200' : 'bg-slate-900/95 border-blue-500/45 text-slate-200');
       const el = document.createElement('div');
       el.className = `toast-anim pointer-events-auto px-4 py-2.5 rounded-xl border shadow-2xl text-xs font-medium flex items-center gap-2 ${colors}`;
-      el.innerHTML = `<span>${kind === 'success' ? '✓' : (kind === 'warn' ? '⚠️' : 'ℹ️')}</span><span>${message}</span>`;
+      el.innerHTML = `<span>${kind === 'success' ? '✓' : (kind === 'warn' ? '⚠️' : 'ℹ️')}</span><span>${escapeHtml(message)}</span>`;
       container.appendChild(el);
       setTimeout(() => {
         el.style.opacity = '0';
         el.style.transition = 'opacity 0.25s';
         setTimeout(() => el.remove(), 260);
-      }, 3500);
+      }, 3600);
     }
 
-    // ================= DRIVES RENDER & SELECTION =================
-    function renderDrives() {
+    // ================= VIEW SWITCHING =================
+    function switchView(view) {
+      currentView = view;
+      ['audit', 'explorer', 'protected', 'history'].forEach(v => {
+        document.getElementById(`view-${v}`).classList.toggle('hidden', v !== view);
+        document.getElementById(`nav-${v}`).classList.toggle('active', v === view);
+      });
+
+      const titles = {
+        audit: 'Audit Intelligent Multi-Disques',
+        explorer: "Explorateur d'Espace & Arborescence",
+        protected: 'Liste Protégée Permanente',
+        history: 'Historique des Nettoyages'
+      };
+      document.getElementById('view-title').innerText = titles[view] || 'Cleaner Pro';
+      document.getElementById('topbar-search-wrap').classList.toggle('hidden', view !== 'audit');
+      updateHeaderSubtitle();
+
+      if (view === 'explorer' && !currentTreeNode && drivesList.length > 0) {
+        const firstActive = Array.from(activeDrives)[0] || (drivesList[0].name || drivesList[0].Name || 'C:');
+        navigateExplorer(firstActive.endsWith('\\') ? firstActive : `${firstActive}\\`);
+      } else if (view === 'history') {
+        postToBridge({ action: 'getHistory' });
+      }
+    }
+
+    function updateHeaderSubtitle() {
+      const el = document.getElementById('view-subtitle');
+      if (currentView === 'audit') {
+        const list = Array.from(activeDrives).sort().join(', ');
+        el.innerText = list ? `Disques actifs : ${list}` : 'Aucun disque actif';
+      } else if (currentView === 'explorer') {
+        el.innerText = currentTreePath ? `Dossier analysé : ${currentTreePath}` : 'Visualisez quels dossiers consomment le plus d\'espace';
+      } else if (currentView === 'protected') {
+        el.innerText = 'Éléments protégés contre toute suppression accidentelle';
+      } else if (currentView === 'history') {
+        el.innerText = 'Journal cumulatif des sessions de nettoyage';
+      }
+    }
+
+    // ================= MULTI-DRIVE SIDEBAR SELECTION =================
+    function renderSidebarDrives() {
+      const container = document.getElementById('sidebar-drives');
       if (!drivesList || drivesList.length === 0) return;
-      const container = document.getElementById('drives-container');
-      const cols = Math.min(Math.max(drivesList.length, 1), 4);
-      container.className = `grid grid-cols-1 md:grid-cols-${cols} gap-3`;
 
-      const colors = [
-        { text: 'text-emerald-400', bar: 'from-emerald-500 to-teal-400', dot: 'bg-emerald-400' },
-        { text: 'text-blue-400', bar: 'from-blue-500 to-cyan-400', dot: 'bg-blue-400' },
-        { text: 'text-purple-400', bar: 'from-purple-500 to-fuchsia-400', dot: 'bg-purple-400' },
-        { text: 'text-amber-400', bar: 'from-amber-500 to-orange-400', dot: 'bg-amber-400' }
-      ];
-
+      const barColors = ['bg-emerald-500', 'bg-blue-500', 'bg-purple-500', 'bg-amber-500'];
       container.innerHTML = drivesList.map((d, idx) => {
-        const name = d.name || d.Name || 'C:';
+        const name = (d.name || d.Name || 'C:').toUpperCase();
         const label = d.label || d.Label || 'Disque Local';
         const freeGB = d.freeGB ?? d.FreeGB ?? 0;
         const totalGB = d.totalGB ?? d.TotalGB ?? 0;
         const pctUsed = d.pctUsed ?? d.PctUsed ?? 0;
-        const c = colors[idx % colors.length];
-        const isChecked = selectedScanDrives.has(name);
-        const isFilterActive = driveFilter === name;
+        const isOn = activeDrives.has(name);
+        const notYetScanned = allItems.length > 0 && isOn && scannedDrives.size > 0 && !scannedDrives.has(name);
+        const barColor = barColors[idx % barColors.length];
 
         return `
-          <div onclick="setDriveFilter('${name}')" class="cursor-pointer bg-slate-950/65 hover:bg-slate-900/80 border border-white/[0.08] rounded-xl p-3 flex flex-col justify-between transition-all ${isFilterActive ? 'drive-card-active' : ''}">
-            <div class="flex items-center justify-between gap-2">
-              <div class="flex items-center gap-2">
-                <input type="checkbox" ${isChecked ? 'checked' : ''} onclick="event.stopPropagation(); toggleScanDrive('${name}')" title="Inclure ${name} dans le scan" class="w-3.5 h-3.5 rounded accent-blue-500 cursor-pointer" />
-                <span class="w-2 h-2 rounded-full ${c.dot}"></span>
-                <span class="font-bold text-xs text-white">${name}</span>
-                <span class="text-[11px] text-slate-400 truncate max-w-[120px]">(${label})</span>
+          <div onclick="toggleDrive('${safeEnc(name)}')" class="drive-pill ${isOn ? 'active' : 'opacity-55'} cursor-pointer rounded-xl p-2.5 space-y-1.5">
+            <div class="flex items-center justify-between gap-1.5">
+              <div class="flex items-center gap-2 min-w-0">
+                <div class="w-4 h-4 rounded flex items-center justify-center border ${isOn ? 'bg-blue-600 border-blue-400 text-white' : 'bg-slate-950 border-white/20 text-transparent'}">
+                  <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+                </div>
+                <span class="text-xs font-bold text-white">${escapeHtml(name)}</span>
+                <span class="text-[10px] text-slate-400 truncate">${escapeHtml(label)}</span>
               </div>
-              <span class="text-[11px] font-mono ${c.text} font-semibold tabular-nums">${freeGB.toFixed(0)} / ${totalGB.toFixed(0)} Go libres</span>
+              <button onclick="event.stopPropagation(); isolateDrive('${safeEnc(name)}')" title="Afficher uniquement ${escapeHtml(name)}" class="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.06] hover:bg-blue-500/25 text-slate-300 hover:text-blue-200">Seul</button>
             </div>
-            <div class="w-full bg-slate-900 rounded-full h-1.5 mt-2.5 overflow-hidden">
-              <div class="bg-gradient-to-r ${c.bar} h-1.5 rounded-full transition-all duration-500" style="width: ${pctUsed}%;"></div>
+            <div class="w-full h-1.5 rounded-full bg-slate-950 overflow-hidden">
+              <div class="${barColor} h-full rounded-full transition-all duration-300" style="width: ${pctUsed}%;"></div>
+            </div>
+            <div class="flex items-center justify-between text-[10px] font-mono tabular-nums">
+              <span class="text-slate-400">${freeGB.toFixed(0)} / ${totalGB.toFixed(0)} Go libres</span>
+              ${notYetScanned ? '<span class="text-amber-400">Non scanné</span>' : `<span class="text-slate-500">${pctUsed}%</span>`}
             </div>
           </div>
         `;
       }).join('');
     }
 
-    function toggleScanDrive(driveName) {
-      if (selectedScanDrives.has(driveName)) {
-        if (selectedScanDrives.size === 1) {
+    function toggleDrive(encName) {
+      const name = decodeURIComponent(encName).toUpperCase();
+      if (activeDrives.has(name)) {
+        if (activeDrives.size === 1) {
           showToast('Au moins un disque doit rester sélectionné.', 'warn');
-          renderDrives();
           return;
         }
-        selectedScanDrives.delete(driveName);
+        activeDrives.delete(name);
       } else {
-        selectedScanDrives.add(driveName);
+        activeDrives.add(name);
       }
-      renderDrives();
+      onActiveDrivesChanged();
     }
 
-    function setDriveFilter(driveName) {
-      driveFilter = (driveFilter === driveName && driveName !== 'all') ? 'all' : driveName;
-      document.getElementById('btn-reset-drive-filter').classList.toggle('hidden', driveFilter === 'all');
-      renderDrives();
-      if (allItems.length > 0 && currentTab !== 'protected') renderItems();
+    function isolateDrive(encName) {
+      const name = decodeURIComponent(encName).toUpperCase();
+      activeDrives.clear();
+      activeDrives.add(name);
+      onActiveDrivesChanged();
+    }
+
+    function selectAllDrives() {
+      drivesList.forEach(d => activeDrives.add((d.name || d.Name || '').toUpperCase()));
+      onActiveDrivesChanged();
+    }
+
+    function onActiveDrivesChanged() {
+      renderSidebarDrives();
+      updateHeaderSubtitle();
+      if (allItems.length > 0) {
+        refreshAuditUI();
+      }
     }
 
     // ================= AUDIT =================
     function startAudit() {
+      if (activeDrives.size === 0) {
+        showToast('Sélectionnez au moins un disque.', 'warn');
+        return;
+      }
+      scannedDrives = new Set(activeDrives);
       const btn = document.getElementById('btn-smart-scan');
       btn.disabled = true;
       btn.classList.add('opacity-60');
-      showProgress(`Initialisation de l'audit (${Array.from(selectedScanDrives).join(', ')})...`, 5);
+      showProgress(`Scan en cours (${Array.from(activeDrives).sort().join(', ')})...`, 5);
+      if (currentView !== 'audit') switchView('audit');
       postToBridge({
         action: 'runAudit',
-        drives: Array.from(selectedScanDrives)
+        drives: Array.from(activeDrives)
       });
     }
 
@@ -618,7 +827,7 @@
       document.getElementById('progress-banner').classList.remove('hidden');
       document.getElementById('progress-text').innerHTML = `
         <svg class="animate-spin h-4 w-4 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
-        ${text}`;
+        ${escapeHtml(text)}`;
       document.getElementById('progress-pct').innerText = `${pct}%`;
       document.getElementById('progress-bar').style.width = `${pct}%`;
     }
@@ -643,18 +852,33 @@
       });
     }
 
-    // ================= ANALYTICS & COUNTERS =================
     function getItemSizeGB(x) {
       const gb = x.sizeGB ?? x.SizeGB ?? 0;
       const mb = x.sizeMB ?? x.SizeMB ?? 0;
       return gb > 0 ? gb : (mb / 1024.0);
     }
 
-    function updateAnalytics() {
+    function getDriveFilteredItems() {
+      return allItems.filter(raw => {
+        const drv = (raw.drive || raw.Drive || '').toUpperCase();
+        if (!drv) return true;
+        return activeDrives.has(drv);
+      });
+    }
+
+    function refreshAuditUI() {
+      const driveScoped = getDriveFilteredItems();
+      updateAnalytics(driveScoped);
+      updateCounters(driveScoped);
+      renderItems();
+      updateSelectionCalc();
+    }
+
+    function updateAnalytics(driveScoped) {
       let safeGB = 0, oldGB = 0, recGB = 0;
       let catTotals = { games: 0, system: 0, downloads: 0, apps: 0 };
 
-      allItems.forEach(x => {
+      driveScoped.forEach(x => {
         const sz = getItemSizeGB(x);
         const risk = x.riskPct ?? x.RiskPct ?? 0;
         const age = x.ageDays ?? x.AgeDays ?? 0;
@@ -672,7 +896,6 @@
       document.getElementById('kpi-safe-gb').innerText = `${safeGB.toFixed(2)} Go`;
       document.getElementById('kpi-old-gb').innerText = `${oldGB.toFixed(2)} Go`;
       document.getElementById('kpi-rec-gb').innerText = `${recGB.toFixed(2)} Go`;
-      document.getElementById('kpi-prot-count').innerText = protectedItems.length;
 
       const totalCat = catTotals.games + catTotals.system + catTotals.downloads + catTotals.apps;
       const pct = v => totalCat > 0 ? Math.max(0, (v / totalCat) * 100) : 0;
@@ -688,35 +911,34 @@
       document.getElementById('bar-apps').style.width = `${pct(catTotals.apps)}%`;
     }
 
-    function updateCounters() {
+    function updateCounters(driveScoped) {
       const getCat = x => (x.category || x.Category || '').toLowerCase();
-      document.getElementById('count-all').innerText = allItems.length;
-      document.getElementById('count-games').innerText = allItems.filter(x => getCat(x) === 'games').length;
-      document.getElementById('count-system').innerText = allItems.filter(x => getCat(x) === 'system').length;
-      document.getElementById('count-downloads').innerText = allItems.filter(x => getCat(x) === 'downloads').length;
-      document.getElementById('count-apps').innerText = allItems.filter(x => getCat(x) === 'apps').length;
-      document.getElementById('count-protected').innerText = protectedItems.length;
+      document.getElementById('nav-count-audit').innerText = driveScoped.length;
+      document.getElementById('count-all').innerText = driveScoped.length;
+      document.getElementById('count-games').innerText = driveScoped.filter(x => getCat(x) === 'games').length;
+      document.getElementById('count-system').innerText = driveScoped.filter(x => getCat(x) === 'system').length;
+      document.getElementById('count-downloads').innerText = driveScoped.filter(x => getCat(x) === 'downloads').length;
+      document.getElementById('count-apps').innerText = driveScoped.filter(x => getCat(x) === 'apps').length;
     }
 
-    // ================= SORT & FILTER =================
-    function switchTab(tab) {
-      currentTab = tab;
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.getElementById(`tab-${tab}`).classList.add('active');
-      if (tab === 'protected') renderProtectedItems();
-      else renderItems();
+    function switchAuditCat(cat) {
+      currentAuditCat = cat;
+      ['all', 'games', 'system', 'downloads', 'apps'].forEach(c => {
+        document.getElementById(`cat-${c}`).classList.toggle('active', c === cat);
+      });
+      renderItems();
     }
 
     function setQuickFilter(q) {
       quickFilter = q;
-      document.querySelectorAll('.chip-btn').forEach(b => b.classList.remove('active'));
-      document.getElementById(`chip-${q}`).classList.add('active');
-      if (currentTab !== 'protected') renderItems();
+      ['all', 'safe', 'old', 'large'].forEach(k => {
+        document.getElementById(`chip-${k}`).classList.toggle('active', k === q);
+      });
+      renderItems();
     }
 
     function onSortChange() {
       sortField = document.getElementById('sort-select').value;
-      // Default sensible direction per field
       sortAsc = (sortField === 'recommended' || sortField === 'risk' || sortField === 'name' || sortField === 'drive');
       updateSortDirBtn();
       renderItems();
@@ -729,17 +951,14 @@
     }
 
     function updateSortDirBtn() {
-      const btn = document.getElementById('btn-sort-dir');
-      btn.innerText = sortAsc ? '↑ Croissant' : '↓ Décroissant';
+      document.getElementById('btn-sort-dir').innerText = sortAsc ? '↑ Croissant' : '↓ Décroissant';
     }
 
     function sortItemsArray(arr) {
       return [...arr].sort((a, b) => {
         let cmp = 0;
         if (sortField === 'recommended') {
-          const ra = a.riskPct ?? a.RiskPct ?? 0;
-          const rb = b.riskPct ?? b.RiskPct ?? 0;
-          cmp = ra - rb;
+          cmp = (a.riskPct ?? a.RiskPct ?? 0) - (b.riskPct ?? b.RiskPct ?? 0);
           if (cmp === 0) cmp = getItemSizeGB(b) - getItemSizeGB(a);
           return sortAsc ? cmp : -cmp;
         } else if (sortField === 'size') {
@@ -747,7 +966,6 @@
         } else if (sortField === 'risk') {
           cmp = (a.riskPct ?? a.RiskPct ?? 0) - (b.riskPct ?? b.RiskPct ?? 0);
         } else if (sortField === 'age') {
-          // Larger ageDays = older
           cmp = (a.ageDays ?? a.AgeDays ?? 0) - (b.ageDays ?? b.AgeDays ?? 0);
         } else if (sortField === 'name') {
           cmp = (a.name || a.Name || '').localeCompare(b.name || b.Name || '', 'fr');
@@ -760,18 +978,16 @@
 
     function filterItemsList() {
       const q = (document.getElementById('search-input').value || '').toLowerCase();
-      return allItems.filter(raw => {
+      return getDriveFilteredItems().filter(raw => {
         const name = (raw.name || raw.Name || '').toLowerCase();
         const path = (raw.path || raw.Path || '').toLowerCase();
         const desc = (raw.description || raw.Description || '').toLowerCase();
         const cat = (raw.category || raw.Category || '').toLowerCase();
-        const drv = (raw.drive || raw.Drive || '');
         const risk = raw.riskPct ?? raw.RiskPct ?? 0;
         const age = raw.ageDays ?? raw.AgeDays ?? 0;
         const sz = getItemSizeGB(raw);
 
-        if (currentTab !== 'all' && cat !== currentTab) return false;
-        if (driveFilter !== 'all' && drv.toUpperCase() !== driveFilter.toUpperCase()) return false;
+        if (currentAuditCat !== 'all' && cat !== currentAuditCat) return false;
         if (quickFilter === 'safe' && risk > 10) return false;
         if (quickFilter === 'old' && age < 365) return false;
         if (quickFilter === 'large' && sz < 1.0) return false;
@@ -780,13 +996,15 @@
       });
     }
 
-    // ================= RENDER ITEMS =================
     function renderItems() {
       const container = document.getElementById('items-container');
       const filtered = filterItemsList();
+      document.getElementById('kpi-visible-count').innerText = filtered.length;
+
+      if (allItems.length === 0) return;
 
       if (filtered.length === 0) {
-        container.innerHTML = `<div class="glass-panel rounded-xl p-10 text-center text-xs text-slate-400">Aucun élément ne correspond aux filtres actuels.</div>`;
+        container.innerHTML = `<div class="surface-card rounded-xl p-10 text-center text-xs text-slate-400">Aucun élément trouvé pour les disques et filtres sélectionnés.</div>`;
         return;
       }
 
@@ -797,24 +1015,24 @@
       if (mainItems.length > 0) {
         html += `<div class="space-y-2">${mainItems.map(renderCardHtml).join('')}</div>`;
       } else {
-        html += `<div class="glass-panel rounded-xl p-4 text-center text-xs text-slate-400">Aucun reliquat ou élément inactif recommandé dans cette vue.</div>`;
+        html += `<div class="surface-card rounded-xl p-4 text-center text-xs text-slate-400">Aucun reliquat ou élément inactif recommandé pour ces disques.</div>`;
       }
 
       if (extraItems.length > 0) {
         const extraTotalGB = extraItems.reduce((acc, x) => acc + getItemSizeGB(x), 0);
         html += `
-          <div class="mt-5 pt-4 border-t border-white/[0.08]">
-            <button onclick="toggleExtraSection()" class="w-full flex items-center justify-between px-4 py-3 rounded-xl glass-panel hover:bg-slate-800/70 transition-all text-left">
+          <div class="mt-5 pt-4 border-t border-white/[0.06]">
+            <button onclick="toggleExtraSection()" class="w-full flex items-center justify-between px-4 py-3 rounded-xl surface-card hover:bg-slate-800/70 transition-all text-left">
               <div class="flex items-center gap-2.5">
-                <span class="text-sm font-mono text-slate-400">${extraExpanded ? '▼' : '▶'}</span>
+                <span class="text-xs font-mono text-slate-400">${extraExpanded ? '▼' : '▶'}</span>
                 <div>
-                  <span class="text-xs font-bold text-slate-200">Autres logiciels & jeux récents / actifs</span>
+                  <span class="text-xs font-bold text-slate-200">Logiciels & jeux récents / actifs</span>
                   <span class="text-[11px] text-slate-400 ml-2">(${extraItems.length} éléments • ${extraTotalGB.toFixed(1)} Go)</span>
                 </div>
               </div>
               <span class="text-[11px] text-blue-400 font-medium">${extraExpanded ? 'Masquer' : 'Afficher l\'inventaire'}</span>
             </button>
-            <div id="extra-items-list" class="${extraExpanded ? 'mt-2.5 space-y-2' : 'hidden'}">
+            <div class="${extraExpanded ? 'mt-2.5 space-y-2' : 'hidden'}">
               ${extraItems.map(renderCardHtml).join('')}
             </div>
           </div>
@@ -838,7 +1056,7 @@
         const mos = Math.floor(ageDays / 30);
         return `<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-white/[0.08]">${mos} mois</span>`;
       }
-      return lastMod ? `<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800/70 text-slate-400">${lastMod}</span>` : '';
+      return lastMod ? `<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800/70 text-slate-400">${escapeHtml(lastMod)}</span>` : '';
     }
 
     function renderCardHtml(raw) {
@@ -857,40 +1075,40 @@
       const isDelChecked = !isSanct && !isProt && selectedDeleteIds.has(id);
 
       const szText = sizeGB >= 0.1 ? `${sizeGB.toFixed(2)} Go` : `${sizeMB.toFixed(1)} Mo`;
-      const riskColor = riskPct <= 10
+      const riskBadge = riskPct <= 10
         ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
         : (riskPct <= 35 ? 'bg-blue-500/15 text-blue-300 border-blue-500/30' : (riskPct <= 65 ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : 'bg-rose-500/15 text-rose-300 border-rose-500/30'));
 
       return `
-        <div class="glass-card rounded-xl p-3.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3 ${isDelChecked ? 'border-rose-500/50 bg-rose-950/15' : ''}">
+        <div class="item-row rounded-xl px-4 py-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3 ${isDelChecked ? 'border-rose-500/50 bg-rose-950/20' : ''}">
           <div class="flex-1 min-w-0 space-y-1">
             <div class="flex items-center gap-2 flex-wrap">
-              <span class="text-xs font-bold text-white truncate max-w-md">${name}</span>
+              <span class="text-xs font-bold text-white truncate max-w-md">${escapeHtml(name)}</span>
               <span class="text-[10px] font-mono px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-300 border border-blue-500/25 font-bold tabular-nums">${szText}</span>
-              <span class="text-[10px] font-mono px-2 py-0.5 rounded-md border ${riskColor} font-semibold tabular-nums">Risque : ${riskPct}%</span>
-              ${drive ? `<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-white/[0.08]">${drive}</span>` : ''}
+              <span class="text-[10px] font-mono px-2 py-0.5 rounded-md border ${riskBadge} font-semibold tabular-nums">Risque ${riskPct}%</span>
+              ${drive ? `<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-white/[0.08]">${escapeHtml(drive)}</span>` : ''}
               ${formatAgeBadge(ageDays, lastMod)}
               ${isSanct ? `<span class="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">🔒 Sanctuarisé</span>` : ''}
               ${isProt ? `<span class="text-[10px] px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">🛡️ Protégé</span>` : ''}
             </div>
-            <p class="text-[11px] text-slate-400 truncate">${desc}</p>
-            <p class="text-[10px] font-mono text-slate-500 truncate">${path}</p>
+            <p class="text-[11px] text-slate-400 truncate">${escapeHtml(desc)}</p>
+            <p class="text-[10px] font-mono text-slate-500 truncate">${escapeHtml(path)}</p>
           </div>
 
           <div class="flex items-center gap-1.5 shrink-0 flex-wrap">
-            <button onclick="setItemAction('${id}', 'delete')" ${isSanct || isProt ? 'disabled' : ''} class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${isDelChecked ? 'bg-rose-600 text-white border-rose-500 shadow-md shadow-rose-600/30' : 'bg-slate-900/90 text-slate-300 border-white/[0.08] hover:border-rose-500/40 hover:text-rose-300'} disabled:opacity-35 disabled:pointer-events-none">
+            <button onclick="setItemAction('${safeEnc(id)}', 'delete')" ${isSanct || isProt ? 'disabled' : ''} class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${isDelChecked ? 'bg-rose-600 text-white border-rose-500 shadow-md shadow-rose-600/30' : 'bg-slate-950/70 text-slate-300 border-white/[0.08] hover:border-rose-500/40 hover:text-rose-300'} disabled:opacity-35 disabled:pointer-events-none">
               ${isDelChecked ? '✓ À supprimer' : 'Supprimer'}
             </button>
-            <button onclick="setItemAction('${id}', 'keep')" class="px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-all ${!isDelChecked && !isProt ? 'bg-emerald-600/25 text-emerald-300 border-emerald-500/40' : 'bg-slate-900/90 text-slate-400 border-white/[0.08] hover:text-white'}">
+            <button onclick="setItemAction('${safeEnc(id)}', 'keep')" class="px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-all ${!isDelChecked && !isProt ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/35' : 'bg-slate-950/70 text-slate-400 border-white/[0.08] hover:text-white'}">
               Garder
             </button>
-            <button onclick="protectItem('${id}')" ${isProt ? 'disabled' : ''} title="Protéger définitivement dans la Liste Protégée" class="px-2.5 py-1.5 rounded-lg text-[11px] font-medium border border-indigo-500/30 bg-indigo-950/30 hover:bg-indigo-600/30 text-indigo-300 disabled:opacity-35 transition-all">
+            <button onclick="protectItem('${safeEnc(id)}')" ${isProt ? 'disabled' : ''} title="Protéger définitivement" class="px-2.5 py-1.5 rounded-lg text-[11px] font-medium border border-indigo-500/30 bg-indigo-950/30 hover:bg-indigo-600/30 text-indigo-300 disabled:opacity-35">
               🛡️ Protéger
             </button>
-            <button onclick="askResearch('${id}')" class="px-2.5 py-1.5 rounded-lg text-[11px] font-medium border border-white/[0.1] bg-slate-800/80 hover:bg-slate-700 text-amber-300 transition-all">
+            <button onclick="askResearch('${safeEnc(id)}')" class="px-2.5 py-1.5 rounded-lg text-[11px] font-medium border border-white/[0.09] bg-slate-800/75 hover:bg-slate-700 text-amber-300">
               ❓ Infos
             </button>
-            <button onclick="openFolder('${encodeURIComponent(path)}')" title="Ouvrir dans l'Explorateur" class="p-1.5 rounded-lg border border-white/[0.1] bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition-all">
+            <button onclick="openFolder('${safeEnc(path)}')" title="Ouvrir dans l'Explorateur" class="p-1.5 rounded-lg border border-white/[0.09] bg-slate-800/75 hover:bg-slate-700 text-slate-300">
               📂
             </button>
           </div>
@@ -898,7 +1116,8 @@
       `;
     }
 
-    function setItemAction(id, action) {
+    function setItemAction(encId, action) {
+      const id = decodeURIComponent(encId);
       if (action === 'delete') selectedDeleteIds.add(id);
       else selectedDeleteIds.delete(id);
       updateSelectionCalc();
@@ -942,8 +1161,219 @@
       document.getElementById('btn-clean').disabled = selectedDeleteIds.size === 0;
     }
 
-    // ================= PROTECTED LIST =================
-    function protectItem(id) {
+    // ================= SPACE EXPLORER (ARBORESCENCE) =================
+    function renderExplorerDrivePills() {
+      const el = document.getElementById('explorer-drive-pills');
+      if (!el || !drivesList) return;
+      const curRoot = (currentTreePath || '').slice(0, 2).toUpperCase();
+      el.innerHTML = drivesList.map(d => {
+        const name = (d.name || d.Name || 'C:').toUpperCase();
+        const label = d.label || d.Label || 'Disque';
+        const isCurrent = curRoot === name;
+        return `
+          <button onclick="navigateExplorerEnc('${safeEnc(name + '\\')}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${isCurrent ? 'bg-cyan-600/25 border-cyan-400/50 text-cyan-200' : 'bg-slate-900/80 border-white/[0.08] text-slate-300 hover:text-white'}">
+            ${escapeHtml(name)} <span class="text-[10px] font-normal opacity-75">(${escapeHtml(label)})</span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function navigateExplorerEnc(encPath) {
+      navigateExplorer(decodeURIComponent(encPath));
+    }
+
+    function navigateExplorer(targetPath) {
+      currentTreePath = targetPath;
+      explorerLoading = true;
+      renderExplorerDrivePills();
+      updateHeaderSubtitle();
+      renderExplorerLoading();
+      postToBridge({ action: 'scanFolderTree', path: targetPath });
+    }
+
+    function explorerGoParent() {
+      if (!currentTreePath) return;
+      const trimmed = currentTreePath.replace(/[\\\/]+$/, '');
+      if (trimmed.length <= 2) return; // Déjà à la racine ex: "C:"
+      const lastSlash = trimmed.lastIndexOf('\\');
+      if (lastSlash <= 0) return;
+      let parent = trimmed.slice(0, lastSlash);
+      if (parent.length === 2 && parent[1] === ':') parent += '\\';
+      navigateExplorer(parent);
+    }
+
+    function explorerRefresh() {
+      if (currentTreePath) navigateExplorer(currentTreePath);
+    }
+
+    function explorerOpenShortcut(kind) {
+      const drive = (Array.from(activeDrives)[0] || 'C:').toUpperCase();
+      if (kind === 'profile') {
+        navigateExplorer('C:\\Users');
+      } else if (kind === 'downloads') {
+        navigateExplorer(drive === 'C:' ? 'C:\\Users' : `${drive}\\Téléchargements`);
+      }
+    }
+
+    function renderExplorerLoading() {
+      document.getElementById('explorer-visual-wrap').classList.add('hidden');
+      document.getElementById('explorer-breadcrumb').innerHTML = `<span class="text-cyan-300">${escapeHtml(currentTreePath)}</span>`;
+      document.getElementById('explorer-tree-container').innerHTML = `
+        <div class="surface-card rounded-xl p-10 text-center space-y-2.5">
+          <svg class="animate-spin h-6 w-6 text-cyan-400 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+          <div class="text-xs font-medium text-slate-200">Calcul de l'arborescence et des tailles pour <span class="font-mono text-cyan-300">${escapeHtml(currentTreePath)}</span>...</div>
+        </div>
+      `;
+    }
+
+    function formatSizeNode(node) {
+      const gb = node.sizeGB ?? node.SizeGB ?? 0;
+      const mb = node.sizeMB ?? node.SizeMB ?? 0;
+      if (gb >= 1.0) return `${gb.toFixed(2)} Go`;
+      if (mb >= 1.0) return `${mb.toFixed(1)} Mo`;
+      const kb = (node.sizeBytes ?? node.SizeBytes ?? 0) / 1024.0;
+      return `${kb.toFixed(0)} Ko`;
+    }
+
+    function renderExplorerTree() {
+      renderExplorerDrivePills();
+      updateHeaderSubtitle();
+      const node = currentTreeNode;
+      if (!node) return;
+
+      // Breadcrumb segments
+      const cleanPath = (node.path || node.Path || 'C:\\').replace(/[\\\/]+$/, '');
+      const parts = cleanPath.split('\\').filter(Boolean);
+      let acc = '';
+      const bcHtml = parts.map((part, idx) => {
+        acc = idx === 0 ? `${part}\\` : `${acc}${acc.endsWith('\\') ? '' : '\\'}${part}`;
+        const target = acc;
+        return `
+          ${idx > 0 ? '<span class="text-slate-600">›</span>' : ''}
+          <button onclick="navigateExplorerEnc('${safeEnc(target)}')" class="px-1.5 py-0.5 rounded hover:bg-white/[0.08] ${idx === parts.length - 1 ? 'text-cyan-300 font-bold' : 'text-slate-300'}">${escapeHtml(idx === 0 ? part + '\\' : part)}</button>
+        `;
+      }).join('');
+      document.getElementById('explorer-breadcrumb').innerHTML = bcHtml;
+
+      const children = node.children || node.Children || [];
+      const totalFiles = node.fileCount ?? node.FileCount ?? 0;
+      document.getElementById('explorer-total-meta').innerText = `${formatSizeNode(node)} • ${totalFiles.toLocaleString('fr-FR')} fichiers`;
+
+      // Visual Treemap Bar (top 8)
+      const visualWrap = document.getElementById('explorer-visual-wrap');
+      const barEl = document.getElementById('explorer-treemap-bar');
+      const legEl = document.getElementById('explorer-treemap-legend');
+
+      const topForBar = children.filter(c => (c.pctOfParent ?? c.PctOfParent ?? 0) >= 1.0).slice(0, 8);
+      if (topForBar.length > 0) {
+        visualWrap.classList.remove('hidden');
+        const usedPct = topForBar.reduce((a, c) => a + (c.pctOfParent ?? c.PctOfParent ?? 0), 0);
+        const restPct = Math.max(0, 100 - usedPct);
+
+        barEl.innerHTML = topForBar.map((c, idx) => {
+          const col = TREEMAP_COLORS[idx % TREEMAP_COLORS.length];
+          const p = c.pctOfParent ?? c.PctOfParent ?? 0;
+          const cname = c.name || c.Name;
+          const cpath = c.path || c.Path;
+          const isFolder = c.isFolder ?? c.IsFolder ?? true;
+          return `<div onclick="${isFolder ? `navigateExplorerEnc('${safeEnc(cpath)}')` : `askResearchPath('${safeEnc(cname)}','${safeEnc(cpath)}')`}" title="${escapeHtml(cname)} (${formatSizeNode(c)} — ${p}%)" class="${col.bg} h-full rounded-md cursor-pointer hover:brightness-110 transition-all" style="width: ${Math.max(p, 1.5)}%"></div>`;
+        }).join('') + (restPct > 1 ? `<div title="Autres éléments (${restPct.toFixed(1)}%)" class="bg-slate-700/70 h-full rounded-md" style="width: ${restPct}%"></div>` : '');
+
+        legEl.innerHTML = topForBar.map((c, idx) => {
+          const col = TREEMAP_COLORS[idx % TREEMAP_COLORS.length];
+          const p = c.pctOfParent ?? c.PctOfParent ?? 0;
+          const cname = c.name || c.Name;
+          const cpath = c.path || c.Path;
+          const isFolder = c.isFolder ?? c.IsFolder ?? true;
+          return `
+            <button onclick="${isFolder ? `navigateExplorerEnc('${safeEnc(cpath)}')` : `askResearchPath('${safeEnc(cname)}','${safeEnc(cpath)}')`}" class="flex items-center gap-1.5 text-[11px] bg-slate-900/80 hover:bg-slate-800 px-2 py-1 rounded-lg border border-white/[0.06]">
+              <span class="w-2 h-2 rounded-full ${col.dot}"></span>
+              <span class="text-slate-200 max-w-[140px] truncate">${escapeHtml(cname)}</span>
+              <span class="font-mono ${col.text}">${p}%</span>
+            </button>
+          `;
+        }).join('');
+      } else {
+        visualWrap.classList.add('hidden');
+      }
+
+      // Rows
+      const container = document.getElementById('explorer-tree-container');
+      if (children.length === 0) {
+        container.innerHTML = `<div class="surface-card rounded-xl p-8 text-center text-xs text-slate-400">Ce dossier est vide ou inaccessible.</div>`;
+        return;
+      }
+
+      container.innerHTML = children.map((c, idx) => {
+        const cname = c.name || c.Name;
+        const cpath = c.path || c.Path;
+        const isFolder = c.isFolder ?? c.IsFolder ?? false;
+        const pct = c.pctOfParent ?? c.PctOfParent ?? 0;
+        const fCount = c.fileCount ?? c.FileCount ?? 0;
+        const lastMod = c.lastModified || c.LastModified || '';
+        const isSanct = c.isSanctuarized ?? c.IsSanctuarized ?? false;
+        const isProt = c.isProtected ?? c.IsProtected ?? false;
+        const barAccent = idx < 8 ? TREEMAP_COLORS[idx % TREEMAP_COLORS.length].bg : 'bg-slate-500';
+
+        const iconSvg = isFolder
+          ? `<svg class="w-4 h-4 text-amber-400 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z"/></svg>`
+          : `<svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>`;
+
+        return `
+          <div ${isFolder ? `onclick="navigateExplorerEnc('${safeEnc(cpath)}')"` : ''} class="item-row relative overflow-hidden rounded-xl px-4 py-2.5 flex items-center justify-between gap-3 ${isFolder ? 'cursor-pointer' : ''}">
+            <!-- Background weight bar -->
+            <div class="absolute inset-y-0 left-0 ${barAccent} opacity-[0.07] pointer-events-none" style="width: ${Math.min(pct, 100)}%"></div>
+
+            <div class="relative flex items-center gap-3 min-w-0 flex-1">
+              ${iconSvg}
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="text-xs font-semibold text-white truncate">${escapeHtml(cname)}</span>
+                  ${isFolder ? `<span class="text-[10px] text-slate-500 font-mono">${fCount.toLocaleString('fr-FR')} fichiers</span>` : ''}
+                  ${lastMod ? `<span class="text-[10px] text-slate-500">${escapeHtml(lastMod)}</span>` : ''}
+                  ${isSanct ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">🔒 Sanctuarisé</span>` : ''}
+                  ${isProt ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">🛡️ Protégé</span>` : ''}
+                </div>
+              </div>
+            </div>
+
+            <div class="relative flex items-center gap-3 shrink-0">
+              <div class="text-right">
+                <div class="text-xs font-bold font-mono text-white tabular-nums">${formatSizeNode(c)}</div>
+                <div class="text-[10px] font-mono text-slate-400 tabular-nums">${pct}%</div>
+              </div>
+
+              <div class="flex items-center gap-1" onclick="event.stopPropagation()">
+                <button onclick="askResearchPath('${safeEnc(cname)}', '${safeEnc(cpath)}')" title="Analyser avec l'inspecteur & Gemini IA" class="px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-white/[0.08] text-[11px] text-amber-300">❓</button>
+                <button onclick="openFolder('${safeEnc(cpath)}')" title="Ouvrir dans l'Explorateur Windows" class="px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-white/[0.08] text-[11px] text-slate-300">📂</button>
+                <button onclick="promptDeleteTreeNode(${idx})" ${isSanct || isProt ? 'disabled' : ''} title="Supprimer cet élément" class="px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-rose-900/70 border border-white/[0.08] hover:border-rose-500/40 text-[11px] text-rose-300 disabled:opacity-30 disabled:pointer-events-none">🗑️</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function promptDeleteTreeNode(idx) {
+      const children = currentTreeNode?.children || currentTreeNode?.Children || [];
+      const c = children[idx];
+      if (!c) return;
+      pendingDirectDeleteItems = [{
+        id: 'tree-' + Date.now(),
+        name: c.name || c.Name,
+        path: c.path || c.Path,
+        category: 'system',
+        drive: (c.path || c.Path || '').slice(0, 2),
+        sizeGB: c.sizeGB ?? c.SizeGB ?? 0,
+        sizeMB: c.sizeMB ?? c.SizeMB ?? 0,
+        isFolder: c.isFolder ?? c.IsFolder ?? true
+      }];
+      openCleanModalWithList(pendingDirectDeleteItems);
+    }
+
+    // ================= PROTECTED LIST VIEW =================
+    function protectItem(encId) {
+      const id = decodeURIComponent(encId);
       const item = allItems.find(x => (x.id || x.Id) === id);
       if (!item) return;
       selectedDeleteIds.delete(id);
@@ -963,15 +1393,15 @@
       showToast(`« ${item.name || item.Name} » ajouté à la Liste Protégée.`, 'success');
     }
 
-    function unprotectItem(idOrPath) {
-      postToBridge({ action: 'removeProtected', id: decodeURIComponent(idOrPath) });
+    function unprotectItem(encId) {
+      postToBridge({ action: 'removeProtected', id: decodeURIComponent(encId) });
       showToast('Élément retiré de la Liste Protégée.', 'info');
     }
 
-    function renderProtectedItems() {
-      const container = document.getElementById('items-container');
+    function renderProtectedView() {
+      const container = document.getElementById('protected-container');
       if (!protectedItems || protectedItems.length === 0) {
-        container.innerHTML = `<div class="glass-panel rounded-xl p-10 text-center text-xs text-slate-400">Votre Liste Protégée est vide. Cliquez sur <strong>🛡️ Protéger</strong> sur n'importe quel jeu ou logiciel pour le sanctuariser.</div>`;
+        container.innerHTML = `<div class="surface-card rounded-2xl p-10 text-center text-xs text-slate-400">Votre Liste Protégée est vide. Cliquez sur <strong>🛡️ Protéger</strong> dans l'audit pour sanctuariser un jeu ou logiciel.</div>`;
         return;
       }
       container.innerHTML = protectedItems.map(p => {
@@ -983,16 +1413,16 @@
         const szMB = p.sizeMB ?? p.SizeMB ?? 0;
         const szText = szGB >= 0.1 ? `${szGB.toFixed(2)} Go` : `${szMB.toFixed(1)} Mo`;
         return `
-          <div class="glass-card rounded-xl p-3.5 flex items-center justify-between gap-3 border-indigo-500/30">
+          <div class="item-row rounded-xl px-4 py-3 flex items-center justify-between gap-3 border-indigo-500/30">
             <div class="min-w-0 space-y-1">
-              <div class="flex items-center gap-2">
-                <span class="text-xs font-bold text-white truncate">${name}</span>
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs font-bold text-white truncate">${escapeHtml(name)}</span>
                 <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300">${szText}</span>
-                <span class="text-[10px] text-slate-400">Protégé le ${date}</span>
+                <span class="text-[10px] text-slate-400">Protégé le ${escapeHtml(date)}</span>
               </div>
-              <p class="text-[10px] font-mono text-slate-500 truncate">${path}</p>
+              <p class="text-[10px] font-mono text-slate-500 truncate">${escapeHtml(path)}</p>
             </div>
-            <button onclick="unprotectItem('${encodeURIComponent(id)}')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-900/50 text-slate-300 hover:text-rose-300 text-xs font-medium border border-white/[0.08] shrink-0">
+            <button onclick="unprotectItem('${safeEnc(id)}')" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-rose-950/60 text-slate-300 hover:text-rose-300 text-xs font-medium border border-white/[0.08] shrink-0">
               Retirer protection
             </button>
           </div>
@@ -1001,27 +1431,26 @@
     }
 
     // ================= RESEARCH & AI =================
-    function askResearch(id) {
+    function askResearch(encId) {
+      const id = decodeURIComponent(encId);
       const item = allItems.find(x => (x.id || x.Id) === id);
       if (!item) return;
-      activeResearchItem = {
-        id: item.id || item.Id,
-        name: item.name || item.Name || '',
-        path: item.path || item.Path || '',
-        riskPct: item.riskPct ?? item.RiskPct ?? 0
-      };
-      const cached = aiReportCache[activeResearchItem.path.toLowerCase()];
+      triggerResearch(item.name || item.Name || '', item.path || item.Path || '', item.riskPct ?? item.RiskPct ?? 0);
+    }
+
+    function askResearchPath(encName, encPath) {
+      triggerResearch(decodeURIComponent(encName), decodeURIComponent(encPath), 15);
+    }
+
+    function triggerResearch(name, path, riskPct) {
+      activeResearchItem = { name, path, riskPct };
+      const cached = aiReportCache[path.toLowerCase()];
       if (cached) {
         showResearchModal(cached);
         return;
       }
       resetAiDeepButton();
-      postToBridge({
-        action: 'researchItem',
-        name: activeResearchItem.name,
-        path: activeResearchItem.path,
-        riskPct: activeResearchItem.riskPct
-      });
+      postToBridge({ action: 'researchItem', name, path, riskPct });
     }
 
     function showResearchModal(rep) {
@@ -1077,8 +1506,8 @@
       });
     }
 
-    function openFolder(path) {
-      postToBridge({ action: 'openFolder', path: decodeURIComponent(path) });
+    function openFolder(encPath) {
+      postToBridge({ action: 'openFolder', path: decodeURIComponent(encPath) });
     }
 
     // ================= AI SETTINGS =================
@@ -1131,23 +1560,27 @@
         indicator.className = "w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/80 animate-pulse";
         label.innerText = "Mode IA Actif";
       } else {
-        indicator.className = "w-1.5 h-1.5 rounded-full bg-slate-500";
-        label.innerText = "Mode IA";
+        indicator.className = "w-2 h-2 rounded-full bg-slate-500";
+        label.innerText = "Mode IA Gemini";
       }
     }
 
     // ================= CLEAN EXECUTION & HISTORY =================
     function openCleanModal() {
+      pendingDirectDeleteItems = null;
       const selected = allItems.filter(x => selectedDeleteIds.has(x.id || x.Id));
       if (selected.length === 0) return;
+      openCleanModalWithList(selected);
+    }
 
+    function openCleanModalWithList(selected) {
       let total = 0;
       document.getElementById('clean-summary-list').innerHTML = selected.map(raw => {
         const name = raw.name || raw.Name;
         const szGB = getItemSizeGB(raw);
         total += szGB;
         const szText = szGB >= 0.1 ? `${szGB.toFixed(2)} Go` : `${(raw.sizeMB ?? raw.SizeMB ?? 0).toFixed(1)} Mo`;
-        return `<div class="flex items-center justify-between text-slate-300 py-0.5"><span>• ${name}</span><span class="text-blue-400 font-bold font-mono">${szText}</span></div>`;
+        return `<div class="flex items-center justify-between text-slate-300 py-0.5"><span>• ${escapeHtml(name)}</span><span class="text-blue-400 font-bold font-mono">${szText}</span></div>`;
       }).join('');
 
       document.getElementById('clean-modal-total').innerText = `${total.toFixed(2)} Go`;
@@ -1155,11 +1588,12 @@
     }
 
     function closeCleanModal() {
+      pendingDirectDeleteItems = null;
       document.getElementById('modal-clean').classList.add('hidden');
     }
 
     function executeSelectedClean() {
-      const selected = allItems.filter(x => selectedDeleteIds.has(x.id || x.Id));
+      const selected = pendingDirectDeleteItems || allItems.filter(x => selectedDeleteIds.has(x.id || x.Id));
       const btn = document.getElementById('btn-confirm-delete');
       btn.disabled = true;
       btn.innerText = "Nettoyage en cours...";
@@ -1167,54 +1601,51 @@
     }
 
     function onCleanCompleted(res) {
+      const wasDirectTree = pendingDirectDeleteItems !== null;
       closeCleanModal();
       const btn = document.getElementById('btn-confirm-delete');
       btn.disabled = false;
       btn.innerHTML = `<span>🚀</span> Lancer le Nettoyage Silencieux`;
 
       const deletedIds = res.deletedIds || res.DeletedIds || [];
-      if (deletedIds.length > 0) {
+      const errors = res.errors || res.Errors || [];
+      if (deletedIds.length > 0 && !wasDirectTree) {
         allItems = allItems.filter(x => !deletedIds.includes(x.id || x.Id));
         deletedIds.forEach(id => selectedDeleteIds.delete(id));
       }
-      updateAnalytics();
-      updateCounters();
-      updateSelectionCalc();
-      renderItems();
+      if (allItems.length > 0) refreshAuditUI();
+      if (currentView === 'explorer' && currentTreePath) explorerRefresh();
       postToBridge({ action: 'getDrives' });
+      postToBridge({ action: 'getHistory' });
 
       const freed = res.freedGB ?? res.FreedGB ?? 0;
-      showToast(`Nettoyage terminé ! ${freed.toFixed(2)} Go libérés.`, 'success');
-    }
-
-    function openHistoryModal() {
-      postToBridge({ action: 'getHistory' });
-      document.getElementById('modal-history').classList.remove('hidden');
-    }
-
-    function closeHistoryModal() {
-      document.getElementById('modal-history').classList.add('hidden');
+      if (errors.length > 0) {
+        showToast(errors[0], 'warn');
+      } else {
+        showToast(`Nettoyage terminé ! ${freed.toFixed(2)} Go libérés.`, 'success');
+      }
     }
 
     function clearHistory() {
       postToBridge({ action: 'clearHistory' });
+      showToast('Historique effacé.', 'info');
     }
 
-    function renderHistoryModal(history) {
+    function renderHistoryView(history) {
       const total = history.reduce((acc, h) => acc + (h.freedGB ?? h.FreedGB ?? 0), 0);
       document.getElementById('history-total-gb').innerText = `${total.toFixed(2)} Go`;
       const list = document.getElementById('history-list');
       if (!history || history.length === 0) {
-        list.innerHTML = `<div class="p-6 text-center text-slate-500">Aucun nettoyage enregistré pour le moment.</div>`;
+        list.innerHTML = `<div class="surface-card rounded-xl p-10 text-center text-xs text-slate-500">Aucun nettoyage enregistré pour le moment.</div>`;
         return;
       }
       list.innerHTML = history.map(h => `
-        <div class="p-3 rounded-xl bg-slate-950/70 border border-white/[0.07] space-y-1">
-          <div class="flex items-center justify-between">
-            <span class="font-semibold text-white">${h.date || h.Date}</span>
-            <span class="font-mono font-bold text-emerald-400">+${(h.freedGB ?? h.FreedGB ?? 0).toFixed(2)} Go (${h.itemsCount ?? h.ItemsCount} éléments)</span>
+        <div class="item-row rounded-xl p-3.5 space-y-1">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-semibold text-white">${escapeHtml(h.date || h.Date)}</span>
+            <span class="font-mono font-bold text-emerald-400 tabular-nums">+${(h.freedGB ?? h.FreedGB ?? 0).toFixed(2)} Go (${h.itemsCount ?? h.ItemsCount} éléments)</span>
           </div>
-          <p class="text-[11px] text-slate-400 truncate">${(h.itemNames || h.ItemNames || []).join(', ')}</p>
+          <p class="text-[11px] text-slate-400 truncate">${escapeHtml((h.itemNames || h.ItemNames || []).join(', '))}</p>
         </div>
       `).join('');
     }
