@@ -203,6 +203,11 @@
           if (data.aiError) showToast(`⚠️ IA (${itemName}) : ${data.aiError}`, 'warn');
           return;
         }
+        // Si l'utilisateur a fermé la modale ("Je comprends"), ne jamais la rouvrir automatiquement à la fin d'une tâche IA
+        if (!modalOpen && (rep?.isAiEnriched || rep?.IsAiEnriched || data.aiError)) {
+          if (data.aiError) showToast(`⚠️ IA (${itemName}) : ${data.aiError}`, 'warn');
+          return;
+        }
         if (reqId > 0 && reqId !== activeResearchRequestId && !modalOpen) {
           return;
         }
@@ -1334,6 +1339,7 @@
     }
 
     function closeResearchModal() {
+      activeResearchItem = null;
       document.getElementById('modal-research').classList.add('hidden');
     }
 

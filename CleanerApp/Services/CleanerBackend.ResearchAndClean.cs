@@ -793,6 +793,7 @@ namespace CleanerApp
         }
 
         private static readonly Dictionary<string, (DateTime FetchedUtc, string[] Models)> _flashModelsCache = new();
+        private static readonly System.Threading.SemaphoreSlim _geminiConcurrency = new(2, 2);
 
         private static async Task<string[]> DiscoverActiveFlashModelsAsync(HttpClient http, string apiKey, string[] fallback)
         {
@@ -848,7 +849,7 @@ namespace CleanerApp
                         .ThenByDescending(c => c.Contains("3.5"))
                         .ThenByDescending(c => !c.Contains("preview") && !c.Contains("exp"))
                         .ThenByDescending(c => c)
-                        .Take(4)
+                        .Take(6)
                         .ToArray();
 
                     lock (_flashModelsCache)
@@ -920,39 +921,52 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
 
                 var jsonPayload = JsonSerializer.Serialize(payload);
                 string[] fallbackModels = { "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite" };
-                string[] modelsToTry = httpHandler == null
-                    ? await DiscoverActiveFlashModelsAsync(http, apiKey, fallbackModels)
-                    : fallbackModels;
                 HttpResponseMessage? response = null;
-                string usedModel = modelsToTry[0];
+                string usedModel = fallbackModels[0];
+                int[] retryDelaysMs = { 0, 1500, 3500 };
 
-                for (int attempt = 0; attempt < 2; attempt++)
+                if (httpHandler == null) await _geminiConcurrency.WaitAsync();
+                try
                 {
-                    if (attempt > 0) await Task.Delay(400);
-                    foreach (var modelName in modelsToTry)
+                    string[] modelsToTry = httpHandler == null
+                        ? await DiscoverActiveFlashModelsAsync(http, apiKey, fallbackModels)
+                        : fallbackModels;
+                    usedModel = modelsToTry[0];
+
+                    for (int attempt = 0; attempt < retryDelaysMs.Length; attempt++)
                     {
-                        usedModel = modelName;
-                        try
-                        {
-                            using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(15));
-                            using var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
-                            string url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={apiKey}";
-                            response = await http.PostAsync(url, content, cts.Token);
-                            if (response.IsSuccessStatusCode)
-                                break;
+                        if (retryDelaysMs[attempt] > 0)
+                            await Task.Delay(retryDelaysMs[attempt] + Random.Shared.Next(100, 450));
 
-                            int code = (int)response.StatusCode;
-                            if (code != 404 && code != 429 && code < 500)
-                                break;
-                        }
-                        catch (TaskCanceledException)
+                        foreach (var modelName in modelsToTry)
                         {
-                            response = null;
-                        }
+                            usedModel = modelName;
+                            try
+                            {
+                                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(15));
+                                using var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                                string url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={apiKey}";
+                                response = await http.PostAsync(url, content, cts.Token);
+                                if (response.IsSuccessStatusCode)
+                                    break;
 
-                        await Task.Delay(150);
+                                int code = (int)response.StatusCode;
+                                if (code != 404 && code != 429 && code < 500)
+                                    break;
+                            }
+                            catch (TaskCanceledException)
+                            {
+                                response = null;
+                            }
+
+                            await Task.Delay(150);
+                        }
+                        if (response != null && response.IsSuccessStatusCode) break;
                     }
-                    if (response != null && response.IsSuccessStatusCode) break;
+                }
+                finally
+                {
+                    if (httpHandler == null) _geminiConcurrency.Release();
                 }
 
                 if (response != null && response.IsSuccessStatusCode)
