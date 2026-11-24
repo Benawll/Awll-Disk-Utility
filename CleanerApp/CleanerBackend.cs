@@ -227,11 +227,16 @@ namespace CleanerApp
         }
 
         private static HashSet<string> _runningExePaths = new(StringComparer.OrdinalIgnoreCase);
+        private static HashSet<string> _resolvedExeProcessNames = new(StringComparer.OrdinalIgnoreCase);
+
+        [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        private static extern bool QueryFullProcessImageName(IntPtr hProcess, int dwFlags, StringBuilder lpExeName, ref int lpdwSize);
 
         private static HashSet<string> GetRunningProcessNamesSafe()
         {
             var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var exeSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var resolvedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             try
             {
                 foreach (var p in Process.GetProcesses())
@@ -239,29 +244,78 @@ namespace CleanerApp
                     try
                     {
                         set.Add(p.ProcessName);
-                        var file = p.MainModule?.FileName;
-                        if (!string.IsNullOrEmpty(file)) exeSet.Add(file);
+                        string? file = null;
+                        try { file = p.MainModule?.FileName; } catch { }
+                        if (string.IsNullOrEmpty(file))
+                        {
+                            try
+                            {
+                                var sb = new StringBuilder(1024);
+                                int sz = sb.Capacity;
+                                if (QueryFullProcessImageName(p.Handle, 0, sb, ref sz))
+                                    file = sb.ToString(0, sz);
+                            }
+                            catch { }
+                        }
+                        if (!string.IsNullOrEmpty(file))
+                        {
+                            exeSet.Add(file);
+                            resolvedNames.Add(p.ProcessName);
+                        }
                     }
                     catch { }
                 }
             }
             catch { }
             _runningExePaths = exeSet;
+            _resolvedExeProcessNames = resolvedNames;
             return set;
         }
 
-        private static bool IsLikelyRunning(string name, string path, HashSet<string> runningProcs)
+        private static string NormalizeProcToken(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "";
+            var sb = new StringBuilder(s.Length);
+            foreach (char c in s)
+            {
+                if (char.IsLetterOrDigit(c)) sb.Append(char.ToLowerInvariant(c));
+            }
+            return sb.ToString();
+        }
+
+        internal static bool IsLikelyRunning(string name, string path, HashSet<string> runningProcs, HashSet<string>? overrideExePaths = null, HashSet<string>? overrideResolvedNames = null)
         {
             if (runningProcs.Count == 0) return false;
-            if (!string.IsNullOrWhiteSpace(path) && _runningExePaths.Count > 0)
+            var exePaths = overrideExePaths ?? _runningExePaths;
+            var resolvedNames = overrideResolvedNames ?? _resolvedExeProcessNames;
+
+            if (!string.IsNullOrWhiteSpace(path) && exePaths.Count > 0)
             {
                 string pNorm = path.TrimEnd('\\');
-                if (_runningExePaths.Any(ep => ep.Equals(pNorm, StringComparison.OrdinalIgnoreCase) || ep.StartsWith(pNorm + "\\", StringComparison.OrdinalIgnoreCase)))
+                if (exePaths.Any(ep => ep.Equals(pNorm, StringComparison.OrdinalIgnoreCase) || ep.StartsWith(pNorm + "\\", StringComparison.OrdinalIgnoreCase)))
                     return true;
             }
-            var baseName = Path.GetFileNameWithoutExtension(path);
-            if (!string.IsNullOrWhiteSpace(baseName) && baseName.Length >= 3 && runningProcs.Any(p => p.Contains(baseName, StringComparison.OrdinalIgnoreCase)))
-                return true;
+
+            // Ne faire un matching par nom que pour les processus dont le chemin exact n'a pas pu être résolu
+            var unresolvedProcs = runningProcs.Where(p => !resolvedNames.Contains(p)).ToList();
+            if (unresolvedProcs.Count > 0)
+            {
+                var baseNorm = NormalizeProcToken(Path.GetFileNameWithoutExtension(path));
+                var nameNorm = NormalizeProcToken(name);
+                if (baseNorm.Length >= 4 && unresolvedProcs.Any(p =>
+                {
+                    var pNorm = NormalizeProcToken(p);
+                    return pNorm.Contains(baseNorm) || baseNorm.Contains(pNorm);
+                }))
+                    return true;
+                if (nameNorm.Length >= 4 && unresolvedProcs.Any(p =>
+                {
+                    var pNorm = NormalizeProcToken(p);
+                    return pNorm == nameNorm;
+                }))
+                    return true;
+            }
+
             if (name.Contains("Steam", StringComparison.OrdinalIgnoreCase) && !name.Contains("downloading", StringComparison.OrdinalIgnoreCase) && !name.Contains("Démo", StringComparison.OrdinalIgnoreCase) && runningProcs.Contains("steam"))
                 return true;
             if (name.Contains("Discord", StringComparison.OrdinalIgnoreCase) && runningProcs.Contains("Discord"))

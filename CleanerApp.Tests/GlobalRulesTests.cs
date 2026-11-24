@@ -121,5 +121,26 @@ namespace CleanerApp.Tests
             Assert.Equal(10, report.RiskPct);
             Assert.DoesNotContain("[IA Gemini]", report.Definition);
         }
+
+        [Fact]
+        public void IsLikelyRunning_DistinguishesSteamVsEpicCopyByExactExePath()
+        {
+            var runningProcs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "RocketLeague" };
+            var exePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { @"D:\SteamLibrary\steamapps\common\rocketleague\Binaries\Win64\RocketLeague.exe" };
+            var resolvedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "RocketLeague" };
+
+            Assert.True(CleanerBackend.IsLikelyRunning("Rocket League", @"D:\SteamLibrary\steamapps\common\rocketleague", runningProcs, exePaths, resolvedNames));
+            Assert.False(CleanerBackend.IsLikelyRunning("Doublon Cross-Platform : Rocket League (Epic Games)", @"E:\Epic Games\rocketleague", runningProcs, exePaths, resolvedNames));
+        }
+
+        [Fact]
+        public void IsLikelyRunning_MatchesSpacedFolderNameWhenProcessPathUnresolved()
+        {
+            var runningProcs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "RocketLeague" };
+            var emptyPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var emptyResolved = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            Assert.True(CleanerBackend.IsLikelyRunning("Rocket League", @"D:\SteamLibrary\steamapps\common\Rocket League", runningProcs, emptyPaths, emptyResolved));
+        }
     }
 }
