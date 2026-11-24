@@ -738,7 +738,7 @@ namespace CleanerApp
                 }
             }
 
-            // C. Scan dynamique d'AppData (>= 150 Mo)
+            // C. Scan dynamique d'AppData (>= 150 Mo - Caches, updaters et applications inactives > 180 jours uniquement)
             var appDataRoots = new[] { localAppData, appData, Path.Combine(user, "AppData", "LocalLow") };
             foreach (var root in appDataRoots)
             {
@@ -748,36 +748,42 @@ namespace CleanerApp
                     var di = new DirectoryInfo(dir);
                     if (di.Name.Equals("Microsoft", StringComparison.OrdinalIgnoreCase) ||
                         di.Name.Equals("Packages", StringComparison.OrdinalIgnoreCase) ||
-                        di.Name.Equals("Programs", StringComparison.OrdinalIgnoreCase)) continue;
+                        di.Name.Equals("Programs", StringComparison.OrdinalIgnoreCase) ||
+                        di.Name.Equals("Steam", StringComparison.OrdinalIgnoreCase)) continue;
 
                     double size = GetDirectorySizeSafe(dir);
                     if (size > 150 * 1024 * 1024)
                     {
-                        int risk = 10;
-                        if (di.Name.Contains("cache", StringComparison.OrdinalIgnoreCase) ||
-                            di.Name.Contains("updater", StringComparison.OrdinalIgnoreCase) ||
-                            di.Name.Contains("log", StringComparison.OrdinalIgnoreCase) ||
-                            di.Name.Contains("temp", StringComparison.OrdinalIgnoreCase))
-                        {
-                            risk = 0;
-                        }
+                        bool isCache = di.Name.Contains("cache", StringComparison.OrdinalIgnoreCase) ||
+                                       di.Name.Contains("updater", StringComparison.OrdinalIgnoreCase) ||
+                                       di.Name.Contains("log", StringComparison.OrdinalIgnoreCase) ||
+                                       di.Name.Contains("temp", StringComparison.OrdinalIgnoreCase);
 
-                        items.Add(CreateItem(
-                            $"Cache AppData : {di.Name}",
-                            dir,
-                            "system",
-                            size,
-                            risk,
-                            $"Dossier d'application volumineux dans AppData ({Math.Round(size / 1024.0 / 1024.0, 1)} Mo)."
-                        ));
+                        var lastWrite = GetLastWriteTimeSafe(di);
+                        bool isOld = (DateTime.Now - lastWrite).TotalDays > 180;
+
+                        // Dans l'Audit Recommandé, on n'ajoute que les vrais caches ou les applications abandonnées (> 6 mois)
+                        if (isCache || isOld)
+                        {
+                            int risk = isCache ? 0 : 10;
+                            items.Add(CreateItem(
+                                isCache ? $"Cache AppData : {di.Name}" : $"Dossier Inactif AppData : {di.Name}",
+                                dir,
+                                "system",
+                                size,
+                                risk,
+                                isCache ? $"Cache applicatif régénérable ({Math.Round(size / 1024.0 / 1024.0, 1)} Mo)."
+                                        : $"Application inactive depuis le {lastWrite:dd/MM/yyyy} ({Math.Round(size / 1024.0 / 1024.0, 1)} Mo)."
+                            ));
+                        }
                     }
                 }
             }
 
-            // D. Scan des dossiers temporaires, caches racine et Program Files sur TOUS les disques fixes
+            // D. Scan des dossiers temporaires et caches à la racine sur TOUS les disques fixes
             foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed))
             {
-                // 1. Dossiers temporaires et caches à la racine de chaque disque
+                // Dossiers temporaires et caches à la racine de chaque disque
                 var rootCaches = new[] { "msdownld.tmp", "MSOCache", "MobiSaverCache", "Temp", "Tmp", "TeraBoxDownload", "$Recycle.Bin", ".gradle", ".m2", "node_modules" };
                 foreach (var rc in rootCaches)
                 {
@@ -788,35 +794,6 @@ namespace CleanerApp
                         if (size > 10 * 1024 * 1024) // > 10 Mo
                         {
                             items.Add(CreateItem($"Cache / Dossier Temporaire : {rc} ({drive.Name.TrimEnd('\\')})", p, "system", size, 0, "Dossier temporaire ou cache d'installation résiduel à la racine du disque."));
-                        }
-                    }
-                }
-
-                // 2. Logiciels installés dans Program Files / Program Files (x86) sur chaque disque secondaire
-                foreach (var pfName in new[] { "Program Files", "Program Files (x86)" })
-                {
-                    var pfPath = Path.Combine(drive.Name, pfName);
-                    if (Directory.Exists(pfPath))
-                    {
-                        foreach (var sub in Directory.GetDirectories(pfPath))
-                        {
-                            var di = new DirectoryInfo(sub);
-                            if (di.Name.Equals("Microsoft", StringComparison.OrdinalIgnoreCase) ||
-                                di.Name.Equals("Common Files", StringComparison.OrdinalIgnoreCase) ||
-                                di.Name.Equals("ModifiableWindowsApps", StringComparison.OrdinalIgnoreCase)) continue;
-
-                            double size = GetDirectorySizeSafe(sub);
-                            if (size > 100 * 1024 * 1024) // > 100 Mo
-                            {
-                                items.Add(CreateItem(
-                                    $"Logiciel résiduel : {di.Name} ({drive.Name.TrimEnd('\\')})",
-                                    sub,
-                                    "apps",
-                                    size,
-                                    5,
-                                    $"Application installée dans {pfPath}."
-                                ));
-                            }
                         }
                     }
                 }
@@ -929,16 +906,22 @@ namespace CleanerApp
 
         #region RECHERCHE FACTUELLE & SUPPRESSION SÉCURISÉE
 
-        public static ResearchReport ResearchItem(string name, string path)
+        public static ResearchReport ResearchItem(string name, string path, int initialRisk = 5)
         {
-            var report = new ResearchReport { ItemName = name, ItemPath = path };
+            var report = new ResearchReport 
+            { 
+                ItemName = name, 
+                ItemPath = path,
+                RiskPct = initialRisk
+            };
 
             bool exists = Directory.Exists(path) || File.Exists(path);
             if (!exists)
             {
-                report.Definition = "L'élément est déjà supprimé ou n'existe plus.";
+                report.Definition = "L'élément est déjà supprimé ou n'existe plus sur le disque.";
+                report.Origin = "Fichier ou dossier supprimé.";
                 report.UsageActivity = "Inactif";
-                report.SafetyImpact = "Aucun impact.";
+                report.SafetyImpact = "Aucun impact sur le système.";
                 report.RiskPct = 0;
                 return report;
             }
@@ -947,41 +930,305 @@ namespace CleanerApp
             report.LastAccessDate = lastWrite.ToString("dd MMMM yyyy");
 
             var baseName = Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
-            var running = Process.GetProcesses().Any(p =>
-                p.ProcessName.Contains(baseName, StringComparison.OrdinalIgnoreCase) ||
-                (name.Contains("Steam", StringComparison.OrdinalIgnoreCase) && p.ProcessName.Equals("steam", StringComparison.OrdinalIgnoreCase))
-            );
-            report.IsRunning = running;
+            var procs = Process.GetProcesses();
+            var matchedProcs = procs.Where(p =>
+            {
+                try
+                {
+                    if (p.ProcessName.Contains(baseName, StringComparison.OrdinalIgnoreCase)) return true;
+                    if (name.Contains("Steam", StringComparison.OrdinalIgnoreCase) && p.ProcessName.Equals("steam", StringComparison.OrdinalIgnoreCase)) return true;
+                    if ((name.Contains("SignalRGB", StringComparison.OrdinalIgnoreCase) || name.Contains("Whirlwind", StringComparison.OrdinalIgnoreCase) || path.Contains("Whirlwind", StringComparison.OrdinalIgnoreCase)) &&
+                        (p.ProcessName.Contains("SignalRgb", StringComparison.OrdinalIgnoreCase) || p.ProcessName.Contains("Vortx", StringComparison.OrdinalIgnoreCase))) return true;
+                    if (name.Contains("Discord", StringComparison.OrdinalIgnoreCase) && p.ProcessName.Equals("Discord", StringComparison.OrdinalIgnoreCase)) return true;
+                    if (name.Contains("Overwolf", StringComparison.OrdinalIgnoreCase) && p.ProcessName.Contains("Overwolf", StringComparison.OrdinalIgnoreCase)) return true;
+                    if (name.Contains("Medal", StringComparison.OrdinalIgnoreCase) && p.ProcessName.Contains("Medal", StringComparison.OrdinalIgnoreCase)) return true;
+                }
+                catch { }
+                return false;
+            }).ToList();
 
-            if (path.Contains("downloading", StringComparison.OrdinalIgnoreCase))
+            bool running = matchedProcs.Count > 0;
+            report.IsRunning = running;
+            report.UsageActivity = running 
+                ? $"⚠️ En cours d'exécution ! Processus actif en mémoire ({string.Join(", ", matchedProcs.Select(p => p.ProcessName).Distinct())})." 
+                : $"Inactif. Dernière écriture le {report.LastAccessDate}.";
+
+            var n = name.ToLowerInvariant();
+            var pLower = path.ToLowerInvariant();
+
+            // 1. WhirlwindFX / SignalRGB
+            if (n.Contains("whirlwind") || pLower.Contains("whirlwind") || n.Contains("vortx") || pLower.Contains("vortx"))
             {
-                report.Definition = "Caches temporaires de téléchargements Steam incomplets ou interrompus.";
-                report.Origin = "Généré automatiquement par le client Steam lors des mises à jour.";
-                report.SafetyImpact = "Suppression 100% sécurisée. Aucun impact sur les jeux déjà installés.";
+                report.Definition = "Moteur d'effets visuels et de synchronisation dynamique RGB pour les jeux vidéo.";
+                report.Origin = "Installé conjointement avec SignalRGB (ou les périphériques WhirlwindFX/Element). Sert à analyser l'écran et le son des jeux pour synchroniser l'éclairage de vos LED (clavier, ventilateurs, bandes RGB).";
+                report.SafetyImpact = "Si vous utilisez SignalRGB pour vos éclairages de jeu, conservez ce dossier. Si vous n'utilisez plus SignalRGB ou ne synchronisez pas vos LED en jeu, vous pouvez le supprimer sans risque pour Windows.";
+                report.RiskPct = 5;
+            }
+            // 2. NuGet Cache
+            else if (n.Contains("nuget") || pLower.Contains("nuget"))
+            {
+                report.Definition = "Cache local des paquets de développement C# et .NET (fichiers de bibliothèques .nupkg).";
+                report.Origin = "Téléchargé et alimenté automatiquement par Visual Studio, Unity, ou le CLI dotnet lors de la compilation de projets C#.";
+                report.SafetyImpact = "100% sûr à supprimer (Risque 0%). C'est un cache de commodité : si un projet .NET a besoin d'un paquet plus tard, Visual Studio le re-téléchargera automatiquement.";
                 report.RiskPct = 0;
             }
-            else if (path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".msi", StringComparison.OrdinalIgnoreCase))
+            // 3. Gradle Cache
+            else if (n.Contains("gradle") || pLower.Contains(".gradle"))
             {
-                report.Definition = "Fichier d'installation autonome d'un logiciel.";
-                report.Origin = "Téléchargé depuis internet pour installer une application.";
-                report.SafetyImpact = "100% sécurisé à supprimer dès lors que le logiciel est déjà installé.";
+                report.Definition = "Cache des artefacts, dépendances Maven et binaires de compilation Gradle (Java/Android/Kotlin).";
+                report.Origin = "Outil de build Gradle utilisé dans IntelliJ IDEA, Android Studio, VS Code ou vos projets Java.";
+                report.SafetyImpact = "100% sûr à supprimer (Risque 0%). Gradle re-téléchargera automatiquement les dépendances nécessaires lors de votre prochain build.";
                 report.RiskPct = 0;
             }
+            // 4. Maven Repository (.m2)
+            else if (n.Contains("maven") || pLower.Contains(".m2"))
+            {
+                report.Definition = "Dépôt local des bibliothèques Java (.jar) téléchargées depuis Maven Central.";
+                report.Origin = "Créé par l'outil de build Maven lors des compilations Java (Spring Boot, Eclipse, IntelliJ, Maven CLI).";
+                report.SafetyImpact = "100% sûr à supprimer (Risque 0%). Maven re-téléchargera automatiquement les fichiers .jar nécessaires.";
+                report.RiskPct = 0;
+            }
+            // 5. Playwright Test Browsers
+            else if (n.Contains("playwright") || pLower.Contains("ms-playwright"))
+            {
+                report.Definition = "Navigateurs web headless autonomes (Chromium, Firefox, WebKit) pour les tests automatisés.";
+                report.Origin = "Téléchargé par la commande 'npx playwright install' lors de développements web ou de tests d'interface.";
+                report.SafetyImpact = "100% sûr à supprimer (Risque 0%). Réinstallable instantanément avec 'npx playwright install'.";
+                report.RiskPct = 0;
+            }
+            // 6. GPU Shaders (DirectX / NVIDIA / AMD)
+            else if (n.Contains("shader") || pLower.Contains("dxcache") || pLower.Contains("glcache") || pLower.Contains("d3dscache"))
+            {
+                report.Definition = "Caches de compilation de shaders 3D générés par les pilotes graphiques (NVIDIA GeForce / AMD Radeon).";
+                report.Origin = "Créé automatiquement par le pilote de votre carte graphique lors du lancement de jeux vidéo DirectX 11/12 ou Vulkan.";
+                report.SafetyImpact = "100% sûr à supprimer (Risque 0%). Régénéré automatiquement par votre carte graphique au prochain lancement de vos jeux (permet souvent de résoudre des micro-stutters).";
+                report.RiskPct = 0;
+            }
+            // 7. Steam Downloading
+            else if (pLower.Contains("downloading"))
+            {
+                report.Definition = "Fragments de téléchargements de jeux Steam interrompus, corrompus ou en attente.";
+                report.Origin = "Généré automatiquement par le client Steam lors du téléchargement d'un jeu ou d'une mise à jour.";
+                report.SafetyImpact = "100% sûr à supprimer (Risque 0%). Steam relancera un téléchargement propre sans affecter vos jeux déjà installés.";
+                report.RiskPct = 0;
+            }
+            // 8. Steam Client Principal
+            else if (n.Equals("steam", StringComparison.OrdinalIgnoreCase) || pLower.EndsWith(@"\steam") || pLower.Contains(@"\steam\steam.exe"))
+            {
+                report.Definition = "Client officiel et lanceur de la plateforme de jeux vidéo Steam (Valve).";
+                report.Origin = "Plateforme principale de jeux vidéo installée sur votre ordinateur.";
+                report.SafetyImpact = "⚠️ ATTENTION : Ne PAS supprimer si vous utilisez Steam ! Ce dossier contient le logiciel Steam, vos configurations et vos jeux.";
+                report.RiskPct = 90;
+            }
+            // 9. Démos Steam
+            else if (n.Contains("démo") || n.Contains("demo"))
+            {
+                report.Definition = "Démo jouable temporaire d'un jeu vidéo (souvent issue d'un festival Steam Next Fest).";
+                report.Origin = "Téléchargé depuis la boutique Steam pour essayer un jeu avant sa sortie.";
+                report.SafetyImpact = "100% sûr à supprimer (Risque 0%). Ne contient aucune sauvegarde critique.";
+                report.RiskPct = 0;
+            }
+            // 10. Serveurs de Test (PTS)
+            else if (n.Contains("pts") || n.Contains("public test"))
+            {
+                report.Definition = "Serveur de test public (Public Test Server) d'un jeu multijoueur pour tester les mises à jour en avant-première.";
+                report.Origin = "Installé via Steam ou Epic Games pour participer aux bêtas de patchs.";
+                report.SafetyImpact = "100% sûr à supprimer (Risque 5%). N'altère en rien votre compte principal de jeu.";
+                report.RiskPct = 5;
+            }
+            // 11. Doublons Cross-Platform
+            else if (n.Contains("doublon cross-platform") || n.Contains("cross-platform"))
+            {
+                report.Definition = "Jeu vidéo installé en double exemplaire à la fois sur Steam et sur Epic Games.";
+                report.Origin = "Téléchargé sur deux plateformes de jeux différentes pour le même titre.";
+                report.SafetyImpact = "La suppression de l'un des deux exemplaires libère l'espace sans perdre votre progression (les sauvegardes sont sur le cloud du jeu).";
+                report.RiskPct = 5;
+            }
+            // 12. Émulateurs Android (Nox, BlueStacks, LDPlayer)
+            else if (n.Contains("nox") || pLower.Contains("nox") || n.Contains("bluestacks") || n.Contains("ldplayer") || n.Contains("memu"))
+            {
+                report.Definition = "Émulateur Android sous machine virtuelle pour faire tourner des applications mobiles sur Windows.";
+                report.Origin = "Installé manuellement pour jouer à des jeux mobiles Android sur grand écran.";
+                report.SafetyImpact = "100% sûr à supprimer si vous ne jouez plus à des jeux mobiles sur votre PC. Aucun impact sur Windows.";
+                report.RiskPct = 5;
+            }
+            // 13. Émulateurs Nintendo Switch (Yuzu, Ryujinx)
+            else if (n.Contains("yuzu") || pLower.Contains("yuzu") || n.Contains("ryujinx") || pLower.Contains("ryujinx"))
+            {
+                report.Definition = "Émulateur Nintendo Switch et répertoire de ROMs / configurations associées.";
+                report.Origin = "Installé pour l'émulation de jeux Nintendo Switch.";
+                report.SafetyImpact = "Sûr à supprimer si vous n'émulez plus cette console. Pensez à sauvegarder vos fichiers de sauvegarde (.sav) si vous en avez.";
+                report.RiskPct = 10;
+            }
+            // 14. Mod Managers (Thunderstore, r2modman)
+            else if (n.Contains("thunderstore") || n.Contains("r2modman") || pLower.Contains("r2modman"))
+            {
+                report.Definition = "Gestionnaire de mods communautaires pour jeux vidéo Unity (Lethal Company, Risk of Rain 2, etc.).";
+                report.Origin = "Installé pour télécharger et synchroniser des profils de mods entre joueurs.";
+                report.SafetyImpact = "Sûr à supprimer si vous ne jouez plus aux jeux moddés correspondants.";
+                report.RiskPct = 5;
+            }
+            // 15. Overlays (Overwolf, Medal)
+            else if (n.Contains("overwolf") || pLower.Contains("overwolf"))
+            {
+                report.Definition = "Moteur d'overlay en surimpression et plateforme d'extensions pour jeux vidéo (CurseForge, trackers de stats).";
+                report.Origin = "Installé souvent avec un gestionnaire de mods de jeux (CurseForge) ou un tracker de statistiques de jeu.";
+                report.SafetyImpact = "Sûr à supprimer si vous n'utilisez pas d'overlay ou de mods CurseForge. Allège les processus en mémoire.";
+                report.RiskPct = 5;
+            }
+            else if (n.Contains("medal") || pLower.Contains("medal"))
+            {
+                report.Definition = "Logiciel de capture vidéo en continu et d'enregistrement de replays/clips de jeu.";
+                report.Origin = "Installé pour enregistrer des temps forts de gaming et les partager.";
+                report.SafetyImpact = "Sûr à supprimer si vous n'enregistrez plus vos parties avec Medal.";
+                report.RiskPct = 5;
+            }
+            // 16. Updaters Electron (*-updater)
+            else if (n.Contains("updater") || pLower.Contains("-updater"))
+            {
+                report.Definition = "Dossier temporaire de mise à jour automatique d'une application Electron (Discord, Slack, etc.).";
+                report.Origin = "Téléchargé silencieusement en tâche de fond lors du déploiement d'une nouvelle version de l'application.";
+                report.SafetyImpact = "100% sûr à supprimer (Risque 0%). Ce sont de simples installeurs résiduels de mises à jour déjà appliquées.";
+                report.RiskPct = 0;
+            }
+            // 17. Installeurs (.exe, .msi, .appimage)
+            else if (pLower.EndsWith(".exe") || pLower.EndsWith(".msi") || pLower.EndsWith(".appimage"))
+            {
+                report.Definition = "Fichier exécutable d'installation autonome d'un logiciel.";
+                report.Origin = "Téléchargé depuis un navigateur internet dans votre dossier Téléchargements.";
+                report.SafetyImpact = "100% sûr à supprimer (Risque 0%) dès lors que le logiciel correspondant est déjà installé sur votre ordinateur.";
+                report.RiskPct = 0;
+            }
+            // 18. Jeux portables anciens
+            else if (n.Contains("jeu portable") || pLower.Contains("autres jeux") || pLower.Contains(@"\jeux\"))
+            {
+                report.Definition = "Dossier de jeu vidéo portable (sans installeur Windows officiel).";
+                report.Origin = "Dossier de jeu extrait ou téléchargé directement sur vos disques secondaires.";
+                report.SafetyImpact = "Suppression sécurisée si vous n'y jouez plus. Conservez vos sauvegardes si le jeu les stocke dans son propre répertoire.";
+                report.RiskPct = 10;
+            }
+            // 19. Recherche dynamique dans le Registre Windows
             else
             {
-                report.Definition = $"Fichiers ou dossier situés dans {path}.";
-                report.Origin = "Créé par une application ou un jeu sur ce PC.";
-                report.SafetyImpact = running
-                    ? "⚠️ Attention : Un processus lié tourne en mémoire actuellement. Fermez-le avant de nettoyer."
-                    : "Aucun processus actif. Suppression silencieuse sans risque pour le système.";
-                report.RiskPct = running ? 20 : 5;
+                var regDetails = FindRegistryAppDetails(baseName, name);
+                if (regDetails != null)
+                {
+                    report.Definition = $"Application Windows : {regDetails.DisplayName} (v{regDetails.DisplayVersion}), développée par {regDetails.Publisher}.";
+                    report.Origin = $"Installée officiellement sur votre PC{(string.IsNullOrEmpty(regDetails.InstallDate) ? "" : " le " + regDetails.InstallDate)} (enregistrée dans le Registre Windows).";
+                    report.SafetyImpact = running
+                        ? "⚠️ L'application est actuellement ouverte en mémoire. Fermez-la avant toute désinstallation."
+                        : "Application enregistrée. Peut être désinstallée proprement si vous ne l'utilisez plus.";
+                    report.RiskPct = running ? 15 : initialRisk;
+                }
+                else
+                {
+                    var exeDetails = FindExeMetadata(path);
+                    if (exeDetails != null)
+                    {
+                        report.Definition = $"{exeDetails.Description} ({exeDetails.ProductName})";
+                        report.Origin = $"Développé par {exeDetails.Company}. Emplacement : {path}.";
+                        report.SafetyImpact = running
+                            ? "⚠️ Un processus lié tourne actuellement en mémoire. Fermez-le avant de nettoyer."
+                            : "Aucun processus actif. Peut être nettoyé si vous n'utilisez plus ce dossier.";
+                        report.RiskPct = running ? 15 : initialRisk;
+                    }
+                    else
+                    {
+                        report.Definition = $"Dossier de données ou cache d'application : {name}.";
+                        report.Origin = $"Généré par une application ou un outil dans {Path.GetDirectoryName(path)}.";
+                        report.SafetyImpact = running
+                            ? "⚠️ Processus actif en mémoire. Fermez l'application liée avant de nettoyer."
+                            : "Inactif. Peut être supprimé si l'application associée n'est plus utilisée.";
+                        report.RiskPct = initialRisk;
+                    }
+                }
             }
 
-            report.UsageActivity = running
-                ? "Processus ACTIF en mémoire en ce moment !"
-                : $"Inactif depuis le {report.LastAccessDate}.";
-
             return report;
+        }
+
+        private class RegAppInfo
+        {
+            public string DisplayName { get; set; } = "";
+            public string Publisher { get; set; } = "Éditeur inconnu";
+            public string DisplayVersion { get; set; } = "";
+            public string InstallDate { get; set; } = "";
+        }
+
+        private static RegAppInfo? FindRegistryAppDetails(string baseName, string fullName)
+        {
+            var keys = new[]
+            {
+                (Registry.LocalMachine, @"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
+                (Registry.LocalMachine, @"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
+                (Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Uninstall")
+            };
+
+            foreach (var (hive, subKeyPath) in keys)
+            {
+                try
+                {
+                    using var baseKey = hive.OpenSubKey(subKeyPath);
+                    if (baseKey == null) continue;
+
+                    foreach (var sub in baseKey.GetSubKeyNames())
+                    {
+                        try
+                        {
+                            using var k = baseKey.OpenSubKey(sub);
+                            if (k == null) continue;
+
+                            var disp = k.GetValue("DisplayName") as string;
+                            if (string.IsNullOrWhiteSpace(disp)) continue;
+
+                            if (disp.Contains(baseName, StringComparison.OrdinalIgnoreCase) ||
+                                baseName.Contains(disp, StringComparison.OrdinalIgnoreCase) ||
+                                fullName.Contains(disp, StringComparison.OrdinalIgnoreCase))
+                            {
+                                return new RegAppInfo
+                                {
+                                    DisplayName = disp,
+                                    Publisher = k.GetValue("Publisher") as string ?? "Éditeur officiel",
+                                    DisplayVersion = k.GetValue("DisplayVersion") as string ?? "",
+                                    InstallDate = k.GetValue("InstallDate") as string ?? ""
+                                };
+                            }
+                        }
+                        catch { }
+                    }
+                }
+                catch { }
+            }
+            return null;
+        }
+
+        private class ExeMetadata
+        {
+            public string ProductName { get; set; } = "";
+            public string Description { get; set; } = "";
+            public string Company { get; set; } = "";
+        }
+
+        private static ExeMetadata? FindExeMetadata(string dirPath)
+        {
+            try
+            {
+                if (!Directory.Exists(dirPath)) return null;
+                var exes = Directory.GetFiles(dirPath, "*.exe", SearchOption.TopDirectoryOnly);
+                if (exes.Length == 0) return null;
+
+                var vi = FileVersionInfo.GetVersionInfo(exes[0]);
+                return new ExeMetadata
+                {
+                    ProductName = string.IsNullOrWhiteSpace(vi.ProductName) ? Path.GetFileNameWithoutExtension(exes[0]) : vi.ProductName,
+                    Description = string.IsNullOrWhiteSpace(vi.FileDescription) ? "Fichiers exécutables de l'application" : vi.FileDescription,
+                    Company = string.IsNullOrWhiteSpace(vi.CompanyName) ? "Éditeur logiciel" : vi.CompanyName
+                };
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         public static CleanResult DeleteItem(CleanerItem item)

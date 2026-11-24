@@ -672,7 +672,8 @@
       postToBridge({
         action: 'researchItem',
         name: item.name || item.Name || '',
-        path: item.path || item.Path || ''
+        path: item.path || item.Path || '',
+        riskPct: item.riskPct ?? item.RiskPct ?? 0
       });
     }
 

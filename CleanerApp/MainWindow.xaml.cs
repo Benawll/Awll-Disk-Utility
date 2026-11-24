@@ -151,7 +151,12 @@ namespace CleanerApp
                     {
                         var name = root.GetProperty("name").GetString() ?? "";
                         var path = root.GetProperty("path").GetString() ?? "";
-                        var report = CleanerBackend.ResearchItem(name, path);
+                        int risk = 5;
+                        if (root.TryGetProperty("riskPct", out var rProp))
+                        {
+                            risk = rProp.GetInt32();
+                        }
+                        var report = CleanerBackend.ResearchItem(name, path, risk);
                         SendJson(new { type = "researchResult", report });
                         break;
                     }
