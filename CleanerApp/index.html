@@ -492,7 +492,7 @@
           <span class="text-slate-300">Total à récupérer :</span>
           <span id="clean-modal-total" class="font-mono font-bold text-emerald-400 text-sm tabular-nums">0.00 Go</span>
         </div>
-        <p class="text-[11px] text-slate-400">🛡️ Sanctuarisations garanties : Liste Protégée, C:\New Doc, Vidéos, Java 17/24 et NVIDIA DLSS sont intouchables.</p>
+        <p class="text-[11px] text-slate-400">🛡️ Protections garanties : Liste Protégée, dossiers personnels (Documents, Vidéos) et composants système critiques sont intouchables.</p>
       </div>
 
       <div class="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.08]">
@@ -571,10 +571,14 @@
     let selectedDeleteIds = new Set();
     let pendingDirectDeleteItems = null; // Utilisé si suppression depuis l'Explorateur d'Espace
 
-    // Space Explorer state
+    // Space Explorer state & cache
     let currentTreeNode = null;
     let currentTreePath = '';
     let explorerLoading = false;
+    let treeCache = {};
+    let pendingTreeScans = {};
+    let explorerRequestCounter = 0;
+    let activeExplorerRequestId = 0;
 
     const TREEMAP_COLORS = [
       { bg: 'bg-blue-500', dot: 'bg-blue-400', text: 'text-blue-300' },
@@ -656,13 +660,28 @@
           aiReportCache[(rep.itemPath || rep.ItemPath).toLowerCase()] = rep;
         }
         showResearchModal(rep);
-      } else if (type === 'folderTreeResult') {
-        explorerLoading = false;
-        currentTreeNode = data.node || data.Node;
-        if (currentTreeNode) {
-          currentTreePath = currentTreeNode.path || currentTreeNode.Path || currentTreePath;
+      } else if (type === 'folderTreeProgress') {
+        const pKey = normalizeTreeKey(data.path || data.Path || '');
+        if (pKey) {
+          pendingTreeScans[pKey] = { requestId: data.requestId, text: data.text || '', pct: data.pct ?? 0 };
         }
-        renderExplorerTree();
+        if (data.requestId === activeExplorerRequestId || pKey === normalizeTreeKey(currentTreePath)) {
+          updateExplorerProgressUI(data.text || 'Analyse en cours...', data.pct ?? 0);
+        }
+      } else if (type === 'folderTreeResult') {
+        const node = data.node || data.Node;
+        if (node) {
+          const nKey = normalizeTreeKey(node.path || node.Path || '');
+          delete pendingTreeScans[nKey];
+          treeCache[nKey] = node;
+          renderExplorerDrivePills();
+          if (data.requestId === activeExplorerRequestId || nKey === normalizeTreeKey(currentTreePath)) {
+            explorerLoading = false;
+            currentTreeNode = node;
+            currentTreePath = node.path || node.Path || currentTreePath;
+            renderExplorerTree();
+          }
+        }
       } else if (type === 'cleanResult') {
         onCleanCompleted(data);
       } else if (type === 'appSettings') {
@@ -1022,7 +1041,7 @@
         const extraTotalGB = extraItems.reduce((acc, x) => acc + getItemSizeGB(x), 0);
         html += `
           <div class="mt-5 pt-4 border-t border-white/[0.06]">
-            <button onclick="toggleExtraSection()" class="w-full flex items-center justify-between px-4 py-3 rounded-xl surface-card hover:bg-slate-800/70 transition-all text-left">
+            <button onclick="toggleExtraSection()" class="${extraExpanded ? 'sticky top-0 z-10 bg-[#0e1526]/95 backdrop-blur-md border-blue-500/35 shadow-xl' : 'surface-card hover:bg-slate-800/70'} border w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all text-left">
               <div class="flex items-center gap-2.5">
                 <span class="text-xs font-mono text-slate-400">${extraExpanded ? '▼' : '▶'}</span>
                 <div>
@@ -1030,10 +1049,13 @@
                   <span class="text-[11px] text-slate-400 ml-2">(${extraItems.length} éléments • ${extraTotalGB.toFixed(1)} Go)</span>
                 </div>
               </div>
-              <span class="text-[11px] text-blue-400 font-medium">${extraExpanded ? 'Masquer' : 'Afficher l\'inventaire'}</span>
+              <span class="text-[11px] text-blue-400 font-semibold">${extraExpanded ? '▲ Replier la liste' : 'Afficher l\'inventaire'}</span>
             </button>
             <div class="${extraExpanded ? 'mt-2.5 space-y-2' : 'hidden'}">
               ${extraItems.map(renderCardHtml).join('')}
+              <div class="pt-2 flex justify-center">
+                <button onclick="toggleExtraSection()" class="px-4 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/[0.08] text-[11px] text-blue-400 font-medium">▲ Replier les logiciels actifs</button>
+              </div>
             </div>
           </div>
         `;
@@ -1088,7 +1110,7 @@
               <span class="text-[10px] font-mono px-2 py-0.5 rounded-md border ${riskBadge} font-semibold tabular-nums">Risque ${riskPct}%</span>
               ${drive ? `<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-white/[0.08]">${escapeHtml(drive)}</span>` : ''}
               ${formatAgeBadge(ageDays, lastMod)}
-              ${isSanct ? `<span class="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">🔒 Sanctuarisé</span>` : ''}
+              ${isSanct ? `<span title="Dossier système ou personnel protégé par défaut" class="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">🔒 Protégé (Système / Perso)</span>` : ''}
               ${isProt ? `<span class="text-[10px] px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">🛡️ Protégé</span>` : ''}
             </div>
             <p class="text-[11px] text-slate-400 truncate">${escapeHtml(desc)}</p>
@@ -1162,6 +1184,14 @@
     }
 
     // ================= SPACE EXPLORER (ARBORESCENCE) =================
+    function normalizeTreeKey(p) {
+      if (!p) return '';
+      let k = p.trim().toUpperCase().replace(/\//g, '\\');
+      if (k.length === 2 && k[1] === ':') k += '\\';
+      else if (k.length > 3 && k.endsWith('\\')) k = k.slice(0, -1);
+      return k;
+    }
+
     function renderExplorerDrivePills() {
       const el = document.getElementById('explorer-drive-pills');
       if (!el || !drivesList) return;
@@ -1170,9 +1200,14 @@
         const name = (d.name || d.Name || 'C:').toUpperCase();
         const label = d.label || d.Label || 'Disque';
         const isCurrent = curRoot === name;
+        const rootKey = normalizeTreeKey(name + '\\');
+        const isCached = !!treeCache[rootKey];
+        const isScanning = !!pendingTreeScans[rootKey];
         return `
-          <button onclick="navigateExplorerEnc('${safeEnc(name + '\\')}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${isCurrent ? 'bg-cyan-600/25 border-cyan-400/50 text-cyan-200' : 'bg-slate-900/80 border-white/[0.08] text-slate-300 hover:text-white'}">
-            ${escapeHtml(name)} <span class="text-[10px] font-normal opacity-75">(${escapeHtml(label)})</span>
+          <button onclick="navigateExplorerEnc('${safeEnc(name + '\\')}')" class="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5 ${isCurrent ? 'bg-cyan-600/25 border-cyan-400/50 text-cyan-200' : 'bg-slate-900/80 border-white/[0.08] text-slate-300 hover:text-white'}">
+            ${isScanning ? '<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span>' : (isCached ? '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400" title="En mémoire (accès instantané)"></span>' : '')}
+            <span>${escapeHtml(name)}</span>
+            <span class="text-[10px] font-normal opacity-75">(${escapeHtml(label)})</span>
           </button>
         `;
       }).join('');
@@ -1182,19 +1217,40 @@
       navigateExplorer(decodeURIComponent(encPath));
     }
 
-    function navigateExplorer(targetPath) {
+    function navigateExplorer(targetPath, forceRefresh = false) {
       currentTreePath = targetPath;
+      const key = normalizeTreeKey(targetPath);
+
+      if (!forceRefresh && treeCache[key]) {
+        explorerLoading = false;
+        activeExplorerRequestId = ++explorerRequestCounter;
+        currentTreeNode = treeCache[key];
+        renderExplorerTree();
+        return;
+      }
+
+      if (!forceRefresh && pendingTreeScans[key]) {
+        explorerLoading = true;
+        activeExplorerRequestId = pendingTreeScans[key].requestId;
+        renderExplorerDrivePills();
+        updateHeaderSubtitle();
+        renderExplorerLoading(pendingTreeScans[key].text, pendingTreeScans[key].pct);
+        return;
+      }
+
       explorerLoading = true;
+      activeExplorerRequestId = ++explorerRequestCounter;
+      pendingTreeScans[key] = { requestId: activeExplorerRequestId, text: `Lecture de ${targetPath}...`, pct: 5 };
       renderExplorerDrivePills();
       updateHeaderSubtitle();
-      renderExplorerLoading();
-      postToBridge({ action: 'scanFolderTree', path: targetPath });
+      renderExplorerLoading(`Lecture de ${targetPath}...`, 5);
+      postToBridge({ action: 'scanFolderTree', path: targetPath, requestId: activeExplorerRequestId });
     }
 
     function explorerGoParent() {
       if (!currentTreePath) return;
       const trimmed = currentTreePath.replace(/[\\\/]+$/, '');
-      if (trimmed.length <= 2) return; // Déjà à la racine ex: "C:"
+      if (trimmed.length <= 2) return;
       const lastSlash = trimmed.lastIndexOf('\\');
       if (lastSlash <= 0) return;
       let parent = trimmed.slice(0, lastSlash);
@@ -1203,7 +1259,10 @@
     }
 
     function explorerRefresh() {
-      if (currentTreePath) navigateExplorer(currentTreePath);
+      if (currentTreePath) {
+        delete treeCache[normalizeTreeKey(currentTreePath)];
+        navigateExplorer(currentTreePath, true);
+      }
     }
 
     function explorerOpenShortcut(kind) {
@@ -1215,15 +1274,28 @@
       }
     }
 
-    function renderExplorerLoading() {
+    function renderExplorerLoading(statusText = '', pct = 5) {
       document.getElementById('explorer-visual-wrap').classList.add('hidden');
       document.getElementById('explorer-breadcrumb').innerHTML = `<span class="text-cyan-300">${escapeHtml(currentTreePath)}</span>`;
       document.getElementById('explorer-tree-container').innerHTML = `
-        <div class="surface-card rounded-xl p-10 text-center space-y-2.5">
+        <div class="surface-card rounded-xl p-10 text-center space-y-3 max-w-xl mx-auto">
           <svg class="animate-spin h-6 w-6 text-cyan-400 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
-          <div class="text-xs font-medium text-slate-200">Calcul de l'arborescence et des tailles pour <span class="font-mono text-cyan-300">${escapeHtml(currentTreePath)}</span>...</div>
+          <div id="explorer-progress-text" class="text-xs font-medium text-slate-200">${escapeHtml(statusText || `Calcul de l'arborescence pour ${currentTreePath}...`)}</div>
+          <div class="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-white/[0.06]">
+            <div id="explorer-progress-bar" class="bg-gradient-to-r from-cyan-500 to-blue-500 h-full rounded-full transition-all duration-200" style="width: ${pct}%;"></div>
+          </div>
+          <div id="explorer-progress-pct" class="text-[11px] font-mono text-cyan-300 tabular-nums">${pct}%</div>
         </div>
       `;
+    }
+
+    function updateExplorerProgressUI(text, pct) {
+      const tEl = document.getElementById('explorer-progress-text');
+      const bEl = document.getElementById('explorer-progress-bar');
+      const pEl = document.getElementById('explorer-progress-pct');
+      if (tEl) tEl.innerText = text;
+      if (bEl) bEl.style.width = `${pct}%`;
+      if (pEl) pEl.innerText = `${pct}%`;
     }
 
     function formatSizeNode(node) {
@@ -1331,7 +1403,7 @@
                   <span class="text-xs font-semibold text-white truncate">${escapeHtml(cname)}</span>
                   ${isFolder ? `<span class="text-[10px] text-slate-500 font-mono">${fCount.toLocaleString('fr-FR')} fichiers</span>` : ''}
                   ${lastMod ? `<span class="text-[10px] text-slate-500">${escapeHtml(lastMod)}</span>` : ''}
-                  ${isSanct ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">🔒 Sanctuarisé</span>` : ''}
+                  ${isSanct ? `<span title="Dossier système ou personnel protégé par défaut" class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">🔒 Protégé (Système / Perso)</span>` : ''}
                   ${isProt ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">🛡️ Protégé</span>` : ''}
                 </div>
               </div>
@@ -1608,10 +1680,15 @@
       btn.innerHTML = `<span>🚀</span> Lancer le Nettoyage Silencieux`;
 
       const deletedIds = res.deletedIds || res.DeletedIds || [];
+      const deletedPaths = res.deletedPaths || res.DeletedPaths || [];
       const errors = res.errors || res.Errors || [];
       if (deletedIds.length > 0 && !wasDirectTree) {
         allItems = allItems.filter(x => !deletedIds.includes(x.id || x.Id));
         deletedIds.forEach(id => selectedDeleteIds.delete(id));
+      }
+      if (deletedPaths.length > 0) {
+        // Invalider le cache Space Explorer pour les dossiers touchés
+        treeCache = {};
       }
       if (allItems.length > 0) refreshAuditUI();
       if (currentView === 'explorer' && currentTreePath) explorerRefresh();

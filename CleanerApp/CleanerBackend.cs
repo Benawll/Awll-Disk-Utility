@@ -115,7 +115,7 @@ namespace CleanerApp
 
     public static class CleanerBackend
     {
-        // Sanctuarisation dynamique et adaptative (universelle quel que soit le PC)
+        // Protection dynamique et adaptative des dossiers personnels et composants critiques (100% portable sur tout PC)
         private static List<string> GetSanctuarizedRoots()
         {
             var list = new List<string>
@@ -123,7 +123,6 @@ namespace CleanerApp
                 Environment.GetFolderPath(Environment.SpecialFolder.MyVideos),
                 Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "NVIDIA", "NGX"),
-                @"C:\New Doc", // Sanctuarisation spécifique demandée
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Java"),
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Java")
             };
@@ -531,9 +530,24 @@ namespace CleanerApp
             return await RunAuditAsync(progressCallback, selectedDrives);
         }
 
+        private static string ExtractExeFromCommand(string cmd)
+        {
+            if (string.IsNullOrWhiteSpace(cmd)) return "";
+            var trimmed = cmd.Trim();
+            if (trimmed.StartsWith("\""))
+            {
+                int endQuote = trimmed.IndexOf('"', 1);
+                if (endQuote > 1) return trimmed.Substring(1, endQuote - 1);
+            }
+            var exeIdx = trimmed.IndexOf(".exe", StringComparison.OrdinalIgnoreCase);
+            if (exeIdx > 0) return trimmed.Substring(0, exeIdx + 4);
+            return "";
+        }
+
         private static List<CleanerItem> GetRegistryInstalledApps(HashSet<string> seenPaths, HashSet<string> seenNames, HashSet<string>? targetDrives, HashSet<string> runningProcs)
         {
             var list = new List<CleanerItem>();
+            var winDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows).TrimEnd('\\');
 
             var keys = new[]
             {
@@ -578,16 +592,41 @@ namespace CleanerApp
                             var installDateRaw = appKey.GetValue("InstallDate") as string ?? "";
 
                             string effectivePath = "";
+                            string iconFile = "";
                             if (!string.IsNullOrEmpty(installLoc) && Directory.Exists(installLoc))
                             {
                                 effectivePath = installLoc;
                             }
                             else if (!string.IsNullOrEmpty(displayIcon))
                             {
-                                var iconPath = displayIcon.Split(',')[0].Trim('"');
-                                if (File.Exists(iconPath))
+                                iconFile = displayIcon.Split(',')[0].Trim('"');
+                                if (File.Exists(iconFile))
                                 {
-                                    effectivePath = Path.GetDirectoryName(iconPath) ?? "";
+                                    var dir = Path.GetDirectoryName(iconFile) ?? "";
+                                    if (!dir.StartsWith(winDir, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        effectivePath = dir;
+                                    }
+                                }
+                            }
+
+                            bool isMsi = uninstallStr.Contains("msiexec", StringComparison.OrdinalIgnoreCase);
+                            string extractedExe = ExtractExeFromCommand(uninstallStr);
+
+                            if (string.IsNullOrEmpty(effectivePath) && !string.IsNullOrEmpty(extractedExe) && !isMsi)
+                            {
+                                if (File.Exists(extractedExe))
+                                {
+                                    var exeDir = Path.GetDirectoryName(extractedExe) ?? "";
+                                    if (!string.IsNullOrEmpty(exeDir) && !exeDir.StartsWith(winDir, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        effectivePath = exeDir;
+                                    }
+                                }
+                                else
+                                {
+                                    // Trace registre orpheline : le logiciel n'existe plus sur le disque -> ne pas l'afficher comme installé
+                                    continue;
                                 }
                             }
 
@@ -601,10 +640,13 @@ namespace CleanerApp
 
                             double sizeBytes = 0;
                             DateTime lastActivity = DateTime.Now;
+                            bool hasKnownDate = false;
+
                             if (!string.IsNullOrEmpty(effectivePath) && Directory.Exists(effectivePath))
                             {
                                 sizeBytes = GetDirectorySizeSafe(effectivePath);
                                 lastActivity = GetLastWriteTimeSafe(new DirectoryInfo(effectivePath));
+                                hasKnownDate = true;
                             }
                             else
                             {
@@ -615,20 +657,26 @@ namespace CleanerApp
                                 if (DateTime.TryParseExact(installDateRaw, "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out var parsedInstall))
                                 {
                                     lastActivity = parsedInstall;
+                                    hasKnownDate = true;
+                                }
+                                else if (!string.IsNullOrEmpty(iconFile) && File.Exists(iconFile))
+                                {
+                                    lastActivity = File.GetLastWriteTime(iconFile);
+                                    hasKnownDate = true;
                                 }
                             }
 
-                            int daysAgo = Math.Max(0, (int)(DateTime.Now - lastActivity).TotalDays);
-                            bool isCore = IsCoreSystemOrRuntime(displayName, pathForDisplay) || publisher.Contains("Microsoft", StringComparison.OrdinalIgnoreCase) && displayName.Contains("Runtime", StringComparison.OrdinalIgnoreCase);
+                            int daysAgo = hasKnownDate ? Math.Max(0, (int)(DateTime.Now - lastActivity).TotalDays) : 0;
+                            bool isCore = IsCoreSystemOrRuntime(displayName, pathForDisplay) || (publisher.Contains("Microsoft", StringComparison.OrdinalIgnoreCase) && displayName.Contains("Runtime", StringComparison.OrdinalIgnoreCase));
                             bool isRunning = IsLikelyRunning(displayName, pathForDisplay, runningProcs);
                             bool isSanct = IsPathSanctuarized(effectivePath);
 
-                            bool promoteToRecommended = daysAgo >= 365 && !isCore && !isRunning && !isSanct && sizeBytes > 25 * 1024 * 1024;
+                            bool promoteToRecommended = hasKnownDate && daysAgo >= 365 && !isCore && !isRunning && !isSanct;
                             int risk = ComputeRiskScore("installed_app", daysAgo, isRunning, isCore, isSanct);
 
                             string desc = promoteToRecommended
                                 ? $"Application ({publisher}) inutilisée depuis {FormatAgeText(daysAgo)} ({lastActivity:dd/MM/yyyy})."
-                                : $"Application Windows ({publisher}{(string.IsNullOrEmpty(version) ? "" : ", v" + version)}).";
+                                : $"Application Windows ({publisher}{(string.IsNullOrEmpty(version) ? "" : ", v" + version)}){(hasKnownDate ? $" — {lastActivity:dd/MM/yyyy}" : "")}.";
 
                             var item = CreateItem(
                                 displayName,
@@ -1393,21 +1441,52 @@ namespace CleanerApp
                 RiskPct = initialRisk
             };
 
-            bool exists = Directory.Exists(path) || File.Exists(path);
-            if (!exists)
+            bool isRegistryEntry = path.Equals("Registre Windows", StringComparison.OrdinalIgnoreCase) ||
+                                   path.Contains("msiexec", StringComparison.OrdinalIgnoreCase);
+            string resolvedPath = path;
+            if (!Directory.Exists(resolvedPath) && !File.Exists(resolvedPath) && !isRegistryEntry)
             {
-                report.Definition = "L'élément est déjà supprimé ou n'existe plus sur le disque.";
-                report.Origin = "Fichier ou dossier supprimé.";
+                var cmdExe = ExtractExeFromCommand(path);
+                if (!string.IsNullOrEmpty(cmdExe) && File.Exists(cmdExe))
+                {
+                    resolvedPath = Path.GetDirectoryName(cmdExe) ?? cmdExe;
+                }
+            }
+
+            bool existsOnDisk = Directory.Exists(resolvedPath) || File.Exists(resolvedPath);
+            if (!existsOnDisk && !isRegistryEntry)
+            {
+                report.Definition = "L'élément n'existe plus sur le disque (seule une trace dans le Registre Windows subsistait).";
+                report.Origin = "Fichier ou dossier déjà supprimé.";
                 report.UsageActivity = "Inactif";
                 report.SafetyImpact = "Aucun impact sur le système.";
                 report.RiskPct = 0;
                 return report;
             }
 
-            DateTime lastWrite = File.Exists(path) ? new FileInfo(path).LastWriteTime : GetLastWriteTimeSafe(new DirectoryInfo(path));
+            DateTime lastWrite = DateTime.Now;
+            if (File.Exists(resolvedPath))
+            {
+                lastWrite = new FileInfo(resolvedPath).LastWriteTime;
+            }
+            else if (Directory.Exists(resolvedPath))
+            {
+                lastWrite = GetLastWriteTimeSafe(new DirectoryInfo(resolvedPath));
+            }
+            else
+            {
+                var regTmp = FindRegistryAppDetails(name.ToLowerInvariant(), name);
+                if (regTmp != null && DateTime.TryParseExact(regTmp.InstallDate, "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out var dtReg))
+                {
+                    lastWrite = dtReg;
+                }
+            }
             report.LastAccessDate = lastWrite.ToString("dd MMMM yyyy");
 
-            var baseName = Path.GetFileNameWithoutExtension(path).ToLowerInvariant();
+            var baseName = isRegistryEntry
+                ? name.ToLowerInvariant()
+                : Path.GetFileNameWithoutExtension(resolvedPath).ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(baseName) || baseName.Length < 2) baseName = name.ToLowerInvariant();
             var procs = Process.GetProcesses();
             var matchedProcs = procs.Where(p =>
             {
@@ -2478,13 +2557,15 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
 
         #region EXPLORATEUR D'ESPACE ARBORESCENT (SPACE LENS)
 
-        public static async Task<FolderNode> ScanFolderTreeAsync(string rootPath)
+        public static async Task<FolderNode> ScanFolderTreeAsync(string rootPath, Action<string, int>? progressCallback = null)
         {
             return await Task.Run(() =>
             {
                 if (string.IsNullOrWhiteSpace(rootPath)) rootPath = @"C:\";
                 string normalized = rootPath.Trim();
                 if (normalized.Length == 2 && normalized[1] == ':') normalized += @"\";
+
+                progressCallback?.Invoke($"Lecture de {normalized}...", 5);
 
                 var protectedList = GetProtectedItems();
                 var winDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows).TrimEnd('\\');
@@ -2525,12 +2606,18 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
                 try
                 {
                     var subDirs = rootInfo.GetDirectories("*", SafeTopOpts);
+                    int totalDirs = Math.Max(1, subDirs.Length);
+                    int doneDirs = 0;
+
                     Parallel.ForEach(subDirs, new ParallelOptions { MaxDegreeOfParallelism = Math.Max(2, Environment.ProcessorCount) }, sub =>
                     {
                         try
                         {
-                            // Sauter System Volume Information / Recovery pour éviter bruits système
-                            if (sub.Name.Equals("System Volume Information", StringComparison.OrdinalIgnoreCase)) return;
+                            if (sub.Name.Equals("System Volume Information", StringComparison.OrdinalIgnoreCase))
+                            {
+                                System.Threading.Interlocked.Increment(ref doneDirs);
+                                return;
+                            }
                             var (bytes, fCount, lw) = GetDirectoryStatsSafe(sub.FullName);
                             bool sct = CheckSanctOrProtected(sub.FullName, sub.Name, out bool prt);
                             childrenBag.Add(new FolderNode
@@ -2546,8 +2633,11 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
                                 IsSanctuarized = sct,
                                 IsProtected = prt
                             });
+                            int cur = System.Threading.Interlocked.Increment(ref doneDirs);
+                            int pct = 10 + (int)Math.Round((cur / (double)totalDirs) * 85.0);
+                            progressCallback?.Invoke($"Analyse ({cur}/{totalDirs}) : {sub.Name}", Math.Min(pct, 95));
                         }
-                        catch { }
+                        catch { System.Threading.Interlocked.Increment(ref doneDirs); }
                     });
                 }
                 catch { }

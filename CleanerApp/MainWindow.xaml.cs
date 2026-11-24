@@ -243,8 +243,15 @@ namespace CleanerApp
                     case "scanFolderTree":
                     {
                         var treePath = root.TryGetProperty("path", out var pProp) ? (pProp.GetString() ?? @"C:\") : @"C:\";
-                        var node = await CleanerBackend.ScanFolderTreeAsync(treePath);
-                        SendJson(new { type = "folderTreeResult", node });
+                        int requestId = root.TryGetProperty("requestId", out var rIdProp) && rIdProp.TryGetInt32(out int rid) ? rid : 0;
+                        var node = await CleanerBackend.ScanFolderTreeAsync(treePath, (msg, pct) =>
+                        {
+                            Dispatcher.Invoke(() =>
+                            {
+                                SendJson(new { type = "folderTreeProgress", requestId, path = treePath, text = msg, pct });
+                            });
+                        });
+                        SendJson(new { type = "folderTreeResult", requestId, node });
                         break;
                     }
 
