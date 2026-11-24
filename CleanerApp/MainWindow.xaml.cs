@@ -26,13 +26,23 @@ namespace CleanerApp
                 var userDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CleanerApp", "WebView2Data");
                 Directory.CreateDirectory(userDataFolder);
 
+                // Emplacement des assets UI (support standalone 100% autonome sur n'importe quel PC)
+                var assetsFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CleanerApp", "Assets");
+                Directory.CreateDirectory(assetsFolder);
+
+                // Extraction des ressources intégrées si absentes ou si l'exe est déplacé seul
+                ExtractEmbeddedAsset("CleanerApp.index.html", Path.Combine(assetsFolder, "index.html"));
+                ExtractEmbeddedAsset("CleanerApp.tailwindcss.min.js", Path.Combine(assetsFolder, "tailwindcss.min.js"));
+
+                var effectiveAssetsDir = File.Exists(Path.Combine(appDir, "index.html")) ? appDir : assetsFolder;
+
                 var env = await CoreWebView2Environment.CreateAsync(null, userDataFolder);
                 await webView.EnsureCoreWebView2Async(env);
 
                 // Mapping pour charger index.html et tailwindcss.min.js localement
                 webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
                     "cleaner.app",
-                    appDir,
+                    effectiveAssetsDir,
                     CoreWebView2HostResourceAccessKind.Allow
                 );
 
@@ -45,6 +55,21 @@ namespace CleanerApp
             {
                 MessageBox.Show($"Erreur d'initialisation de WebView2 : {ex.Message}", "Erreur Cleaner Pro", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private static void ExtractEmbeddedAsset(string resourceName, string targetPath)
+        {
+            try
+            {
+                var asm = System.Reflection.Assembly.GetExecutingAssembly();
+                using var stream = asm.GetManifestResourceStream(resourceName);
+                if (stream != null)
+                {
+                    using var fileStream = File.Create(targetPath);
+                    stream.CopyTo(fileStream);
+                }
+            }
+            catch { }
         }
 
         private async void CoreWebView2_WebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
@@ -148,11 +173,16 @@ namespace CleanerApp
             }
         }
 
+        private static readonly JsonSerializerOptions JsonOpts = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
+
         private void SendJson(object payload)
         {
             try
             {
-                var json = JsonSerializer.Serialize(payload);
+                var json = JsonSerializer.Serialize(payload, JsonOpts);
                 webView.CoreWebView2?.PostWebMessageAsJson(json);
             }
             catch (Exception ex)

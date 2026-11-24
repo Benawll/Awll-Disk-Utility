@@ -31,7 +31,7 @@
             Workspace Cleaner Pro
             <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">v2.0 Standalone</span>
           </h1>
-          <p class="text-xs text-slate-400">Audit dynamique tri-disques • Détection des angles morts • Mode 100% Headless</p>
+          <p class="text-xs text-slate-400">Audit dynamique multi-disques • Détection universelle • Mode 100% Headless</p>
         </div>
       </div>
 
@@ -56,45 +56,10 @@
       </div>
     </div>
 
-    <!-- ================= DRIVES REAL-TIME STATUS BAR ================= -->
+    <!-- ================= DRIVES REAL-TIME STATUS BAR (100% DYNAMIQUE MULTI-DISQUES) ================= -->
     <div id="drives-container" class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3 pt-3 border-t border-slate-800/60">
-      <!-- Drive C: placeholder -->
-      <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-2.5 flex flex-col justify-between" id="drive-card-C">
-        <div class="flex items-center justify-between text-xs mb-1.5">
-          <div class="flex items-center gap-1.5 font-bold text-emerald-400">
-            <span>🟢</span> Disque C:\ <span class="text-[11px] font-normal text-slate-400">(Système)</span>
-          </div>
-          <span class="font-mono text-emerald-400 font-bold" id="drive-free-C">Calcul en cours...</span>
-        </div>
-        <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
-          <div id="drive-bar-C" class="bg-emerald-500 h-2 rounded-full transition-all duration-500" style="width: 50%;"></div>
-        </div>
-      </div>
-
-      <!-- Drive D: placeholder -->
-      <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-2.5 flex flex-col justify-between" id="drive-card-D">
-        <div class="flex items-center justify-between text-xs mb-1.5">
-          <div class="flex items-center gap-1.5 font-bold text-blue-400">
-            <span>🔵</span> Disque D:\ <span class="text-[11px] font-normal text-slate-400">(Jeux & Données)</span>
-          </div>
-          <span class="font-mono text-blue-400 font-bold" id="drive-free-D">Calcul en cours...</span>
-        </div>
-        <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
-          <div id="drive-bar-D" class="bg-blue-500 h-2 rounded-full transition-all duration-500" style="width: 50%;"></div>
-        </div>
-      </div>
-
-      <!-- Drive E: placeholder -->
-      <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-2.5 flex flex-col justify-between" id="drive-card-E">
-        <div class="flex items-center justify-between text-xs mb-1.5">
-          <div class="flex items-center gap-1.5 font-bold text-purple-400">
-            <span>🟣</span> Disque E:\ <span class="text-[11px] font-normal text-slate-400">(Bibliothèques Steam)</span>
-          </div>
-          <span class="font-mono text-purple-400 font-bold" id="drive-free-E">Calcul en cours...</span>
-        </div>
-        <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
-          <div id="drive-bar-E" class="bg-purple-500 h-2 rounded-full transition-all duration-500" style="width: 50%;"></div>
-        </div>
+      <div class="p-3 text-center text-xs text-slate-500 col-span-full">
+        <span class="inline-block animate-spin mr-1.5">⏳</span> Détection automatique des disques en cours...
       </div>
     </div>
   </header>
@@ -150,7 +115,7 @@
         <div class="text-4xl">🚀</div>
         <h3 class="text-sm font-semibold text-white">Prêt pour l'audit complet</h3>
         <p class="text-xs text-slate-400 max-w-md mx-auto">
-          Cliquez sur <strong>« Lancer l'Audit Global »</strong> pour scanner dynamiquement vos disques (C:, D:, E:), détecter les doublons de jeux, les caches corrompus, et les installeurs résiduels.
+          Cliquez sur <strong>« Lancer l'Audit Global »</strong> pour scanner dynamiquement tous vos disques connectés, détecter les doublons de jeux, les caches corrompus, et les installeurs résiduels.
         </p>
         <button onclick="startAudit()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs shadow-md transition-all inline-flex items-center gap-2">
           <span>🔍</span> Lancer l'Audit Immédiat
@@ -283,34 +248,61 @@
       const data = event.data;
       if (!data) return;
 
-      if (data.type === 'drivesUpdate') {
-        renderDrives(data.drives);
-      } else if (data.type === 'auditProgress') {
-        showProgress(data.text, data.pct);
-      } else if (data.type === 'auditResult') {
+      const type = data.type || data.Type;
+      if (type === 'drivesUpdate') {
+        renderDrives(data.drives || data.Drives);
+      } else if (type === 'auditProgress') {
+        showProgress(data.text || data.Text || 'Analyse...', data.pct ?? data.Pct ?? 0);
+      } else if (type === 'auditResult') {
         hideProgress();
-        allItems = data.items || [];
+        allItems = data.items || data.Items || [];
         renderItems();
         updateCounters();
-      } else if (data.type === 'researchResult') {
-        showResearchModal(data.report);
-      } else if (data.type === 'cleanResult') {
+      } else if (type === 'researchResult') {
+        showResearchModal(data.report || data.Report);
+      } else if (type === 'cleanResult') {
         onCleanCompleted(data);
       }
     }
 
-    // 2. Rendu des Disques
+    // 2. Rendu Dynamique des Disques (S'adapte à tout PC : 1, 2, 3 disques ou plus)
     function renderDrives(drives) {
-      if (!drives) return;
-      drives.forEach(d => {
-        const letter = d.name.replace(':', '');
-        const freeElem = document.getElementById(`drive-free-${letter}`);
-        const barElem = document.getElementById(`drive-bar-${letter}`);
-        if (freeElem && barElem) {
-          freeElem.innerText = `${d.freeGB} Go libres / ${d.totalGB} Go`;
-          barElem.style.width = `${d.pctUsed}%`;
-        }
-      });
+      if (!drives || drives.length === 0) return;
+      const container = document.getElementById('drives-container');
+      const cols = Math.min(Math.max(drives.length, 1), 4);
+      container.className = `grid grid-cols-1 md:grid-cols-${cols} gap-3 mt-3 pt-3 border-t border-slate-800/60`;
+
+      const colors = [
+        { text: 'text-emerald-400', bg: 'bg-emerald-500', dot: '🟢' },
+        { text: 'text-blue-400', bg: 'bg-blue-500', dot: '🔵' },
+        { text: 'text-purple-400', bg: 'bg-purple-500', dot: '🟣' },
+        { text: 'text-amber-400', bg: 'bg-amber-500', dot: '🟡' },
+        { text: 'text-rose-400', bg: 'bg-rose-500', dot: '🔴' },
+        { text: 'text-cyan-400', bg: 'bg-cyan-500', dot: '🔷' }
+      ];
+
+      container.innerHTML = drives.map((d, idx) => {
+        const name = d.name || d.Name || 'Disque';
+        const label = d.label || d.Label || 'Disque Local';
+        const freeGB = d.freeGB ?? d.FreeGB ?? 0;
+        const totalGB = d.totalGB ?? d.TotalGB ?? 0;
+        const pctUsed = d.pctUsed ?? d.PctUsed ?? 0;
+        const c = colors[idx % colors.length];
+
+        return `
+          <div class="bg-slate-950/60 border border-slate-800 rounded-lg p-2.5 flex flex-col justify-between">
+            <div class="flex items-center justify-between text-xs mb-1.5">
+              <div class="flex items-center gap-1.5 font-bold ${c.text}">
+                <span>${c.dot}</span> Disque ${name}\\ <span class="text-[11px] font-normal text-slate-400">(${label})</span>
+              </div>
+              <span class="font-mono ${c.text} font-bold">${freeGB.toFixed(2)} Go libres / ${totalGB.toFixed(2)} Go</span>
+            </div>
+            <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+              <div class="${c.bg} h-2 rounded-full transition-all duration-500" style="width: ${pctUsed}%;"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
     }
 
     // 3. Lancement de l'audit
@@ -335,26 +327,28 @@
       document.getElementById('scan-label').innerText = "Relancer l'Audit";
     }
 
-    // 4. Rendu des Éléments
+    // 4. Rendu des Éléments (avec support robuste PascalCase & camelCase)
     function renderItems() {
       const container = document.getElementById('items-container');
-      const emptyState = document.getElementById('empty-state');
 
       if (!allItems || allItems.length === 0) {
         container.innerHTML = `
           <div class="p-12 text-center rounded-2xl border border-dashed border-emerald-500/30 bg-emerald-500/5 space-y-2">
             <div class="text-4xl">✨</div>
             <h3 class="text-sm font-semibold text-emerald-400">Aucun élément superflu détecté !</h3>
-            <p class="text-xs text-slate-400">Vos disques sont impeccables et optimisés.</p>
+            <p class="text-xs text-slate-400">Tous vos disques sont impeccables et optimisés.</p>
           </div>
         `;
         return;
       }
 
       const q = (document.getElementById('search-input').value || '').toLowerCase();
-      const filtered = allItems.filter(item => {
-        const matchTab = (currentTab === 'all') || (item.category === currentTab);
-        const matchQuery = !q || item.name.toLowerCase().includes(q) || item.path.toLowerCase().includes(q);
+      const filtered = allItems.filter(raw => {
+        const cat = (raw.category || raw.Category || '').toLowerCase();
+        const name = (raw.name || raw.Name || '').toLowerCase();
+        const path = (raw.path || raw.Path || '').toLowerCase();
+        const matchTab = (currentTab === 'all') || (cat === currentTab);
+        const matchQuery = !q || name.includes(q) || path.includes(q);
         return matchTab && matchQuery;
       });
 
@@ -367,18 +361,31 @@
         return;
       }
 
-      container.innerHTML = filtered.map(item => {
+      container.innerHTML = filtered.map(raw => {
+        const item = {
+          id: raw.id || raw.Id,
+          name: raw.name || raw.Name || 'Élément',
+          path: raw.path || raw.Path || '',
+          category: (raw.category || raw.Category || 'system').toLowerCase(),
+          drive: raw.drive || raw.Drive || 'Système',
+          sizeGB: raw.sizeGB ?? raw.SizeGB ?? 0,
+          sizeMB: raw.sizeMB ?? raw.SizeMB ?? 0,
+          riskPct: raw.riskPct ?? raw.RiskPct ?? 0,
+          description: raw.description || raw.Description || ''
+        };
+
         const riskColor = item.riskPct <= 10 ? 'emerald' : (item.riskPct <= 40 ? 'blue' : (item.riskPct <= 70 ? 'amber' : 'red'));
-        const driveColor = item.drive === 'C:' ? 'emerald' : (item.drive === 'D:' ? 'blue' : 'purple');
+        const driveColor = item.drive.startsWith('C') ? 'emerald' : (item.drive.startsWith('D') ? 'blue' : 'purple');
+        const sz = item.sizeGB > 0 ? (item.sizeGB.toFixed(2) + ' Go') : (item.sizeMB.toFixed(1) + ' Mo');
 
         return `
           <div class="p-3 rounded-xl bg-slate-900 border border-slate-800/80 hover:border-slate-700 transition-all flex flex-wrap items-center justify-between gap-3 shadow-sm" id="row-${item.id}">
             <div class="flex-1 min-w-[280px]">
               <div class="flex items-center gap-2 mb-1 flex-wrap">
                 <span class="font-bold text-white text-xs">${item.name}</span>
-                <span class="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">${item.sizeGB > 0 ? item.sizeGB + ' Go' : item.sizeMB + ' Mo'}</span>
+                <span class="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">${sz}</span>
                 <span class="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-${riskColor}-500/10 text-${riskColor}-400 border border-${riskColor}-500/30">Risque : ${item.riskPct}%</span>
-                <span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-${driveColor}-500/10 text-${driveColor}-400">${item.drive || 'Système'}</span>
+                <span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-${driveColor}-500/10 text-${driveColor}-400 font-bold">${item.drive || 'Système'}</span>
               </div>
               <p class="text-[11px] text-slate-400">${item.description}</p>
             </div>
@@ -409,10 +416,13 @@
       let totalGB = 0;
       let count = 0;
 
-      allItems.forEach(item => {
-        const rad = document.querySelector(`input[name="action-${item.id}"][value="delete"]`);
+      allItems.forEach(raw => {
+        const id = raw.id || raw.Id;
+        const sizeGB = raw.sizeGB ?? raw.SizeGB ?? 0;
+        const sizeMB = raw.sizeMB ?? raw.SizeMB ?? 0;
+        const rad = document.querySelector(`input[name="action-${id}"][value="delete"]`);
         if (rad && rad.checked) {
-          totalGB += (item.sizeGB || (item.sizeMB / 1024.0));
+          totalGB += (sizeGB > 0 ? sizeGB : (sizeMB / 1024.0));
           count++;
         }
       });
@@ -437,31 +447,46 @@
     }
 
     function updateCounters() {
+      const getCat = x => (x.category || x.Category || '').toLowerCase();
       document.getElementById('count-all').innerText = allItems.length;
-      document.getElementById('count-games').innerText = allItems.filter(x => x.category === 'games').length;
-      document.getElementById('count-system').innerText = allItems.filter(x => x.category === 'system').length;
-      document.getElementById('count-downloads').innerText = allItems.filter(x => x.category === 'downloads').length;
-      document.getElementById('count-apps').innerText = allItems.filter(x => x.category === 'apps').length;
+      document.getElementById('count-games').innerText = allItems.filter(x => getCat(x) === 'games').length;
+      document.getElementById('count-system').innerText = allItems.filter(x => getCat(x) === 'system').length;
+      document.getElementById('count-downloads').innerText = allItems.filter(x => getCat(x) === 'downloads').length;
+      document.getElementById('count-apps').innerText = allItems.filter(x => getCat(x) === 'apps').length;
     }
 
     // 7. Enquête factuelle ("❓ Plus d'infos")
     function askResearch(id) {
-      const item = allItems.find(x => x.id === id);
+      const item = allItems.find(x => (x.id || x.Id) === id);
       if (!item) return;
-      postToBridge({ action: 'researchItem', name: item.name, path: item.path });
+      postToBridge({
+        action: 'researchItem',
+        name: item.name || item.Name || '',
+        path: item.path || item.Path || ''
+      });
     }
 
     function showResearchModal(rep) {
-      document.getElementById('res-title').innerText = rep.itemName;
-      document.getElementById('res-path').innerText = rep.itemPath;
-      document.getElementById('res-date').innerText = rep.lastAccessDate;
+      if (!rep) return;
+      const title = rep.itemName || rep.ItemName || 'Élément';
+      const path = rep.itemPath || rep.ItemPath || '';
+      const date = rep.lastAccessDate || rep.LastAccessDate || 'Inconnu';
+      const risk = rep.riskPct ?? rep.RiskPct ?? 0;
+      const def = rep.definition || rep.Definition || '';
+      const origin = rep.origin || rep.Origin || '';
+      const act = rep.usageActivity || rep.UsageActivity || '';
+      const safety = rep.safetyImpact || rep.SafetyImpact || '';
+
+      document.getElementById('res-title').innerText = title;
+      document.getElementById('res-path').innerText = path;
+      document.getElementById('res-date').innerText = date;
       const riskEl = document.getElementById('res-risk');
-      riskEl.innerText = `${rep.riskPct}%`;
-      riskEl.className = `font-bold font-mono ${rep.riskPct <= 10 ? 'text-emerald-400' : (rep.riskPct <= 40 ? 'text-blue-400' : 'text-amber-400')}`;
-      document.getElementById('res-def').innerText = rep.definition;
-      document.getElementById('res-origin').innerText = rep.origin;
-      document.getElementById('res-activity').innerText = rep.usageActivity;
-      document.getElementById('res-safety').innerText = rep.safetyImpact;
+      riskEl.innerText = `${risk}%`;
+      riskEl.className = `font-bold font-mono ${risk <= 10 ? 'text-emerald-400' : (risk <= 40 ? 'text-blue-400' : 'text-amber-400')}`;
+      document.getElementById('res-def').innerText = def;
+      document.getElementById('res-origin').innerText = origin;
+      document.getElementById('res-activity').innerText = act;
+      document.getElementById('res-safety').innerText = safety;
       document.getElementById('modal-research').classList.remove('hidden');
     }
 
@@ -475,8 +500,9 @@
 
     // 8. Modal de Confirmation et Nettoyage Headless
     function openCleanModal() {
-      const selected = allItems.filter(item => {
-        const rad = document.querySelector(`input[name="action-${item.id}"][value="delete"]`);
+      const selected = allItems.filter(raw => {
+        const id = raw.id || raw.Id;
+        const rad = document.querySelector(`input[name="action-${id}"][value="delete"]`);
         return rad && rad.checked;
       });
 
@@ -484,10 +510,13 @@
 
       const listContainer = document.getElementById('clean-summary-list');
       let total = 0;
-      listContainer.innerHTML = selected.map(item => {
-        const sz = item.sizeGB > 0 ? `${item.sizeGB} Go` : `${item.sizeMB} Mo`;
-        total += (item.sizeGB || (item.sizeMB / 1024.0));
-        return `<div class="flex items-center justify-between text-slate-300"><span>• ${item.name}</span><span class="text-blue-400 font-bold">${sz}</span></div>`;
+      listContainer.innerHTML = selected.map(raw => {
+        const name = raw.name || raw.Name;
+        const sizeGB = raw.sizeGB ?? raw.SizeGB ?? 0;
+        const sizeMB = raw.sizeMB ?? raw.SizeMB ?? 0;
+        const sz = sizeGB > 0 ? `${sizeGB.toFixed(2)} Go` : `${sizeMB.toFixed(1)} Mo`;
+        total += (sizeGB > 0 ? sizeGB : (sizeMB / 1024.0));
+        return `<div class="flex items-center justify-between text-slate-300 py-0.5"><span>• ${name}</span><span class="text-blue-400 font-bold font-mono">${sz}</span></div>`;
       }).join('');
 
       document.getElementById('clean-modal-total').innerText = total.toFixed(2) + " Go";
@@ -499,8 +528,9 @@
     }
 
     function executeSelectedClean() {
-      const selected = allItems.filter(item => {
-        const rad = document.querySelector(`input[name="action-${item.id}"][value="delete"]`);
+      const selected = allItems.filter(raw => {
+        const id = raw.id || raw.Id;
+        const rad = document.querySelector(`input[name="action-${id}"][value="delete"]`);
         return rad && rad.checked;
       });
 
@@ -516,18 +546,19 @@
       document.getElementById('btn-confirm-delete').disabled = false;
       document.getElementById('btn-confirm-delete').innerHTML = `<span>🚀</span> Lancer la Suppression Silencieuse`;
 
-      // Retirer les éléments supprimés de la liste
-      if (res.deletedIds) {
-        allItems = allItems.filter(x => !res.deletedIds.includes(x.id));
+      const deletedIds = res.deletedIds || res.DeletedIds || [];
+      if (deletedIds.length > 0) {
+        allItems = allItems.filter(x => !deletedIds.includes(x.id || x.Id));
       }
       renderItems();
       updateCounters();
       updateSelectionCalc();
 
-      // Mettre à jour les disques
+      // Mettre à jour les disques en temps réel
       postToBridge({ action: 'getDrives' });
 
-      alert(`Nettoyage Headless Terminé !\nEspace total libéré : ${res.freedGB.toFixed(2)} Go`);
+      const freed = res.freedGB ?? res.FreedGB ?? 0;
+      alert(`Nettoyage Headless Terminé !\nEspace total libéré : ${freed.toFixed(2)} Go`);
     }
   </script>
 </body>

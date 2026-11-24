@@ -311,10 +311,10 @@ namespace CleanerApp
                 }
             }
 
-            // D. Découverte dynamique de vieux dossiers de jeux portables sur tous les disques
+            // D. Découverte dynamique de vieux dossiers de jeux portables et launchers sur tous les disques
             foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed))
             {
-                var candidateFolders = new[] { "Autres Jeux", "Jeux", "Games", "Old Games" };
+                var candidateFolders = new[] { "Autres Jeux", "Jeux", "Games", "Old Games", "Riot Games", "GOG Games", "Ubisoft", "Battle.net" };
                 foreach (var cf in candidateFolders)
                 {
                     var full = Path.Combine(drive.Name, cf);
@@ -430,7 +430,7 @@ namespace CleanerApp
             foreach (var drive in DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed))
             {
                 // 1. Dossiers temporaires et caches à la racine de chaque disque
-                var rootCaches = new[] { "msdownld.tmp", "MSOCache", "MobiSaverCache", "Temp", "Tmp", "TeraBoxDownload" };
+                var rootCaches = new[] { "msdownld.tmp", "MSOCache", "MobiSaverCache", "Temp", "Tmp", "TeraBoxDownload", "$Recycle.Bin", ".gradle", ".m2", "node_modules" };
                 foreach (var rc in rootCaches)
                 {
                     var p = Path.Combine(drive.Name, rc);
@@ -552,7 +552,7 @@ namespace CleanerApp
         private static void AuditEmulatorsUniversal(List<CleanerItem> items)
         {
             var drives = DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed);
-            var emuFolderNames = new[] { "Nox", "BlueStacks", "Yuzu", "Jeux dolphin", "Dolphin-x64", "Ryujinx" };
+            var emuFolderNames = new[] { "Nox", "BlueStacks", "Yuzu", "Jeux dolphin", "Dolphin-x64", "Ryujinx", "LDPlayer", "MEmu" };
 
             foreach (var d in drives)
             {
