@@ -34,8 +34,14 @@ namespace CleanerApp
                 var progX86Dir = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86).TrimEnd('\\');
                 var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile).TrimEnd('\\');
 
-                var docsDir = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments).TrimEnd('\\');
-                var videosDir = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos).TrimEnd('\\');
+                var personalDirs = new[]
+                {
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments).TrimEnd('\\'),
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyVideos).TrimEnd('\\'),
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyPictures).TrimEnd('\\'),
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyMusic).TrimEnd('\\'),
+                    Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory).TrimEnd('\\')
+                }.Where(x => !string.IsNullOrEmpty(x)).ToArray();
                 bool CheckSanctOrProtected(string p, string n, out bool isProt, out bool isPersonalSub)
                 {
                     isProt = protectedList.Any(x => (!string.IsNullOrEmpty(p) && x.Path.Equals(p, StringComparison.OrdinalIgnoreCase)) ||
@@ -43,8 +49,7 @@ namespace CleanerApp
                     string pTrim = p.TrimEnd('\\');
                     bool isCriticalRoot = pTrim.Equals(winDir, StringComparison.OrdinalIgnoreCase) ||
                                           pTrim.EndsWith(@"System32", StringComparison.OrdinalIgnoreCase);
-                    isPersonalSub = (!string.IsNullOrEmpty(docsDir) && pTrim.StartsWith(docsDir + @"\", StringComparison.OrdinalIgnoreCase)) ||
-                                    (!string.IsNullOrEmpty(videosDir) && pTrim.StartsWith(videosDir + @"\", StringComparison.OrdinalIgnoreCase));
+                    isPersonalSub = personalDirs.Any(pd => pTrim.StartsWith(pd + @"\", StringComparison.OrdinalIgnoreCase));
                     if (isPersonalSub) return isCriticalRoot;
                     return IsPathSanctuarized(p) || isCriticalRoot;
                 }

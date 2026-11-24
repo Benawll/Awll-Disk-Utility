@@ -71,7 +71,7 @@ namespace CleanerApp
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Erreur d'initialisation de WebView2 : {ex.Message}", "Erreur Cleaner Pro", MessageBoxButton.OK, MessageBoxImage.Error);
+                System.Windows.MessageBox.Show($"Erreur d'initialisation de WebView2 : {ex.Message}", "Erreur Cleaner Pro", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -156,12 +156,43 @@ namespace CleanerApp
                         break;
                     }
 
+                    case "pickDuplicateFolder":
+                    {
+                        string? picked = null;
+                        Dispatcher.Invoke(() =>
+                        {
+                            using var dlg = new System.Windows.Forms.FolderBrowserDialog
+                            {
+                                Description = "Choisissez un dossier à scanner pour les doublons",
+                                UseDescriptionForTitle = true,
+                                ShowNewFolderButton = false
+                            };
+                            if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                            {
+                                picked = dlg.SelectedPath;
+                            }
+                        });
+                        if (!string.IsNullOrWhiteSpace(picked))
+                        {
+                            SendJson(new { type = "duplicateFolderPicked", path = picked });
+                        }
+                        break;
+                    }
+
                     case "scanDuplicates":
                     {
                         List<string>? selectedDrives = null;
                         if (root.TryGetProperty("drives", out var dProp) && dProp.ValueKind == JsonValueKind.Array)
                         {
                             selectedDrives = dProp.EnumerateArray()
+                                .Select(x => x.GetString() ?? "")
+                                .Where(x => !string.IsNullOrWhiteSpace(x))
+                                .ToList();
+                        }
+                        List<string>? customPaths = null;
+                        if (root.TryGetProperty("paths", out var pProp) && pProp.ValueKind == JsonValueKind.Array)
+                        {
+                            customPaths = pProp.EnumerateArray()
                                 .Select(x => x.GetString() ?? "")
                                 .Where(x => !string.IsNullOrWhiteSpace(x))
                                 .ToList();
@@ -177,7 +208,7 @@ namespace CleanerApp
                             {
                                 SendJson(new { type = "duplicatesProgress", text = msg, pct });
                             });
-                        }, selectedDrives, minBytes);
+                        }, selectedDrives, minBytes, customPaths);
                         SendJson(new { type = "duplicatesResult", groups });
                         break;
                     }

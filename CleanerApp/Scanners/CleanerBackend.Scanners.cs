@@ -1010,13 +1010,19 @@ namespace CleanerApp
         {
             const long minSizeBytes = 150L * 1024 * 1024;
             var videoExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm" };
-            var personalRoots = new (string Path, string Label, bool IsVideoFolder)[]
+            var imageExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".heic", ".raw", ".psd" };
+            var musicExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".mp3", ".flac", ".wav", ".aac", ".ogg", ".m4a", ".wma" };
+
+            var personalRoots = new (string Path, string Label, string Kind)[]
             {
-                (Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Documents", false),
-                (Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Vidéos", true)
+                (Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Documents", "docs"),
+                (Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Vidéos", "video"),
+                (Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Images", "image"),
+                (Environment.GetFolderPath(Environment.SpecialFolder.MyMusic), "Musique", "music"),
+                (Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Bureau", "desktop")
             };
 
-            foreach (var (root, label, isVideoRoot) in personalRoots)
+            foreach (var (root, label, kind) in personalRoots)
             {
                 if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) continue;
                 if (!IsDriveSelected(root, targetDrives)) continue;
@@ -1034,7 +1040,7 @@ namespace CleanerApp
 
                         var last = GetLastWriteTimeSafe(di);
                         int daysAgo = Math.Max(0, (int)(DateTime.Now - last).TotalDays);
-                        int risk = isVideoRoot ? 65 : (daysAgo >= 365 ? 35 : 55);
+                        int risk = (kind == "video" || kind == "image" || kind == "music") ? 65 : (daysAgo >= 365 ? 35 : 55);
 
                         var item = CreateItem(
                             $"Dossier Perso ({label}) : {di.Name}",
@@ -1058,8 +1064,15 @@ namespace CleanerApp
 
                         var effDate = GetFileEffectiveActivityDate(fi);
                         int daysAgo = Math.Max(0, (int)(DateTime.Now - effDate).TotalDays);
-                        bool isVideoFile = videoExts.Contains(fi.Extension);
-                        int risk = (isVideoRoot && isVideoFile) ? 75 : (daysAgo >= 365 ? 30 : 50);
+                        bool matchesFolderMedia =
+                            (kind == "video" && videoExts.Contains(fi.Extension)) ||
+                            (kind == "image" && imageExts.Contains(fi.Extension)) ||
+                            (kind == "music" && musicExts.Contains(fi.Extension));
+
+                        int risk = matchesFolderMedia ? 75 : (daysAgo >= 365 ? 30 : 50);
+                        string desc = (!matchesFolderMedia && (kind == "video" || kind == "image" || kind == "music"))
+                            ? $"Fichier d'un autre type dans {label} ({FormatAgeText(daysAgo)}, {effDate:dd/MM/yyyy})."
+                            : $"Fichier dans {label} ({FormatAgeText(daysAgo)}, {effDate:dd/MM/yyyy}).";
 
                         var item = CreateItem(
                             $"Fichier Perso ({label}) : {fi.Name}",
@@ -1067,9 +1080,7 @@ namespace CleanerApp
                             "system",
                             fi.Length,
                             risk,
-                            isVideoRoot && !isVideoFile
-                                ? $"Fichier non-vidéo dans {label} ({FormatAgeText(daysAgo)}, {effDate:dd/MM/yyyy})."
-                                : $"Fichier dans {label} ({FormatAgeText(daysAgo)}, {effDate:dd/MM/yyyy}).",
+                            desc,
                             lastModified: effDate,
                             isFolder: false,
                             isExtra: true

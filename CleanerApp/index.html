@@ -325,20 +325,31 @@
 
       <!-- ==================== VIEW 2B: DOUBLONS GLOBAUX ==================== -->
       <section id="view-duplicates" class="hidden space-y-4">
-        <div class="surface-card rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
-          <div class="space-y-1">
-            <h3 class="text-sm font-bold text-white flex items-center gap-2"><span>♊</span> Détection Globale des Doublons (SHA-256)</h3>
-            <p class="text-[11px] text-slate-400">Scanne <strong>tous les dossiers</strong> de tous les disques actifs (hors dossiers critiques Windows) pour repérer les fichiers identiques.</p>
+        <div class="surface-card rounded-2xl p-4 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="space-y-1">
+              <h3 class="text-sm font-bold text-white flex items-center gap-2"><span>♊</span> Détection des Doublons (SHA-256)</h3>
+              <p class="text-[11px] text-slate-400">Scanne <strong>tous les disques actifs</strong> ou uniquement les <strong>dossiers ciblés</strong> ci-dessous. Utilisez ensuite le bouton <strong>Nettoyer</strong> en haut.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <select id="dup-min-mb" class="bg-slate-950 border border-white/[0.1] rounded-lg px-2.5 py-1.5 text-xs text-slate-200">
+                <option value="50" selected>&ge; 50 Mo</option>
+                <option value="100">&ge; 100 Mo</option>
+                <option value="500">&ge; 500 Mo</option>
+              </select>
+              <button onclick="pickDuplicateFolder()" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-white/[0.1] text-slate-200 text-xs font-medium">
+                📁 Choisir un dossier...
+              </button>
+              <button id="btn-scan-duplicates" onclick="startDuplicatesScan()" class="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold shadow-lg shadow-amber-600/20">
+                🔍 Scanner Partout
+              </button>
+            </div>
           </div>
-          <div class="flex flex-wrap items-center gap-2">
-            <select id="dup-min-mb" class="bg-slate-950 border border-white/[0.1] rounded-lg px-2.5 py-1.5 text-xs text-slate-200">
-              <option value="50" selected>&ge; 50 Mo</option>
-              <option value="100">&ge; 100 Mo</option>
-              <option value="500">&ge; 500 Mo</option>
-            </select>
-            <button id="btn-scan-duplicates" onclick="startDuplicatesScan()" class="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold shadow-lg shadow-amber-600/20">
-              🔍 Scanner Partout
-            </button>
+
+          <div id="dup-custom-folders-wrap" class="hidden flex-wrap items-center gap-2 pt-2 border-t border-white/[0.06] text-[11px]">
+            <span class="text-slate-400">Dossiers ciblés :</span>
+            <div id="dup-custom-folders" class="flex flex-wrap items-center gap-1.5"></div>
+            <button onclick="clearDuplicateFolders()" class="text-rose-400 hover:text-rose-300 underline ml-1">Réinitialiser (Scan global)</button>
           </div>
         </div>
 
@@ -358,8 +369,8 @@
             <strong id="dup-reclaim-total" class="text-emerald-400 font-mono">0.00 Go</strong> récupérables
           </div>
           <div class="flex items-center gap-2">
-            <button onclick="selectSuggestedDuplicates()" class="px-2.5 py-1 rounded-md bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[11px] font-medium">✓ Cocher copies suggérées</button>
-            <button onclick="openDuplicatesCleanModal()" class="px-3 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold">🗑️ Nettoyer doublons cochés</button>
+            <button onclick="selectSuggestedDuplicates()" class="px-2.5 py-1 rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-[11px] font-medium">✓ Sélectionner copies suggérées</button>
+            <button onclick="clearDuplicateSelection()" class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/[0.08] text-slate-300 text-[11px] font-medium">✕ Tout garder</button>
           </div>
         </div>
 

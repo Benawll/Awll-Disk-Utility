@@ -9,6 +9,7 @@
     let hideRunning = false;
     let duplicateGroups = [];
     let selectedDuplicateIds = new Set();
+    let duplicateCustomFolders = [];
     let sortField = 'recommended';
     let sortAsc = true;
     let mainExpanded = true;
@@ -108,6 +109,12 @@
         duplicateGroups = data.groups || data.Groups || [];
         renderDuplicatesView();
         showToast(`Doublons : ${duplicateGroups.length} groupe(s) détecté(s).`, 'success');
+      } else if (type === 'duplicateFolderPicked') {
+        const p = data.path || data.Path;
+        if (p && !duplicateCustomFolders.some(x => x.toLowerCase() === p.toLowerCase())) {
+          duplicateCustomFolders.push(p);
+          renderDuplicateCustomFolders();
+        }
       } else if (type === 'winSxSResult') {
         renderWinSxSResult(data.report || data.Report);
       } else if (type === 'protectedList') {
@@ -210,6 +217,7 @@
       } else if (view === 'history') {
         postToBridge({ action: 'getHistory' });
       }
+      updateSelectionCalc();
     }
 
     function updateHeaderSubtitle() {
@@ -573,7 +581,7 @@
               <div class="flex items-center gap-2.5">
                 <span class="text-xs font-mono text-amber-300">${personalExpanded ? '▼' : '▶'}</span>
                 <div>
-                  <span class="text-xs font-bold text-amber-200">📁 Fichiers Personnels (Documents / Vidéos)</span>
+                  <span class="text-xs font-bold text-amber-200">📁 Fichiers Personnels (Documents, Vidéos, Images, Musique, Bureau)</span>
                   <span class="text-[11px] text-slate-400 ml-2">(${personalItems.length} éléments • ${personalTotalGB.toFixed(1)} Go)</span>
                 </div>
               </div>
@@ -734,13 +742,26 @@
 
     function updateSelectionCalc() {
       let totalGB = 0;
-      allItems.forEach(x => {
-        if (selectedDeleteIds.has(x.id || x.Id)) {
-          totalGB += getItemSizeGB(x);
-        }
-      });
+      let count = 0;
+      if (currentView === 'duplicates') {
+        duplicateGroups.forEach(g => {
+          (g.files || g.Files || []).forEach(f => {
+            if (selectedDuplicateIds.has(f.id || f.Id)) {
+              totalGB += (f.sizeGB ?? f.SizeGB ?? 0);
+              count++;
+            }
+          });
+        });
+      } else {
+        allItems.forEach(x => {
+          if (selectedDeleteIds.has(x.id || x.Id)) {
+            totalGB += getItemSizeGB(x);
+            count++;
+          }
+        });
+      }
       document.getElementById('live-selected-gb').innerText = `${totalGB.toFixed(2)} Go`;
-      document.getElementById('btn-clean').disabled = selectedDeleteIds.size === 0;
+      document.getElementById('btn-clean').disabled = count === 0;
     }
 
     // ================= SPACE EXPLORER (ARBORESCENCE) =================
@@ -1260,6 +1281,10 @@
 
     // ================= CLEAN EXECUTION & HISTORY =================
     function openCleanModal() {
+      if (currentView === 'duplicates') {
+        openDuplicatesCleanModal();
+        return;
+      }
       pendingDirectDeleteItems = null;
       const selected = allItems.filter(x => selectedDeleteIds.has(x.id || x.Id));
       if (selected.length === 0) return;
@@ -1440,14 +1465,53 @@
     }
 
     // ================= GLOBAL DUPLICATES VIEW =================
+    function pickDuplicateFolder() {
+      postToBridge({ action: 'pickDuplicateFolder' });
+    }
+
+    function removeDuplicateFolder(idx) {
+      duplicateCustomFolders.splice(idx, 1);
+      renderDuplicateCustomFolders();
+    }
+
+    function clearDuplicateFolders() {
+      duplicateCustomFolders = [];
+      renderDuplicateCustomFolders();
+    }
+
+    function renderDuplicateCustomFolders() {
+      const wrap = document.getElementById('dup-custom-folders-wrap');
+      const list = document.getElementById('dup-custom-folders');
+      const btn = document.getElementById('btn-scan-duplicates');
+      if (!wrap || !list) return;
+
+      if (duplicateCustomFolders.length === 0) {
+        wrap.classList.add('hidden');
+        wrap.classList.remove('flex');
+        if (btn && !btn.disabled) btn.innerText = '🔍 Scanner Partout';
+        return;
+      }
+
+      wrap.classList.remove('hidden');
+      wrap.classList.add('flex');
+      list.innerHTML = duplicateCustomFolders.map((p, idx) => `
+        <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-800 border border-white/[0.1] text-slate-200 font-mono text-[10px]">
+          <span>${escapeHtml(p)}</span>
+          <button onclick="removeDuplicateFolder(${idx})" class="text-rose-400 hover:text-rose-300 font-bold">✕</button>
+        </span>
+      `).join('');
+      if (btn && !btn.disabled) btn.innerText = `🔍 Scanner (${duplicateCustomFolders.length} dossier${duplicateCustomFolders.length > 1 ? 's' : ''})`;
+    }
+
     function startDuplicatesScan() {
       const minMB = parseInt(document.getElementById('dup-min-mb')?.value || '50', 10);
       const drives = Array.from(activeDrives);
       selectedDuplicateIds.clear();
+      updateSelectionCalc();
       const btn = document.getElementById('btn-scan-duplicates');
       if (btn) { btn.disabled = true; btn.innerText = 'Scan en cours...'; }
-      showDupProgress('Initialisation du scan global...', 5);
-      postToBridge({ action: 'scanDuplicates', drives, minMB });
+      showDupProgress(duplicateCustomFolders.length > 0 ? 'Étape 1/3 : Parcours des dossiers ciblés...' : 'Étape 1/3 : Initialisation du scan global...', 5);
+      postToBridge({ action: 'scanDuplicates', drives, minMB, paths: duplicateCustomFolders });
     }
 
     function showDupProgress(text, pct) {
@@ -1463,7 +1527,12 @@
       const wrap = document.getElementById('dup-progress-wrap');
       if (wrap) wrap.classList.add('hidden');
       const btn = document.getElementById('btn-scan-duplicates');
-      if (btn) { btn.disabled = false; btn.innerText = '🔍 Scanner Partout'; }
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = duplicateCustomFolders.length > 0
+          ? `🔍 Scanner (${duplicateCustomFolders.length} dossier${duplicateCustomFolders.length > 1 ? 's' : ''})`
+          : '🔍 Scanner Partout';
+      }
     }
 
     function renderDuplicatesView() {
@@ -1474,7 +1543,8 @@
 
       if (!duplicateGroups || duplicateGroups.length === 0) {
         if (toolbar) toolbar.classList.add('hidden');
-        container.innerHTML = `<div class="surface-card rounded-2xl p-10 text-center text-xs text-slate-400">Aucun doublon volumineux trouvé sur les disques sélectionnés.</div>`;
+        container.innerHTML = `<div class="surface-card rounded-2xl p-10 text-center text-xs text-slate-400">Aucun doublon volumineux trouvé sur les disques ou dossiers sélectionnés.</div>`;
+        updateSelectionCalc();
         return;
       }
 
@@ -1495,22 +1565,25 @@
           const isSanct = f.isSanctuarized ?? f.IsSanctuarized ?? false;
           const isProt = f.isProtected ?? f.IsProtected ?? false;
           const locked = isSanct || isProt;
-          const checked = selectedDuplicateIds.has(fid);
+          const isDelete = selectedDuplicateIds.has(fid);
           return `
-            <div class="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-slate-950/70 border border-white/[0.06] text-xs">
-              <div class="flex items-center gap-2.5 min-w-0 flex-1">
-                <input type="checkbox" ${checked ? 'checked' : ''} ${locked ? 'disabled' : ''} onchange="toggleDupSelect('${escapeHtml(fid)}', this.checked)" class="accent-amber-500 shrink-0" />
-                <div class="min-w-0">
-                  <div class="flex items-center gap-2 flex-wrap">
-                    <span class="font-medium text-slate-200 truncate">${escapeHtml(f.name || f.Name)}</span>
-                    ${idx === 0 ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Original suggéré à garder</span>` : ''}
-                    ${locked ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">🛡️ Protégé</span>` : ''}
-                    <span class="text-[10px] text-slate-500 font-mono">${escapeHtml(f.lastModified || f.LastModified || '')}</span>
-                  </div>
-                  <div class="text-[11px] text-slate-400 font-mono truncate">${escapeHtml(fpath)}</div>
+            <div class="item-row rounded-xl px-3 py-2.5 flex items-center justify-between gap-3 text-xs ${isDelete ? 'selected-delete' : ''}">
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-semibold text-white truncate">${escapeHtml(f.name || f.Name)}</span>
+                  ${idx === 0 ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">Original suggéré à garder</span>` : ''}
+                  ${locked ? `<span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">🛡️ Protégé</span>` : ''}
+                  <span class="text-[10px] text-slate-500 font-mono">${escapeHtml(f.lastModified || f.LastModified || '')}</span>
                 </div>
+                <div class="text-[11px] text-slate-400 font-mono truncate">${escapeHtml(fpath)}</div>
               </div>
-              <button onclick="openFolder('${safeEnc(fpath)}')" title="Ouvrir l'emplacement" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-white/[0.08] text-[11px] text-slate-300 shrink-0">📂</button>
+              <div class="flex items-center gap-1.5 shrink-0">
+                <button onclick="openFolder('${safeEnc(fpath)}')" title="Ouvrir l'emplacement" class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-white/[0.08] text-[11px] text-slate-300">📂</button>
+                ${locked ? '' : `
+                  <button onclick="setDupAction('${escapeHtml(fid)}', 'keep')" class="px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-all ${!isDelete ? 'bg-slate-700 text-white border-white/20' : 'bg-slate-900 text-slate-400 border-white/[0.08] hover:text-white'}">Garder</button>
+                  <button onclick="setDupAction('${escapeHtml(fid)}', 'delete')" class="px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-all ${isDelete ? 'bg-rose-600 text-white border-rose-500' : 'bg-slate-900 text-rose-300 border-rose-500/30 hover:bg-rose-950/60'}">Supprimer</button>
+                `}
+              </div>
             </div>
           `;
         }).join('');
@@ -1529,11 +1602,18 @@
           </div>
         `;
       }).join('');
+      updateSelectionCalc();
     }
 
-    function toggleDupSelect(fid, isChecked) {
-      if (isChecked) selectedDuplicateIds.add(fid);
+    function setDupAction(fid, action) {
+      if (action === 'delete') selectedDuplicateIds.add(fid);
       else selectedDuplicateIds.delete(fid);
+      renderDuplicatesView();
+    }
+
+    function clearDuplicateSelection() {
+      selectedDuplicateIds.clear();
+      renderDuplicatesView();
     }
 
     function selectSuggestedDuplicates() {

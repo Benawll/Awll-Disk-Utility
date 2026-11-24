@@ -33,17 +33,27 @@ namespace CleanerApp
         public static Task<List<DuplicateGroup>> ScanDuplicatesGlobalAsync(
             Action<string, int>? progressCallback = null,
             List<string>? selectedDrives = null,
-            long minBytes = 50L * 1024 * 1024)
+            long minBytes = 50L * 1024 * 1024,
+            List<string>? customPaths = null)
         {
             return Task.Run(() =>
             {
-                var drives = (selectedDrives != null && selectedDrives.Count > 0)
-                    ? selectedDrives.Where(d => Directory.Exists(d)).ToList()
-                    : DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed).Select(d => d.Name).ToList();
+                List<string> roots;
+                if (customPaths != null && customPaths.Count > 0)
+                {
+                    roots = customPaths.Where(p => Directory.Exists(p)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                    progressCallback?.Invoke($"Étape 1/3 : Parcours de {roots.Count} dossier(s) ciblé(s)...", 5);
+                }
+                else
+                {
+                    roots = (selectedDrives != null && selectedDrives.Count > 0)
+                        ? selectedDrives.Where(d => Directory.Exists(d)).ToList()
+                        : DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed).Select(d => d.Name).ToList();
+                    progressCallback?.Invoke($"Étape 1/3 : Parcours global sur {roots.Count} disque(s)...", 5);
+                }
 
-                progressCallback?.Invoke($"Recherche de fichiers >= {Math.Round(minBytes / 1024.0 / 1024.0)} Mo sur {drives.Count} disque(s)...", 10);
-                var result = FindDuplicateGroupsInDirectories(drives, minBytes, progressCallback);
-                progressCallback?.Invoke($"Analyse des doublons terminée ({result.Count} groupe(s)).", 100);
+                var result = FindDuplicateGroupsInDirectories(roots, minBytes, progressCallback);
+                progressCallback?.Invoke($"Analyse terminée ({result.Count} groupe(s) de doublons).", 100);
                 return result;
             });
         }
@@ -66,9 +76,10 @@ namespace CleanerApp
                 var currentDir = stack.Pop();
                 if (ShouldSkipDuplicateDirectory(currentDir)) continue;
                 dirsVisited++;
-                if (dirsVisited % 400 == 0)
+                if (dirsVisited % 250 == 0)
                 {
-                    progressCallback?.Invoke($"Parcours des dossiers ({dirsVisited} analysés)...", Math.Min(45, 10 + (dirsVisited / 400) % 35));
+                    int walkPct = 5 + (int)Math.Round(45.0 * dirsVisited / (dirsVisited + 4000.0));
+                    progressCallback?.Invoke($"Étape 1/3 : Parcours des dossiers ({dirsVisited:N0} analysés, {bySize.Count:N0} fichiers >= {Math.Round(minBytes / 1024.0 / 1024.0)} Mo)...", Math.Min(49, walkPct));
                 }
 
                 try
@@ -108,13 +119,21 @@ namespace CleanerApp
 
             // Étape 2 : Pré-empreinte rapide (début + milieu + fin) sur les tailles en double
             var sizeCandidates = bySize.Where(kv => kv.Value.Count >= 2).ToList();
-            progressCallback?.Invoke($"Empreinte rapide sur {sizeCandidates.Count} groupe(s) de taille identique...", 55);
+            int totalPartialFiles = sizeCandidates.Sum(kv => kv.Value.Count);
+            int donePartial = 0;
+            progressCallback?.Invoke($"Étape 2/3 : Pré-empreinte rapide sur {totalPartialFiles} fichiers candidats...", 50);
 
             var byPartialHash = new Dictionary<string, List<FileInfo>>(StringComparer.Ordinal);
             foreach (var kv in sizeCandidates)
             {
                 foreach (var fi in kv.Value)
                 {
+                    donePartial++;
+                    if (donePartial % 10 == 0 || donePartial == totalPartialFiles)
+                    {
+                        int pPct = 50 + (totalPartialFiles > 0 ? (int)Math.Round(25.0 * donePartial / totalPartialFiles) : 25);
+                        progressCallback?.Invoke($"Étape 2/3 : Pré-empreinte ({donePartial}/{totalPartialFiles}) : {fi.Name}", Math.Min(75, pPct));
+                    }
                     var pHash = ComputePartialFileHash(fi.FullName, fi.Length);
                     if (string.IsNullOrEmpty(pHash)) continue;
                     string key = $"{fi.Length}:{pHash}";
@@ -129,13 +148,18 @@ namespace CleanerApp
 
             // Étape 3 : SHA-256 complet uniquement sur les collisions d'empreinte rapide
             var partialCandidates = byPartialHash.Where(kv => kv.Value.Count >= 2).ToList();
-            progressCallback?.Invoke($"Vérification SHA-256 exacte sur {partialCandidates.Count} groupe(s) candidat(s)...", 80);
+            int totalFullFiles = partialCandidates.Sum(kv => kv.Value.Count);
+            int doneFull = 0;
+            progressCallback?.Invoke($"Étape 3/3 : Vérification SHA-256 exacte sur {totalFullFiles} fichiers...", 75);
 
             var byFullHash = new Dictionary<string, List<FileInfo>>(StringComparer.Ordinal);
             foreach (var kv in partialCandidates)
             {
                 foreach (var fi in kv.Value)
                 {
+                    doneFull++;
+                    int fPct = 75 + (totalFullFiles > 0 ? (int)Math.Round(24.0 * doneFull / totalFullFiles) : 24);
+                    progressCallback?.Invoke($"Étape 3/3 : SHA-256 ({doneFull}/{totalFullFiles}) : {fi.Name}", Math.Min(99, fPct));
                     var fullHash = ComputeFullFileSha256(fi.FullName);
                     if (string.IsNullOrEmpty(fullHash)) continue;
                     if (!byFullHash.TryGetValue(fullHash, out var fList))
