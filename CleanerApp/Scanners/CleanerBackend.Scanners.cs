@@ -1008,11 +1008,6 @@ namespace CleanerApp
 
         private static void AuditPersonalFolders(List<CleanerItem> extraItems, HashSet<string> seenPaths, HashSet<string>? targetDrives)
         {
-            const long minSizeBytes = 150L * 1024 * 1024;
-            var videoExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm" };
-            var imageExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".heic", ".raw", ".psd" };
-            var musicExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".mp3", ".flac", ".wav", ".aac", ".ogg", ".m4a", ".wma" };
-
             var personalRoots = new (string Path, string Label, string Kind)[]
             {
                 (Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Documents", "docs"),
@@ -1026,51 +1021,46 @@ namespace CleanerApp
             {
                 if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) continue;
                 if (!IsDriveSelected(root, targetDrives)) continue;
+                ScanPersonalDirectoryRecursive(root, label, kind, 0, extraItems, seenPaths);
+            }
+        }
 
-                try
+        private static int ScanPersonalDirectoryRecursive(
+            string dir,
+            string label,
+            string kind,
+            int depth,
+            List<CleanerItem> extraItems,
+            HashSet<string> seenPaths)
+        {
+            const long minDirBytes = 150L * 1024 * 1024;
+            const long minFileBytes = 100L * 1024 * 1024;
+            const long minMismatchFileBytes = 50L * 1024 * 1024;
+            var videoExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".webm" };
+            var imageExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".heic", ".raw", ".psd" };
+            var musicExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".mp3", ".flac", ".wav", ".aac", ".ogg", ".m4a", ".wma" };
+
+            int addedCount = 0;
+            try
+            {
+                foreach (var file in Directory.GetFiles(dir))
                 {
-                    foreach (var dir in Directory.GetDirectories(root))
+                    try
                     {
-                        if (!seenPaths.Add(dir)) continue;
-                        var di = new DirectoryInfo(dir);
-                        if ((di.Attributes & FileAttributes.ReparsePoint) != 0) continue;
-
-                        double bytes = GetDirectorySizeSafe(dir);
-                        if (bytes < minSizeBytes) continue;
-
-                        var last = GetLastWriteTimeSafe(di);
-                        int daysAgo = Math.Max(0, (int)(DateTime.Now - last).TotalDays);
-                        int risk = (kind == "video" || kind == "image" || kind == "music") ? 65 : (daysAgo >= 365 ? 35 : 55);
-
-                        var item = CreateItem(
-                            $"Dossier Perso ({label}) : {di.Name}",
-                            dir,
-                            "system",
-                            bytes,
-                            risk,
-                            $"Dossier dans {label} ({FormatAgeText(daysAgo)}, {last:dd/MM/yyyy}). Vérifiez avant suppression.",
-                            lastModified: last,
-                            isExtra: true
-                        );
-                        item.IsPersonal = true;
-                        extraItems.Add(item);
-                    }
-
-                    foreach (var file in Directory.GetFiles(root))
-                    {
-                        if (!seenPaths.Add(file)) continue;
                         var fi = new FileInfo(file);
-                        if (fi.Length < minSizeBytes) continue;
-
-                        var effDate = GetFileEffectiveActivityDate(fi);
-                        int daysAgo = Math.Max(0, (int)(DateTime.Now - effDate).TotalDays);
                         bool matchesFolderMedia =
                             (kind == "video" && videoExts.Contains(fi.Extension)) ||
                             (kind == "image" && imageExts.Contains(fi.Extension)) ||
                             (kind == "music" && musicExts.Contains(fi.Extension));
+                        bool isMediaMismatch = (kind == "video" || kind == "image" || kind == "music") && !matchesFolderMedia;
+                        long threshold = isMediaMismatch ? minMismatchFileBytes : minFileBytes;
+                        if (fi.Length < threshold) continue;
+                        if (!seenPaths.Add(file)) continue;
 
+                        var effDate = GetFileEffectiveActivityDate(fi);
+                        int daysAgo = Math.Max(0, (int)(DateTime.Now - effDate).TotalDays);
                         int risk = matchesFolderMedia ? 75 : (daysAgo >= 365 ? 30 : 50);
-                        string desc = (!matchesFolderMedia && (kind == "video" || kind == "image" || kind == "music"))
+                        string desc = isMediaMismatch
                             ? $"Fichier d'un autre type dans {label} ({FormatAgeText(daysAgo)}, {effDate:dd/MM/yyyy})."
                             : $"Fichier dans {label} ({FormatAgeText(daysAgo)}, {effDate:dd/MM/yyyy}).";
 
@@ -1087,10 +1077,55 @@ namespace CleanerApp
                         );
                         item.IsPersonal = true;
                         extraItems.Add(item);
+                        addedCount++;
+                    }
+                    catch { }
+                }
+
+                if (depth < 5)
+                {
+                    foreach (var sub in Directory.GetDirectories(dir))
+                    {
+                        try
+                        {
+                            var di = new DirectoryInfo(sub);
+                            if ((di.Attributes & FileAttributes.ReparsePoint) != 0) continue;
+                            double subBytes = GetDirectorySizeSafe(sub);
+                            if (subBytes < minDirBytes) continue;
+
+                            int subAdded = ScanPersonalDirectoryRecursive(sub, label, kind, depth + 1, extraItems, seenPaths);
+                            if (subAdded == 0 && seenPaths.Add(sub))
+                            {
+                                var last = GetLastWriteTimeSafe(di);
+                                int daysAgo = Math.Max(0, (int)(DateTime.Now - last).TotalDays);
+                                int risk = (kind == "video" || kind == "image" || kind == "music") ? 65 : (daysAgo >= 365 ? 35 : 55);
+
+                                var item = CreateItem(
+                                    $"Dossier Perso ({label}) : {di.Name}",
+                                    sub,
+                                    "system",
+                                    subBytes,
+                                    risk,
+                                    $"Dossier dans {label} ({FormatAgeText(daysAgo)}, {last:dd/MM/yyyy}). Vérifiez avant suppression.",
+                                    lastModified: last,
+                                    isExtra: true
+                                );
+                                item.IsPersonal = true;
+                                extraItems.Add(item);
+                                addedCount++;
+                            }
+                            else
+                            {
+                                addedCount += subAdded;
+                            }
+                        }
+                        catch { }
                     }
                 }
-                catch { }
             }
+            catch { }
+
+            return addedCount;
         }
 
         #endregion

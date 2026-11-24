@@ -226,7 +226,7 @@
       const titles = {
         audit: 'Audit Intelligent Multi-Disques',
         explorer: "Explorateur d'Espace & Arborescence",
-        duplicates: 'Doublons Volumineux Multi-Disques',
+        duplicates: 'Détecteur de Doublons',
         protected: 'Liste Protégée Permanente',
         history: 'Historique des Nettoyages'
       };
