@@ -24,6 +24,9 @@
     let currentSettings = { geminiApiKey: '', enableAI: true };
     let activeResearchItem = null;
     let activeResearchRequestId = 0;
+    let aiStatusByPath = {};
+    let aiErrorByPath = {};
+    let activeTasksProgress = {};
     let aiReportCache = {};
     let localReportCache = {};
     let selectedDeleteIds = new Set();
@@ -154,31 +157,43 @@
       } else if (type === 'researchResult') {
         const rep = data.report || data.Report;
         const rKey = (rep && (rep.itemPath || rep.ItemPath)) ? (rep.itemPath || rep.ItemPath).toLowerCase() : '';
+        const itemName = rep?.itemName || rep?.ItemName || 'Élément';
         if (rKey) {
           if (rep.isAiEnriched || rep.IsAiEnriched) {
             aiReportCache[rKey] = rep;
-            // Synchroniser le risque IA sur la carte correspondante si présente
+            aiStatusByPath[rKey] = 'done';
+            delete aiErrorByPath[rKey];
             const aiRisk = rep.riskPct ?? rep.RiskPct;
             if (typeof aiRisk === 'number') {
-              let changed = false;
               allItems.forEach(it => {
                 if ((it.path || it.Path || '').toLowerCase() === rKey) {
                   it.riskPct = aiRisk;
                   it.riskLevel = aiRisk <= 15 ? 'Quasi Nul' : (aiRisk <= 35 ? 'Faible' : (aiRisk <= 65 ? 'Modéré' : 'Élevé'));
-                  changed = true;
                 }
               });
-              if (changed && currentView === 'audit' && allItems.length > 0) renderItems();
             }
-          } else if (!data.aiError) {
+            if (currentView === 'audit' && allItems.length > 0) renderItems();
+            showToast(`✨ Analyse IA terminée : ${itemName}`, 'success');
+          } else if (data.aiError) {
+            aiStatusByPath[rKey] = 'error';
+            aiErrorByPath[rKey] = data.aiError;
+            if (currentView === 'audit' && allItems.length > 0) renderItems();
+          } else {
             localReportCache[rKey] = rep;
           }
         }
 
-        // Ignorer les réponses obsolètes si l'utilisateur a changé d'élément ou fermé la fenêtre
+        // Mettre à jour la modale uniquement si elle est ouverte sur ce même élément
+        const modalOpen = !document.getElementById('modal-research').classList.contains('hidden');
         const curKey = activeResearchItem?.path?.toLowerCase() || '';
         const reqId = data.requestId ?? 0;
-        if (!activeResearchItem || (rKey && curKey && rKey !== curKey) || (reqId > 0 && reqId !== activeResearchRequestId)) {
+        const isCurrentItem = activeResearchItem && (!rKey || !curKey || rKey === curKey);
+
+        if (!isCurrentItem) {
+          if (data.aiError) showToast(`⚠️ IA (${itemName}) : ${data.aiError}`, 'warn');
+          return;
+        }
+        if (reqId > 0 && reqId !== activeResearchRequestId && !modalOpen) {
           return;
         }
 
@@ -390,18 +405,33 @@
       });
     }
 
-    function showProgress(text, pct) {
-      document.getElementById('progress-banner').classList.remove('hidden');
+    function updateGlobalProgressBanner() {
+      const banner = document.getElementById('progress-banner');
+      if (!banner) return;
+      const entries = Object.entries(activeTasksProgress).filter(([, v]) => v && v.active);
+      if (entries.length === 0) {
+        banner.classList.add('hidden');
+        return;
+      }
+      banner.classList.remove('hidden');
+      const textParts = entries.map(([k, v]) => `[${v.label}] ${v.text}`);
+      const avgPct = Math.round(entries.reduce((acc, [, v]) => acc + (v.pct || 0), 0) / entries.length);
       document.getElementById('progress-text').innerHTML = `
-        <svg class="animate-spin h-4 w-4 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
-        ${escapeHtml(text)}`;
-      document.getElementById('progress-pct').innerText = `${pct}%`;
-      document.getElementById('progress-bar').style.width = `${pct}%`;
+        <svg class="animate-spin h-4 w-4 text-blue-400 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+        <span class="truncate">${escapeHtml(textParts.join('  •  '))}</span>`;
+      document.getElementById('progress-pct').innerText = `${avgPct}%`;
+      document.getElementById('progress-bar').style.width = `${Math.min(100, Math.max(0, avgPct))}%`;
+    }
+
+    function showProgress(text, pct) {
+      activeTasksProgress.audit = { active: true, label: 'Audit', text, pct };
+      updateGlobalProgressBanner();
     }
 
     function hideProgress() {
       auditInProgress = false;
-      document.getElementById('progress-banner').classList.add('hidden');
+      delete activeTasksProgress.audit;
+      updateGlobalProgressBanner();
       const pickBtn = document.getElementById('btn-audit-pick-folders');
       if (pickBtn) pickBtn.disabled = false;
       renderScanDrivePills('audit');
@@ -806,6 +836,7 @@
             <button onclick="askResearch('${safeEnc(id)}')" class="px-2.5 py-1.5 rounded-lg text-[11px] font-medium border border-white/[0.09] bg-slate-800/75 hover:bg-slate-700 text-amber-300">
               ❓ Infos
             </button>
+            ${renderAiCardButton(name, path, riskPct)}
             <button onclick="openFolder('${safeEnc(path)}')" title="Ouvrir dans l'Explorateur" class="p-1.5 rounded-lg border border-white/[0.09] bg-slate-800/75 hover:bg-slate-700 text-slate-300">
               📂
             </button>
@@ -1311,26 +1342,65 @@
       document.getElementById('btn-ai-deep-research').disabled = false;
     }
 
-    function askAiDeepResearch() {
-      if (!activeResearchItem) return;
+    function renderAiCardButton(name, path, riskPct) {
+      const pKey = (path || '').toLowerCase();
+      const state = aiStatusByPath[pKey] || (aiReportCache[pKey] ? 'done' : '');
+      if (state === 'loading') {
+        return `<button disabled title="Analyse IA Gemini en cours en arrière-plan..." class="px-2.5 py-1.5 rounded-lg text-[11px] font-medium border border-purple-500/40 bg-purple-950/60 text-purple-200 flex items-center gap-1 cursor-wait"><svg class="animate-spin h-3 w-3 text-purple-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>IA...</button>`;
+      }
+      if (state === 'done') {
+        return `<button onclick="openAiReportForCard('${safeEnc(name)}', '${safeEnc(path)}', ${riskPct})" title="Analyse IA terminée — cliquer pour consulter" class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-emerald-500/40 bg-emerald-950/50 hover:bg-emerald-900/50 text-emerald-300">✨ IA ✓</button>`;
+      }
+      if (state === 'error') {
+        return `<button onclick="launchAiForCard('${safeEnc(name)}', '${safeEnc(path)}', ${riskPct})" title="${escapeHtml(aiErrorByPath[pKey] || 'Échec de l’analyse IA — cliquer pour réessayer')}" class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border border-rose-500/45 bg-rose-950/50 hover:bg-rose-900/50 text-rose-300">⚠️ IA</button>`;
+      }
+      return `<button onclick="launchAiForCard('${safeEnc(name)}', '${safeEnc(path)}', ${riskPct})" title="Lancer l'analyse IA Gemini en arrière-plan" class="px-2.5 py-1.5 rounded-lg text-[11px] font-medium border border-purple-500/35 bg-purple-950/40 hover:bg-purple-600/30 text-purple-300">✨ IA</button>`;
+    }
+
+    function launchAiForCard(encName, encPath, riskPct) {
+      startBackgroundAiAnalysis(decodeURIComponent(encName), decodeURIComponent(encPath), riskPct, false);
+    }
+
+    function openAiReportForCard(encName, encPath, riskPct) {
+      triggerResearch(decodeURIComponent(encName), decodeURIComponent(encPath), riskPct);
+    }
+
+    function startBackgroundAiAnalysis(name, path, riskPct, updateModalSpinner = true) {
       if (!currentSettings.geminiApiKey) {
         showToast('Configurez votre clé API Gemini dans « ✨ Mode IA ».', 'warn');
         openAiSettingsModal();
         return;
       }
+      const key = (path || '').toLowerCase();
+      if (aiStatusByPath[key] === 'loading') return;
+
+      aiStatusByPath[key] = 'loading';
+      delete aiErrorByPath[key];
+      if (currentView === 'audit' && allItems.length > 0) renderItems();
+
       activeResearchRequestId++;
       const reqId = activeResearchRequestId;
-      document.getElementById('ai-spinner').classList.remove('hidden');
-      document.getElementById('ai-deep-label').innerText = "Analyse Gemini en cours...";
-      document.getElementById('btn-ai-deep-research').disabled = true;
+      if (updateModalSpinner) {
+        document.getElementById('ai-spinner').classList.remove('hidden');
+        document.getElementById('ai-deep-label').innerText = "Analyse Gemini en cours...";
+        document.getElementById('btn-ai-deep-research').disabled = true;
+      } else {
+        showToast(`✨ Analyse IA lancée en arrière-plan pour « ${name} »...`, 'info');
+      }
+
       postToBridge({
         action: 'researchItemAI',
-        name: activeResearchItem.name,
-        path: activeResearchItem.path,
-        riskPct: activeResearchItem.riskPct,
+        name,
+        path,
+        riskPct,
         apiKey: currentSettings.geminiApiKey || '',
         requestId: reqId
       });
+    }
+
+    function askAiDeepResearch() {
+      if (!activeResearchItem) return;
+      startBackgroundAiAnalysis(activeResearchItem.name, activeResearchItem.path, activeResearchItem.riskPct, true);
     }
 
     function openFolder(encPath) {
@@ -1715,6 +1785,8 @@
     }
 
     function showDupProgress(text, pct) {
+      activeTasksProgress.duplicates = { active: true, label: 'Doublons', text, pct };
+      updateGlobalProgressBanner();
       const wrap = document.getElementById('dup-progress-wrap');
       if (!wrap) return;
       wrap.classList.remove('hidden');
@@ -1725,6 +1797,8 @@
 
     function hideDupProgress() {
       dupInProgress = false;
+      delete activeTasksProgress.duplicates;
+      updateGlobalProgressBanner();
       const wrap = document.getElementById('dup-progress-wrap');
       if (wrap) wrap.classList.add('hidden');
       const pickBtn = document.getElementById('btn-dup-pick-folders');
