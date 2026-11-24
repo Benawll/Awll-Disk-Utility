@@ -946,6 +946,98 @@ namespace CleanerApp
             public DateTime? LastUpdated { get; set; }
         }
 
+        private static Dictionary<string, DateTime> _steamLastPlayedCache = new(StringComparer.OrdinalIgnoreCase);
+        private static DateTime _steamLastPlayedCacheTime = DateTime.MinValue;
+
+        private static Dictionary<string, DateTime> GetSteamLastPlayedMap()
+        {
+            if (_steamLastPlayedCache.Count > 0 && (DateTime.Now - _steamLastPlayedCacheTime).TotalMinutes < 5)
+                return _steamLastPlayedCache;
+
+            var map = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+            var steamRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                @"C:\Program Files (x86)\Steam",
+                @"C:\Program Files\Steam"
+            };
+            try
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(@"Software\Valve\Steam");
+                var sp = key?.GetValue("SteamPath") as string;
+                if (!string.IsNullOrEmpty(sp)) steamRoots.Add(sp.Replace('/', '\\'));
+            }
+            catch { }
+
+            foreach (var root in steamRoots)
+            {
+                var userDataDir = Path.Combine(root, "userdata");
+                if (!Directory.Exists(userDataDir)) continue;
+
+                foreach (var userDir in Directory.GetDirectories(userDataDir))
+                {
+                    var localCfg = Path.Combine(userDir, "config", "localconfig.vdf");
+                    if (!File.Exists(localCfg)) continue;
+                    try
+                    {
+                        string currentAppId = "";
+                        int depthAfterAppId = 0;
+                        foreach (var rawLine in File.ReadLines(localCfg))
+                        {
+                            var line = rawLine.Trim();
+                            if (string.IsNullOrEmpty(line)) continue;
+
+                            if (depthAfterAppId == 0)
+                            {
+                                var mId = Regex.Match(line, @"^""(\d+)""$");
+                                if (mId.Success)
+                                {
+                                    currentAppId = mId.Groups[1].Value;
+                                }
+                                else if (line == "{" && !string.IsNullOrEmpty(currentAppId))
+                                {
+                                    depthAfterAppId = 1;
+                                }
+                                else if (!line.StartsWith("\""))
+                                {
+                                    currentAppId = "";
+                                }
+                            }
+                            else
+                            {
+                                if (line == "{") depthAfterAppId++;
+                                else if (line == "}")
+                                {
+                                    depthAfterAppId--;
+                                    if (depthAfterAppId <= 0)
+                                    {
+                                        depthAfterAppId = 0;
+                                        currentAppId = "";
+                                    }
+                                }
+                                else if (depthAfterAppId == 1 && line.StartsWith("\"LastPlayed\"", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    var mLp = Regex.Match(line, @"""LastPlayed""\s+""(\d+)""", RegexOptions.IgnoreCase);
+                                    if (mLp.Success && long.TryParse(mLp.Groups[1].Value, out long unix) && unix > 0)
+                                    {
+                                        var dt = DateTimeOffset.FromUnixTimeSeconds(unix).LocalDateTime;
+                                        if (!map.TryGetValue(currentAppId, out var existing) || dt > existing)
+                                        {
+                                            map[currentAppId] = dt;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+
+            _steamLastPlayedCache = map;
+            _steamLastPlayedCacheTime = DateTime.Now;
+            return map;
+        }
+
         public static SteamAppInfo? GetSteamAppInfo(string gameDir)
         {
             try
@@ -974,6 +1066,15 @@ namespace CleanerApp
                         if (mLp.Success && long.TryParse(mLp.Groups[1].Value, out long lpUnix) && lpUnix > 0)
                         {
                             info.LastPlayed = DateTimeOffset.FromUnixTimeSeconds(lpUnix).LocalDateTime;
+                        }
+
+                        if (info.LastPlayed == null && !string.IsNullOrEmpty(info.AppId))
+                        {
+                            var lpMap = GetSteamLastPlayedMap();
+                            if (lpMap.TryGetValue(info.AppId, out var vdfLastPlayed))
+                            {
+                                info.LastPlayed = vdfLastPlayed;
+                            }
                         }
 
                         var mLu = Regex.Match(content, @"\""LastUpdated\""\s+\""(\d+)\""", RegexOptions.IgnoreCase);
@@ -1558,12 +1659,15 @@ namespace CleanerApp
 
                 report.Origin = $"Téléchargé depuis le magasin Steam dans votre bibliothèque ({Path.GetPathRoot(path)?.TrimEnd('\\')}).";
 
+                DateTime steamLastActivity = steamInfo?.LastPlayed ?? steamInfo?.LastUpdated ?? lastWrite;
+                int steamDaysAgo = Math.Max(0, (int)(DateTime.Now - steamLastActivity).TotalDays);
+                report.LastAccessDate = steamLastActivity.ToString("dd MMMM yyyy");
+
                 if (steamInfo?.LastPlayed != null)
                 {
-                    int daysAgo = (int)(DateTime.Now - steamInfo.LastPlayed.Value).TotalDays;
-                    report.UsageActivity = daysAgo == 0
+                    report.UsageActivity = steamDaysAgo == 0
                         ? "Joué aujourd'hui !"
-                        : $"Dernière partie jouée il y a {daysAgo} jour{(daysAgo > 1 ? "s" : "")} (le {steamInfo.LastPlayed.Value:dd MMMM yyyy}).";
+                        : $"Dernière partie jouée {FormatAgeText(steamDaysAgo)} (le {steamInfo.LastPlayed.Value:dd MMMM yyyy}).";
                 }
                 else if (steamInfo?.LastUpdated != null)
                 {
@@ -1572,9 +1676,11 @@ namespace CleanerApp
 
                 report.SafetyImpact = isDemo
                     ? "C'est une démo temporaire. Si vous avez terminé d'essayer le jeu ou si vous ne comptez plus y rejouer, vous pouvez la supprimer sans risque (vos succès Steam sont préservés). Si vous souhaitez continuer à y jouer, conservez-la ou protégez-la."
-                    : "⚠️ Jeu complet. Si vous le supprimez, vous libérerez de l'espace mais devrez le re-télécharger depuis Steam pour y rejouer. Vos sauvegardes cloud sont sauvegardées sur Steam Cloud.";
+                    : (steamDaysAgo >= 365
+                        ? $"🟢 Jeu complet inutilisé depuis {FormatAgeText(steamDaysAgo)}. Suppression sûre pour libérer de l'espace (vos sauvegardes restent sur Steam Cloud et vous pourrez le réinstaller à tout moment)."
+                        : "⚠️ Jeu complet utilisé récemment. Si vous le supprimez, vous devrez le re-télécharger depuis Steam pour y rejouer.");
 
-                report.RiskPct = isDemo ? 5 : 20;
+                report.RiskPct = ComputeRiskScore(isDemo ? "demo_pts" : "steam_epic_game", steamDaysAgo, running, false, false);
                 return report;
             }
 
@@ -2630,9 +2736,6 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
                                                     (!string.IsNullOrEmpty(n) && x.Name.Equals(n, StringComparison.OrdinalIgnoreCase)));
                     string pTrim = p.TrimEnd('\\');
                     bool isCriticalRoot = pTrim.Equals(winDir, StringComparison.OrdinalIgnoreCase) ||
-                                          pTrim.Equals(progDir, StringComparison.OrdinalIgnoreCase) ||
-                                          pTrim.Equals(progX86Dir, StringComparison.OrdinalIgnoreCase) ||
-                                          pTrim.Equals(userProfile, StringComparison.OrdinalIgnoreCase) ||
                                           pTrim.EndsWith(@"System32", StringComparison.OrdinalIgnoreCase);
                     return IsPathSanctuarized(p) || isCriticalRoot;
                 }

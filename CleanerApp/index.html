@@ -362,16 +362,18 @@
 
       <!-- ==================== VIEW 2: EXPLORATEUR D'ESPACE (SPACE LENS) ==================== -->
       <section id="view-explorer" class="hidden space-y-4">
-        <!-- Quick Drive & Shortcut Pills + Breadcrumb -->
-        <div class="surface-card rounded-2xl p-4 space-y-3">
-          <div class="flex flex-wrap items-center justify-between gap-3">
+        <!-- Sticky Navigation & Breadcrumb -->
+        <div class="sticky top-0 z-10 bg-[#0b101d]/95 backdrop-blur-md border border-white/[0.09] rounded-2xl p-3.5 space-y-2.5 shadow-xl">
+          <div class="flex flex-wrap items-center justify-between gap-2">
             <div id="explorer-drive-pills" class="flex flex-wrap items-center gap-1.5"></div>
             <div class="flex items-center gap-1.5">
-              <button onclick="explorerOpenShortcut('profile')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/[0.08] text-[11px] text-slate-300">Profil Utilisateur</button>
-              <button onclick="explorerOpenShortcut('downloads')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/[0.08] text-[11px] text-slate-300">Téléchargements</button>
+              <button onclick="explorerBack()" id="btn-explorer-back" disabled class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 disabled:opacity-35 disabled:pointer-events-none border border-white/[0.08] text-[11px] text-slate-200 flex items-center gap-1">
+                <span>←</span> Retour
+              </button>
               <button onclick="explorerGoParent()" id="btn-explorer-up" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/[0.08] text-[11px] text-slate-200 flex items-center gap-1">
                 <span>↑</span> Parent
               </button>
+              <button onclick="explorerOpenShortcut('profile')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/[0.08] text-[11px] text-slate-300 hidden sm:inline-flex">Profil</button>
               <button onclick="explorerRefresh()" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/[0.08] text-[11px] text-blue-300 flex items-center gap-1">
                 <span>↻</span> Actualiser
               </button>
@@ -379,17 +381,17 @@
           </div>
 
           <!-- Breadcrumb -->
-          <div id="explorer-breadcrumb" class="flex flex-wrap items-center gap-1 bg-slate-950/75 border border-white/[0.07] rounded-xl px-3 py-2 text-xs font-mono"></div>
+          <div id="explorer-breadcrumb" class="flex flex-wrap items-center gap-1 bg-slate-950/85 border border-white/[0.08] rounded-xl px-3 py-2 text-xs font-mono"></div>
+        </div>
 
-          <!-- Space Lens Proportional Visual Treemap Bar -->
-          <div id="explorer-visual-wrap" class="space-y-2 pt-1 hidden">
-            <div class="flex items-center justify-between text-[11px]">
-              <span class="text-slate-300 font-medium">Poids des plus gros sous-dossiers / fichiers</span>
-              <span id="explorer-total-meta" class="font-mono text-cyan-300 font-semibold tabular-nums"></span>
-            </div>
-            <div id="explorer-treemap-bar" class="w-full h-7 rounded-xl bg-slate-950 overflow-hidden flex gap-0.5 p-0.5 border border-white/[0.07]"></div>
-            <div id="explorer-treemap-legend" class="flex flex-wrap gap-2 pt-0.5"></div>
+        <!-- Space Lens Proportional Visual Treemap Bar -->
+        <div id="explorer-visual-wrap" class="surface-card rounded-2xl p-4 space-y-2 hidden">
+          <div class="flex items-center justify-between text-[11px]">
+            <span class="text-slate-300 font-medium">Poids des plus gros sous-dossiers / fichiers</span>
+            <span id="explorer-total-meta" class="font-mono text-cyan-300 font-semibold tabular-nums"></span>
           </div>
+          <div id="explorer-treemap-bar" class="w-full h-7 rounded-xl bg-slate-950 overflow-hidden flex gap-0.5 p-0.5 border border-white/[0.07]"></div>
+          <div id="explorer-treemap-legend" class="flex flex-wrap gap-2 pt-0.5"></div>
         </div>
 
         <!-- Tree Rows Container -->
@@ -577,6 +579,7 @@
     let explorerLoading = false;
     let treeCache = {};
     let pendingTreeScans = {};
+    let explorerHistory = [];
     let explorerRequestCounter = 0;
     let activeExplorerRequestId = 0;
 
@@ -1218,7 +1221,14 @@
       navigateExplorer(decodeURIComponent(encPath));
     }
 
-    function navigateExplorer(targetPath, forceRefresh = false) {
+    function navigateExplorer(targetPath, forceRefresh = false, skipHistory = false) {
+      if (!skipHistory && currentTreePath && normalizeTreeKey(currentTreePath) !== normalizeTreeKey(targetPath)) {
+        explorerHistory.push(currentTreePath);
+        if (explorerHistory.length > 40) explorerHistory.shift();
+      }
+      const backBtn = document.getElementById('btn-explorer-back');
+      if (backBtn) backBtn.disabled = explorerHistory.length === 0;
+
       currentTreePath = targetPath;
       const key = normalizeTreeKey(targetPath);
 
@@ -1246,6 +1256,14 @@
       updateHeaderSubtitle();
       renderExplorerLoading(`Lecture de ${targetPath}...`, 5);
       postToBridge({ action: 'scanFolderTree', path: targetPath, requestId: activeExplorerRequestId });
+    }
+
+    function explorerBack() {
+      if (explorerHistory.length === 0) return;
+      const prev = explorerHistory.pop();
+      const backBtn = document.getElementById('btn-explorer-back');
+      if (backBtn) backBtn.disabled = explorerHistory.length === 0;
+      if (prev) navigateExplorer(prev, false, true);
     }
 
     function explorerGoParent() {
