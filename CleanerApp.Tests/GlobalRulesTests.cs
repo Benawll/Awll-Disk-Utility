@@ -142,5 +142,25 @@ namespace CleanerApp.Tests
 
             Assert.True(CleanerBackend.IsLikelyRunning("Rocket League", @"D:\SteamLibrary\steamapps\common\Rocket League", runningProcs, emptyPaths, emptyResolved));
         }
+
+        [Fact]
+        public void ExecutionHistoryService_ConvertsDevicePathAndFindsFolderLastExecution()
+        {
+            var devMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { @"\Device\HarddiskVolume2", "D:" },
+                { @"\Device\HarddiskVolume8", "E:" }
+            };
+            var dos = ExecutionHistoryService.ConvertDevicePathToDosPath(@"\Device\HarddiskVolume2\SteamLibrary\steamapps\common\rocketleague\Binaries\Win64\RocketLeague.exe", devMap);
+            Assert.Equal(@"D:\SteamLibrary\steamapps\common\rocketleague\Binaries\Win64\RocketLeague.exe", dos);
+
+            var execMap = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase)
+            {
+                { dos, new DateTime(2026, 11, 24, 22, 7, 23) }
+            };
+            Assert.True(ExecutionHistoryService.TryGetFolderLastExecution(@"D:\SteamLibrary\steamapps\common\rocketleague", out var dt, execMap));
+            Assert.Equal(new DateTime(2026, 11, 24, 22, 7, 23), dt);
+            Assert.False(ExecutionHistoryService.TryGetFolderLastExecution(@"E:\Epic Games\rocketleague", out _, execMap));
+        }
     }
 }

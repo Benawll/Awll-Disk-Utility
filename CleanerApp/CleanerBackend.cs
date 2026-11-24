@@ -153,6 +153,7 @@ namespace CleanerApp
                 }
 
                 var runningProcs = GetRunningProcessNamesSafe();
+                ExecutionHistoryService.RefreshIfNeeded(force: true);
                 var recommendedItems = new List<CleanerItem>();
                 var extraItems = new List<CleanerItem>();
                 var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

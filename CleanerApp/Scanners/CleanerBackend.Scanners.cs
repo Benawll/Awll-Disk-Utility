@@ -382,15 +382,21 @@ namespace CleanerApp
                     double sizeEpic = GetDirectorySizeSafe(epicPath);
                     if (sizeEpic > 500 * 1024 * 1024)
                     {
-                        var last = GetLastWriteTimeSafe(new DirectoryInfo(epicPath));
+                        var diEpic = new DirectoryInfo(epicPath);
+                        var lastWrite = GetLastWriteTimeSafe(diEpic);
+                        bool hasLaunch = ExecutionHistoryService.TryGetFolderLastExecution(epicPath, out var epicLaunch);
+                        var displayDate = hasLaunch ? epicLaunch : (diEpic.CreationTime < lastWrite ? diEpic.CreationTime : lastWrite);
+                        string launchNote = hasLaunch
+                            ? $"Dernier lancement détecté le {epicLaunch:dd/MM/yyyy}."
+                            : $"Aucun lancement détecté dans Windows (installé le {displayDate:dd/MM/yyyy}, dernière écriture/MàJ le {lastWrite:dd/MM/yyyy}).";
                         items.Add(CreateItem(
                             $"Doublon Cross-Platform : {epic.Key} (Epic Games)",
                             epicPath,
                             "games",
                             sizeEpic,
                             5,
-                            $"Jeu installé à la fois sur Epic Games ({epicPath}) et sur Steam ({steamPath}). La date affichée correspond à la dernière écriture fichiers (souvent une mise à jour automatique Epic, pas un lancement).",
-                            lastModified: last
+                            $"Jeu installé à la fois sur Epic Games ({epicPath}) et sur Steam ({steamPath}). {launchNote}",
+                            lastModified: displayDate
                         ));
                     }
                 }

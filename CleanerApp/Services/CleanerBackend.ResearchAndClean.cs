@@ -1357,6 +1357,10 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
             }
             catch { }
             if (maxWrite == DateTime.MinValue) maxWrite = DateTime.Now;
+            if (ExecutionHistoryService.TryGetFolderLastExecution(path, out var execTime))
+            {
+                maxWrite = execTime;
+            }
             return (sum, count, maxWrite);
         }
 
@@ -1396,6 +1400,11 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
 
         private static DateTime GetFileEffectiveActivityDate(FileInfo fi)
         {
+            if (fi.Extension.Equals(".exe", StringComparison.OrdinalIgnoreCase) &&
+                ExecutionHistoryService.TryGetFileLastExecution(fi.FullName, out var execTime))
+            {
+                return execTime;
+            }
             DateTime nowLimit = DateTime.Now.AddDays(1);
             DateTime best = fi.LastWriteTime;
             try
@@ -1416,6 +1425,10 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
 
         private static DateTime GetLastWriteTimeSafe(DirectoryInfo di)
         {
+            if (ExecutionHistoryService.TryGetFolderLastExecution(di.FullName, out var folderExec))
+            {
+                return folderExec;
+            }
             try
             {
                 DateTime nowLimit = DateTime.Now.AddDays(1);
