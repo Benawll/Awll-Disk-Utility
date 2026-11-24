@@ -32,6 +32,8 @@ namespace CleanerApp
 
                 // Extraction des ressources intégrées si absentes ou si l'exe est déplacé seul
                 ExtractEmbeddedAsset("CleanerApp.index.html", Path.Combine(assetsFolder, "index.html"));
+                ExtractEmbeddedAsset("CleanerApp.styles.css", Path.Combine(assetsFolder, "styles.css"));
+                ExtractEmbeddedAsset("CleanerApp.app.js", Path.Combine(assetsFolder, "app.js"));
                 ExtractEmbeddedAsset("CleanerApp.tailwindcss.min.js", Path.Combine(assetsFolder, "tailwindcss.min.js"));
 
                 var effectiveAssetsDir = File.Exists(Path.Combine(appDir, "index.html")) ? appDir : assetsFolder;
@@ -108,6 +110,8 @@ namespace CleanerApp
                                 .Where(x => !string.IsNullOrWhiteSpace(x))
                                 .ToList();
                         }
+                        var prevSnapshots = CleanerBackend.GetAuditSnapshots();
+                        var previousSnapshot = prevSnapshots.Count > 0 ? prevSnapshots[0] : null;
                         var items = await CleanerBackend.RunAuditAsync((msg, pct) =>
                         {
                             Dispatcher.Invoke(() =>
@@ -115,7 +119,8 @@ namespace CleanerApp
                                 SendJson(new { type = "auditProgress", text = msg, pct });
                             });
                         }, selectedDrives);
-                        SendJson(new { type = "auditResult", items, scanType = "smart" });
+                        CleanerBackend.SaveAuditSnapshot(items.Where(x => !x.IsExtra).ToList());
+                        SendJson(new { type = "auditResult", items, scanType = "smart", previousSnapshot });
                         break;
                     }
 
@@ -129,6 +134,8 @@ namespace CleanerApp
                                 .Where(x => !string.IsNullOrWhiteSpace(x))
                                 .ToList();
                         }
+                        var prevSnapshots = CleanerBackend.GetAuditSnapshots();
+                        var previousSnapshot = prevSnapshots.Count > 0 ? prevSnapshots[0] : null;
                         var items = await CleanerBackend.RunExhaustiveScanAsync((msg, pct) =>
                         {
                             Dispatcher.Invoke(() =>
@@ -136,7 +143,48 @@ namespace CleanerApp
                                 SendJson(new { type = "auditProgress", text = msg, pct });
                             });
                         }, selectedDrives);
-                        SendJson(new { type = "auditResult", items, scanType = "exhaustive" });
+                        CleanerBackend.SaveAuditSnapshot(items.Where(x => !x.IsExtra).ToList());
+                        SendJson(new { type = "auditResult", items, scanType = "exhaustive", previousSnapshot });
+                        break;
+                    }
+
+                    case "scanDuplicates":
+                    {
+                        List<string>? selectedDrives = null;
+                        if (root.TryGetProperty("drives", out var dProp) && dProp.ValueKind == JsonValueKind.Array)
+                        {
+                            selectedDrives = dProp.EnumerateArray()
+                                .Select(x => x.GetString() ?? "")
+                                .Where(x => !string.IsNullOrWhiteSpace(x))
+                                .ToList();
+                        }
+                        long minBytes = 50L * 1024 * 1024;
+                        if (root.TryGetProperty("minMB", out var mProp) && mProp.TryGetInt64(out long minMb) && minMb >= 10)
+                        {
+                            minBytes = minMb * 1024L * 1024L;
+                        }
+                        var groups = await CleanerBackend.ScanDuplicatesGlobalAsync((msg, pct) =>
+                        {
+                            Dispatcher.Invoke(() =>
+                            {
+                                SendJson(new { type = "duplicatesProgress", text = msg, pct });
+                            });
+                        }, selectedDrives, minBytes);
+                        SendJson(new { type = "duplicatesResult", groups });
+                        break;
+                    }
+
+                    case "analyzeWinSxS":
+                    {
+                        var report = await CleanerBackend.AnalyzeWinSxSAsync();
+                        SendJson(new { type = "winSxSResult", report });
+                        break;
+                    }
+
+                    case "getAuditSnapshots":
+                    {
+                        var snapshots = CleanerBackend.GetAuditSnapshots();
+                        SendJson(new { type = "auditSnapshots", snapshots });
                         break;
                     }
 
@@ -268,6 +316,7 @@ namespace CleanerApp
                     {
                         var itemsJson = root.GetProperty("items").GetRawText();
                         var items = JsonSerializer.Deserialize<List<CleanerItem>>(itemsJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? new List<CleanerItem>();
+                        bool useRecycleBin = root.TryGetProperty("useRecycleBin", out var rbProp) && rbProp.ValueKind == JsonValueKind.True;
 
                         double totalFreed = 0;
                         var deletedIds = new List<string>();
@@ -279,7 +328,7 @@ namespace CleanerApp
                         {
                             foreach (var it in items)
                             {
-                                var res = CleanerBackend.DeleteItem(it);
+                                var res = CleanerBackend.DeleteItem(it, useRecycleBin);
                                 if (res.Success)
                                 {
                                     totalFreed += res.FreedGB;

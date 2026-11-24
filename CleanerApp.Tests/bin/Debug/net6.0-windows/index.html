@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Workspace Cleaner Pro — v4.0 Studio</title>
+  <script src="https://cleaner.app/tailwindcss.min.js"></script>
+  <link rel="stylesheet" href="https://cleaner.app/styles.css" />
+</head>
+<body class="h-screen flex overflow-hidden bg-[#070a12] text-slate-100">
+
+  <!-- ================= LEFT SIDEBAR ================= -->
+  <aside class="w-64 shrink-0 bg-[#0b101d] border-r border-white/[0.06] flex flex-col justify-between z-20">
+    <div class="flex flex-col flex-1 min-h-0 overflow-y-auto p-4 space-y-5">
+      <!-- Brand -->
+      <div class="flex items-center gap-3 px-1">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-600/25 ring-1 ring-white/15 shrink-0">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/>
+          </svg>
+        </div>
+        <div class="min-w-0">
+          <div class="flex items-center gap-1.5">
+            <span class="text-sm font-bold tracking-tight text-white truncate">Cleaner Pro</span>
+            <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-400/30">v4.0</span>
+          </div>
+          <p class="text-[10px] text-slate-400 truncate">Studio Multi-Disques & IA</p>
+        </div>
+      </div>
+
+      <!-- Primary Navigation -->
+      <nav class="space-y-1">
+        <div class="px-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Navigation</div>
+
+        <button onclick="switchView('audit')" id="nav-audit" class="nav-item active w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300">
+          <span class="flex items-center gap-2.5">
+            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/></svg>
+            <span>Audit Intelligent</span>
+          </span>
+          <span id="nav-count-audit" class="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-white/[0.06] text-slate-300 tabular-nums">0</span>
+        </button>
+
+        <button onclick="switchView('explorer')" id="nav-explorer" class="nav-item w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300">
+          <span class="flex items-center gap-2.5">
+            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/></svg>
+            <span>Explorateur d'Espace</span>
+          </span>
+          <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/25">Arbre</span>
+        </button>
+
+        <button onclick="switchView('duplicates')" id="nav-duplicates" class="nav-item w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300">
+          <span class="flex items-center gap-2.5">
+            <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75"/></svg>
+            <span>Doublons Globaux</span>
+          </span>
+          <span id="nav-count-duplicates" class="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-300 tabular-nums">0</span>
+        </button>
+
+        <button onclick="switchView('protected')" id="nav-protected" class="nav-item w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300">
+          <span class="flex items-center gap-2.5">
+            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/></svg>
+            <span>Liste Protégée</span>
+          </span>
+          <span id="nav-count-protected" class="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-indigo-500/15 text-indigo-300 tabular-nums">0</span>
+        </button>
+
+        <button onclick="switchView('history')" id="nav-history" class="nav-item w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-300">
+          <span class="flex items-center gap-2.5">
+            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span>Historique</span>
+          </span>
+        </button>
+      </nav>
+
+      <!-- Audit Sections Quick Toggles (Always visible on the left!) -->
+      <div id="sidebar-audit-sections" class="hidden space-y-1.5 pt-2 border-t border-white/[0.06]">
+        <div class="px-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">Listes de l'Audit</div>
+        <button onclick="toggleMainSection()" id="btn-side-main" class="w-full flex items-center justify-between px-2.5 py-2 rounded-xl border border-blue-500/35 bg-blue-950/25 text-xs text-slate-200 hover:bg-blue-950/40 transition-all">
+          <span class="flex items-center gap-2">
+            <span id="side-main-arrow" class="text-[10px] font-mono text-blue-300">▼</span>
+            <span>Audit Recommandé</span>
+          </span>
+          <span id="side-main-count" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/[0.07] text-blue-200 tabular-nums">0</span>
+        </button>
+        <button onclick="toggleExtraSection()" id="btn-side-extra" class="w-full flex items-center justify-between px-2.5 py-2 rounded-xl border border-white/[0.07] bg-slate-900/60 text-xs text-slate-300 hover:bg-slate-800/80 transition-all">
+          <span class="flex items-center gap-2">
+            <span id="side-extra-arrow" class="text-[10px] font-mono text-slate-400">▶</span>
+            <span>Actifs / Récents</span>
+          </span>
+          <span id="side-extra-count" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/[0.06] text-slate-300 tabular-nums">0</span>
+        </button>
+      </div>
+
+      <!-- Multi-Drive Selector -->
+      <div class="space-y-2 pt-2 border-t border-white/[0.06]">
+        <div class="flex items-center justify-between px-1">
+          <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Disques (Multi-choix)</span>
+          <button onclick="selectAllDrives()" class="text-[10px] font-medium text-blue-400 hover:text-blue-300">Tous</button>
+        </div>
+        <p class="text-[10px] text-slate-500 px-1 leading-snug">Cochez 1, 2 ou 3+ disques pour filtrer l'affichage ou cibler le scan.</p>
+        <div id="sidebar-drives" class="space-y-2">
+          <div class="p-3 text-center text-[11px] text-slate-500">Détection des disques...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar Footer: AI Settings -->
+    <div class="p-3.5 border-t border-white/[0.06] bg-[#090d18]">
+      <button id="btn-ai-header" onclick="openAiSettingsModal()" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800/90 border border-purple-500/25 transition-all group">
+        <span class="flex items-center gap-2 text-xs font-medium text-purple-200 group-hover:text-white">
+          <span>✨</span>
+          <span id="ai-header-label">Mode IA Gemini</span>
+        </span>
+        <span id="ai-header-indicator" class="w-2 h-2 rounded-full bg-slate-500"></span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ================= MAIN CONTENT SHELL ================= -->
+  <div class="flex-1 flex flex-col min-w-0 overflow-hidden ambient-bg">
+
+    <!-- TOP BAR -->
+    <header class="h-16 shrink-0 border-b border-white/[0.06] bg-[#0b101d]/60 backdrop-blur-md px-6 flex items-center justify-between gap-4">
+      <div class="min-w-0">
+        <h2 id="view-title" class="text-sm font-bold text-white truncate">Audit Intelligent Multi-Disques</h2>
+        <p id="view-subtitle" class="text-[11px] text-slate-400 truncate">Disques actifs : détection...</p>
+      </div>
+
+      <div class="flex items-center gap-2.5 shrink-0">
+        <!-- Global Search (shown in Audit) -->
+        <div id="topbar-search-wrap" class="relative w-56 hidden md:block">
+          <input type="text" id="search-input" oninput="renderItems()" placeholder="Rechercher..." class="w-full bg-slate-950/80 border border-white/[0.09] rounded-lg px-3 py-1.5 pl-8 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500" />
+          <svg class="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+        </div>
+
+        <button id="btn-smart-scan" onclick="startAudit()" class="px-3.5 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-lg shadow-blue-600/25 transition-all flex items-center gap-2 active:scale-95">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+          <span>Lancer l'Audit</span>
+        </button>
+
+        <div class="bg-slate-950/80 border border-white/[0.08] px-3 py-1.5 rounded-lg flex items-center gap-2">
+          <span class="text-[11px] text-slate-400">Sélection :</span>
+          <span id="live-selected-gb" class="font-mono font-bold text-blue-400 text-xs tabular-nums">0.00 Go</span>
+        </div>
+
+        <button id="btn-clean" onclick="openCleanModal()" disabled class="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-35 disabled:pointer-events-none text-white font-semibold text-xs shadow-lg shadow-emerald-600/25 transition-all flex items-center gap-1.5 active:scale-95">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+          <span>Nettoyer</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- SCROLLABLE WORKSPACE -->
+    <main class="flex-1 overflow-y-auto p-6 space-y-5">
+
+      <!-- Progress Banner -->
+      <div id="progress-banner" class="hidden p-3.5 rounded-xl bg-blue-950/50 border border-blue-500/40 space-y-2">
+        <div class="flex items-center justify-between text-xs text-blue-200 font-medium">
+          <span id="progress-text" class="flex items-center gap-2">
+            <svg class="animate-spin h-4 w-4 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+            Analyse en cours...
+          </span>
+          <span id="progress-pct" class="font-mono font-bold tabular-nums">0%</span>
+        </div>
+        <div class="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
+          <div id="progress-bar" class="bg-gradient-to-r from-blue-500 to-indigo-400 h-1.5 rounded-full transition-all duration-300" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <!-- ==================== VIEW 1: AUDIT INTELLIGENT ==================== -->
+      <section id="view-audit" class="space-y-4">
+        <!-- KPI & Distribution Strip -->
+        <div id="analytics-bar" class="hidden space-y-3">
+          <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div class="surface-card rounded-xl p-3.5 flex items-center justify-between">
+              <div>
+                <div class="text-[11px] text-slate-400">Récupérable Sûr (0–10%)</div>
+                <div id="kpi-safe-gb" class="text-lg font-bold font-mono text-emerald-400 tabular-nums mt-0.5">0.00 Go</div>
+              </div>
+              <div class="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center text-emerald-400">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+              </div>
+            </div>
+            <div class="surface-card rounded-xl p-3.5 flex items-center justify-between">
+              <div>
+                <div class="text-[11px] text-slate-400">Inactifs (&ge; 1 an)</div>
+                <div id="kpi-old-gb" class="text-lg font-bold font-mono text-amber-400 tabular-nums mt-0.5">0.00 Go</div>
+              </div>
+              <div class="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center text-amber-400">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+              </div>
+            </div>
+            <div class="surface-card rounded-xl p-3.5 flex items-center justify-between">
+              <div>
+                <div class="text-[11px] text-slate-400">Audit Recommandé</div>
+                <div id="kpi-rec-gb" class="text-lg font-bold font-mono text-blue-400 tabular-nums mt-0.5">0.00 Go</div>
+              </div>
+              <div class="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/25 flex items-center justify-center text-blue-400">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
+              </div>
+            </div>
+            <div class="surface-card rounded-xl p-3.5 flex items-center justify-between">
+              <div>
+                <div class="text-[11px] text-slate-400">Éléments Affichés</div>
+                <div id="kpi-visible-count" class="text-lg font-bold font-mono text-indigo-300 tabular-nums mt-0.5">0</div>
+              </div>
+              <div class="w-9 h-9 rounded-xl bg-indigo-500/15 border border-indigo-500/25 flex items-center justify-center text-indigo-400">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z"/></svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="surface-card rounded-xl p-3 space-y-2">
+            <div class="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+              <span class="text-slate-300 font-medium">Répartition sur les disques actifs</span>
+              <div class="flex flex-wrap items-center gap-4 text-slate-400">
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-500"></span>Jeux (<span id="dist-games" class="text-slate-200 font-mono">0 Go</span>)</span>
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>Système & Dev (<span id="dist-system" class="text-slate-200 font-mono">0 Go</span>)</span>
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500"></span>Téléchargements (<span id="dist-downloads" class="text-slate-200 font-mono">0 Go</span>)</span>
+                <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-purple-500"></span>Logiciels (<span id="dist-apps" class="text-slate-200 font-mono">0 Go</span>)</span>
+              </div>
+            </div>
+            <div class="w-full h-2 rounded-full bg-slate-950 overflow-hidden flex">
+              <div id="bar-games" class="bg-blue-500 h-full transition-all duration-500" style="width: 0%"></div>
+              <div id="bar-system" class="bg-emerald-500 h-full transition-all duration-500" style="width: 0%"></div>
+              <div id="bar-downloads" class="bg-amber-500 h-full transition-all duration-500" style="width: 0%"></div>
+              <div id="bar-apps" class="bg-purple-500 h-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Audit Evolution & WinSxS Info Bar -->
+        <div id="audit-evolution-banner" class="hidden surface-card rounded-xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs border border-cyan-500/25 bg-cyan-950/20"></div>
+
+        <div id="winsxs-bar" class="surface-card rounded-xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div class="flex items-center gap-2 text-slate-300">
+            <span>🪟</span>
+            <span id="winsxs-summary-text">Magasin de composants Windows (WinSxS) — Analyse lecture seule disponible</span>
+          </div>
+          <button id="btn-analyze-winsxs" onclick="analyzeWinSxS()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-white/[0.09] text-[11px] font-medium text-cyan-300 transition-all">
+            🔍 Analyser WinSxS (DISM)
+          </button>
+        </div>
+
+        <!-- Category Tabs -->
+        <div id="audit-tabs-bar" class="hidden flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-1.5 overflow-x-auto pb-1">
+            <button onclick="switchAuditCat('all')" id="cat-all" class="tab-pill active px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 whitespace-nowrap">
+              <span>Tous</span><span id="count-all" class="text-[10px] font-mono opacity-80">0</span>
+            </button>
+            <button onclick="switchAuditCat('games')" id="cat-games" class="tab-pill px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-300 hover:bg-white/[0.04] flex items-center gap-1.5 whitespace-nowrap">
+              <span>Jeux</span><span id="count-games" class="text-[10px] font-mono opacity-80">0</span>
+            </button>
+            <button onclick="switchAuditCat('system')" id="cat-system" class="tab-pill px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-300 hover:bg-white/[0.04] flex items-center gap-1.5 whitespace-nowrap">
+              <span>Système & Dev</span><span id="count-system" class="text-[10px] font-mono opacity-80">0</span>
+            </button>
+            <button onclick="switchAuditCat('downloads')" id="cat-downloads" class="tab-pill px-3 py-1.5 rounded-lg text-xs font-semibold text-amber-300 hover:bg-white/[0.04] flex items-center gap-1.5 whitespace-nowrap">
+              <span>Téléchargements</span><span id="count-downloads" class="text-[10px] font-mono opacity-80">0</span>
+            </button>
+            <button onclick="switchAuditCat('apps')" id="cat-apps" class="tab-pill px-3 py-1.5 rounded-lg text-xs font-semibold text-purple-300 hover:bg-white/[0.04] flex items-center gap-1.5 whitespace-nowrap">
+              <span>Logiciels</span><span id="count-apps" class="text-[10px] font-mono opacity-80">0</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Sort & Filter Toolbar (decoupled from Drives!) -->
+        <div id="toolbar-controls" class="hidden flex-wrap items-center justify-between gap-3 surface-card rounded-xl px-3.5 py-2.5">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-[11px] text-slate-400 font-medium">Trier :</span>
+            <select id="sort-select" onchange="onSortChange()" class="bg-slate-950 border border-white/[0.1] rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-blue-500">
+              <option value="recommended">Recommandé (Risque ↑, Taille ↓)</option>
+              <option value="risk">Pourcentage de risque (%)</option>
+              <option value="size">Taille (Go / Mo)</option>
+              <option value="age">Ancienneté / Date</option>
+              <option value="name">Nom (A → Z)</option>
+              <option value="drive">Disque</option>
+            </select>
+            <button id="btn-sort-dir" onclick="toggleSortDir()" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/[0.09] text-[11px] text-slate-200 font-mono">
+              ↑ Croissant
+            </button>
+
+            <div class="h-4 w-px bg-white/[0.08] mx-1 hidden md:block"></div>
+
+            <button onclick="setQuickFilter('all')" id="chip-all" class="chip-btn active px-2.5 py-1 rounded-md text-[11px] text-slate-300 hover:bg-white/[0.05]">Tout</button>
+            <button onclick="setQuickFilter('safe')" id="chip-safe" class="chip-btn px-2.5 py-1 rounded-md text-[11px] text-emerald-400 hover:bg-white/[0.05]">Sûrs (0–10%)</button>
+            <button onclick="setQuickFilter('old')" id="chip-old" class="chip-btn px-2.5 py-1 rounded-md text-[11px] text-amber-400 hover:bg-white/[0.05]">Inactifs (&ge; 1 an)</button>
+            <button onclick="setQuickFilter('6m')" id="chip-6m" class="chip-btn px-2.5 py-1 rounded-md text-[11px] text-orange-300 hover:bg-white/[0.05]">&ge; 6 mois</button>
+            <button onclick="setQuickFilter('large')" id="chip-large" class="chip-btn px-2.5 py-1 rounded-md text-[11px] text-blue-400 hover:bg-white/[0.05]">&ge; 1 Go</button>
+            <button onclick="toggleHideRunning()" id="chip-hide-running" class="chip-btn px-2.5 py-1 rounded-md text-[11px] text-rose-300 hover:bg-white/[0.05]">Masquer actifs</button>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-1.5">
+            <button onclick="selectBulk('zero')" class="px-2.5 py-1 rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-[11px] font-medium">✓ Cocher Sûrs (0%)</button>
+            <button onclick="selectBulk('old')" class="px-2.5 py-1 rounded-md bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[11px] font-medium">🕒 Cocher Inactifs</button>
+            <button onclick="selectBulk('none')" class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 border border-white/[0.08] text-slate-300 text-[11px] font-medium">✕ Décocher</button>
+          </div>
+        </div>
+
+        <!-- Audit Items List -->
+        <div id="items-container" class="space-y-2.5">
+          <div class="surface-card rounded-2xl p-12 text-center space-y-4">
+            <div class="w-14 h-14 mx-auto rounded-2xl bg-blue-500/10 border border-blue-500/25 flex items-center justify-center text-blue-400">
+              <svg class="w-7 h-7" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+            </div>
+            <h3 class="text-base font-bold text-white">Prêt pour l'analyse de vos disques</h3>
+            <p class="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+              Choisissez un ou plusieurs disques dans la barre latérale à gauche, puis cliquez sur <strong class="text-blue-400">Lancer l'Audit</strong>.
+              Vous pouvez aussi ouvrir <strong class="text-cyan-400">Explorateur d'Espace</strong> pour visualiser les dossiers les plus volumineux en arborescence.
+            </p>
+            <div class="flex items-center justify-center gap-3 pt-1">
+              <button onclick="startAudit()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-600/25">Lancer l'Audit maintenant</button>
+              <button onclick="switchView('explorer')" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-medium border border-white/[0.08]">Ouvrir l'Explorateur d'Espace</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== VIEW 2B: DOUBLONS GLOBAUX ==================== -->
+      <section id="view-duplicates" class="hidden space-y-4">
+        <div class="surface-card rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
+          <div class="space-y-1">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2"><span>♊</span> Détection Globale des Doublons (SHA-256)</h3>
+            <p class="text-[11px] text-slate-400">Scanne <strong>tous les dossiers</strong> de tous les disques actifs (hors dossiers critiques Windows) pour repérer les fichiers identiques.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <select id="dup-min-mb" class="bg-slate-950 border border-white/[0.1] rounded-lg px-2.5 py-1.5 text-xs text-slate-200">
+              <option value="50" selected>&ge; 50 Mo</option>
+              <option value="100">&ge; 100 Mo</option>
+              <option value="500">&ge; 500 Mo</option>
+            </select>
+            <button id="btn-scan-duplicates" onclick="startDuplicatesScan()" class="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold shadow-lg shadow-amber-600/20">
+              🔍 Scanner Partout
+            </button>
+          </div>
+        </div>
+
+        <div id="dup-progress-wrap" class="hidden surface-card rounded-xl p-3 space-y-1.5">
+          <div class="flex items-center justify-between text-xs">
+            <span id="dup-progress-text" class="text-amber-300 font-medium">Analyse en cours...</span>
+            <span id="dup-progress-pct" class="font-mono text-slate-400">0%</span>
+          </div>
+          <div class="w-full h-1.5 rounded-full bg-slate-900 overflow-hidden">
+            <div id="dup-progress-bar" class="h-full bg-amber-500 transition-all duration-300" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div id="dup-toolbar" class="hidden surface-card rounded-xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2">
+          <div class="text-xs text-slate-300">
+            <strong id="dup-groups-count" class="text-white">0</strong> groupe(s) de doublons —
+            <strong id="dup-reclaim-total" class="text-emerald-400 font-mono">0.00 Go</strong> récupérables
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="selectSuggestedDuplicates()" class="px-2.5 py-1 rounded-md bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[11px] font-medium">✓ Cocher copies suggérées</button>
+            <button onclick="openDuplicatesCleanModal()" class="px-3 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold">🗑️ Nettoyer doublons cochés</button>
+          </div>
+        </div>
+
+        <div id="duplicates-container" class="space-y-3">
+          <div class="surface-card rounded-2xl p-10 text-center text-xs text-slate-400">
+            Cliquez sur <strong class="text-amber-400">Scanner Partout</strong> pour rechercher les fichiers en double sur l'ensemble de vos disques sélectionnés.
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== VIEW 2: EXPLORATEUR D'ESPACE (SPACE LENS) ==================== -->
+      <section id="view-explorer" class="hidden space-y-4">
+        <!-- Sticky Navigation & Breadcrumb -->
+        <div class="sticky top-0 z-10 bg-[#0b101d]/95 backdrop-blur-md border border-white/[0.09] rounded-2xl p-3.5 space-y-2.5 shadow-xl">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div id="explorer-drive-pills" class="flex flex-wrap items-center gap-1.5"></div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="explorerBack()" id="btn-explorer-back" disabled class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 disabled:opacity-35 disabled:pointer-events-none border border-white/[0.08] text-[11px] text-slate-200 flex items-center gap-1">
+                <span>←</span> Retour
+              </button>
+              <button onclick="explorerGoParent()" id="btn-explorer-up" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/[0.08] text-[11px] text-slate-200 flex items-center gap-1">
+                <span>↑</span> Parent
+              </button>
+              <button onclick="explorerOpenShortcut('profile')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/[0.08] text-[11px] text-slate-300 hidden sm:inline-flex">Profil</button>
+              <button onclick="explorerRefresh()" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/[0.08] text-[11px] text-blue-300 flex items-center gap-1">
+                <span>↻</span> Actualiser
+              </button>
+            </div>
+          </div>
+
+          <!-- Breadcrumb -->
+          <div id="explorer-breadcrumb" class="flex flex-wrap items-center gap-1 bg-slate-950/85 border border-white/[0.08] rounded-xl px-3 py-2 text-xs font-mono"></div>
+        </div>
+
+        <!-- Space Lens Proportional Visual Treemap Bar -->
+        <div id="explorer-visual-wrap" class="surface-card rounded-2xl p-4 space-y-2 hidden">
+          <div class="flex items-center justify-between text-[11px]">
+            <span class="text-slate-300 font-medium">Poids des plus gros sous-dossiers / fichiers</span>
+            <span id="explorer-total-meta" class="font-mono text-cyan-300 font-semibold tabular-nums"></span>
+          </div>
+          <div id="explorer-treemap-bar" class="w-full h-7 rounded-xl bg-slate-950 overflow-hidden flex gap-0.5 p-0.5 border border-white/[0.07]"></div>
+          <div id="explorer-treemap-legend" class="flex flex-wrap gap-2 pt-0.5"></div>
+        </div>
+
+        <!-- Tree Rows Container -->
+        <div id="explorer-tree-container" class="space-y-1.5"></div>
+      </section>
+
+      <!-- ==================== VIEW 3: LISTE PROTÉGÉE ==================== -->
+      <section id="view-protected" class="hidden space-y-3">
+        <div id="protected-container" class="space-y-2.5"></div>
+      </section>
+
+      <!-- ==================== VIEW 4: HISTORIQUE ==================== -->
+      <section id="view-history" class="hidden space-y-4">
+        <div class="surface-card rounded-2xl p-4 flex items-center justify-between">
+          <div>
+            <div class="text-xs text-slate-400">Espace total récupéré depuis le début</div>
+            <div id="history-total-gb" class="text-2xl font-bold font-mono text-emerald-400 tabular-nums mt-0.5">0.00 Go</div>
+          </div>
+          <button onclick="clearHistory()" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-rose-950/60 border border-white/[0.08] hover:border-rose-500/40 text-xs text-slate-300 hover:text-rose-300 transition-all">Effacer l'historique</button>
+        </div>
+        <div id="history-list" class="space-y-2"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ================= RESEARCH MODAL ================= -->
+  <div id="modal-research" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="bg-[#0e1526] border border-white/[0.12] rounded-2xl max-w-xl w-full p-5 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-white/[0.08] pb-3">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-lg">🔍</span>
+          <h3 class="text-sm font-bold text-white" id="res-title">Enquête sur l'Élément</h3>
+          <span id="res-ai-badge" class="hidden text-[10px] font-mono px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40">✨ Enrichi par Gemini IA</span>
+        </div>
+        <button onclick="closeResearchModal()" class="text-slate-400 hover:text-white text-xs px-2.5 py-1 rounded-lg bg-slate-800">✕ Fermer</button>
+      </div>
+
+      <div class="space-y-3 text-xs max-h-[68vh] overflow-y-auto pr-1">
+        <div>
+          <span class="text-slate-400 block mb-1 font-medium">Emplacement :</span>
+          <span class="font-mono text-slate-300 break-all select-all p-2 rounded-lg bg-slate-950 border border-white/[0.08] block text-[11px]" id="res-path"></span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-slate-950/75 p-2.5 rounded-xl border border-white/[0.07]">
+            <span class="text-slate-400 block text-[11px]">Dernière Activité</span>
+            <span class="font-semibold text-slate-200" id="res-date">Inconnu</span>
+          </div>
+          <div class="bg-slate-950/75 p-2.5 rounded-xl border border-white/[0.07]">
+            <span class="text-slate-400 block text-[11px]">Risque Estimé</span>
+            <span class="font-bold font-mono text-sm" id="res-risk">0%</span>
+          </div>
+        </div>
+
+        <div class="bg-slate-950/75 p-3 rounded-xl border border-white/[0.07] space-y-1">
+          <span class="font-semibold text-blue-400 flex items-center gap-1.5"><span>📋</span> 1. Définition & Rôle :</span>
+          <p class="text-slate-300 text-[11px] leading-relaxed" id="res-def"></p>
+        </div>
+
+        <div class="bg-slate-950/75 p-3 rounded-xl border border-white/[0.07] space-y-1">
+          <span class="font-semibold text-indigo-400 flex items-center gap-1.5"><span>🏷️</span> 2. Origine de l'Installation :</span>
+          <p class="text-slate-300 text-[11px] leading-relaxed" id="res-origin"></p>
+        </div>
+
+        <div class="bg-slate-950/75 p-3 rounded-xl border border-white/[0.07] space-y-1">
+          <span class="font-semibold text-emerald-400 flex items-center gap-1.5"><span>⚡</span> 3. Activité & Usage :</span>
+          <p class="text-slate-300 text-[11px] leading-relaxed" id="res-activity"></p>
+        </div>
+
+        <div class="bg-slate-950/75 p-3 rounded-xl border border-white/[0.07] space-y-1">
+          <span class="font-semibold text-amber-400 flex items-center gap-1.5"><span>🛡️</span> 4. Sécurité & Réversibilité :</span>
+          <p class="text-slate-300 text-[11px] leading-relaxed" id="res-safety"></p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between pt-2 border-t border-white/[0.08] gap-2 flex-wrap">
+        <div class="flex items-center gap-2">
+          <button id="btn-ai-deep-research" onclick="askAiDeepResearch()" class="px-3.5 py-2 rounded-lg bg-purple-600/20 hover:bg-purple-600/35 border border-purple-500/40 text-purple-300 hover:text-white text-xs font-medium flex items-center gap-1.5">
+            <span id="ai-spinner" class="hidden animate-spin">⏳</span>
+            <span>✨</span>
+            <span id="ai-deep-label">Approfondir avec l'IA</span>
+          </button>
+          <div id="res-mode-toggle" class="hidden inline-flex rounded-lg bg-slate-950 border border-white/[0.1] p-0.5 text-[11px]">
+            <button id="btn-mode-local" onclick="switchResearchMode('local')" class="px-2.5 py-1 rounded-md font-medium transition-all text-slate-300 hover:text-white">📋 Locale</button>
+            <button id="btn-mode-ai" onclick="switchResearchMode('ai')" class="px-2.5 py-1 rounded-md font-medium transition-all bg-purple-600 text-white">✨ IA Gemini</button>
+          </div>
+        </div>
+        <button onclick="closeResearchModal()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs">J'ai compris</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= CLEAN CONFIRMATION MODAL ================= -->
+  <div id="modal-clean" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="bg-[#0e1526] border border-white/[0.12] rounded-2xl max-w-lg w-full p-5 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-white/[0.08] pb-3">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2"><span>🗑️</span> Confirmer le Nettoyage Headless</h3>
+        <button onclick="closeCleanModal()" class="text-slate-400 hover:text-white text-xs px-2.5 py-1 rounded-lg bg-slate-800">✕ Annuler</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <p class="text-slate-300">Les éléments suivants seront supprimés ou désinstallés de façon <strong>silencieuse (headless)</strong> :</p>
+        <div class="bg-slate-950 p-3 rounded-xl border border-white/[0.08] max-h-44 overflow-y-auto space-y-1 font-mono text-[11px]" id="clean-summary-list"></div>
+        <div id="clean-drive-breakdown" class="flex flex-wrap gap-2 text-[11px]"></div>
+        <div id="clean-running-warning" class="hidden p-2.5 rounded-xl bg-amber-950/40 border border-amber-500/30 text-amber-200 text-[11px]"></div>
+        <div class="p-3 rounded-xl bg-slate-900/90 border border-white/[0.08] space-y-2">
+          <div class="text-[11px] font-semibold text-slate-300">Mode de suppression (fichiers &amp; dossiers) :</div>
+          <label class="flex items-center gap-2 cursor-pointer text-emerald-300">
+            <input type="radio" name="clean-delete-mode" id="clean-mode-recycle" value="recycle" checked class="accent-emerald-500" />
+            <span>♻️ Envoyer à la Corbeille (Récupérable)</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer text-rose-300">
+            <input type="radio" name="clean-delete-mode" id="clean-mode-perm" value="permanent" class="accent-rose-500" />
+            <span>🔥 Suppression définitive (Libération immédiate)</span>
+          </label>
+        </div>
+        <div class="p-3 rounded-xl bg-blue-950/40 border border-blue-500/30 flex items-center justify-between">
+          <span class="text-slate-300">Total à récupérer :</span>
+          <span id="clean-modal-total" class="font-mono font-bold text-emerald-400 text-sm tabular-nums">0.00 Go</span>
+        </div>
+        <p class="text-[11px] text-slate-400">🛡️ Protections garanties : Liste Protégée, dossiers personnels (Documents, Vidéos) et composants système critiques sont intouchables.</p>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.08]">
+        <button onclick="closeCleanModal()" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs">Annuler</button>
+        <button id="btn-confirm-delete" onclick="executeSelectedClean()" class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-semibold text-xs shadow-lg shadow-red-600/30 flex items-center gap-1.5">
+          <span>🚀</span> Lancer le Nettoyage Silencieux
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= AI SETTINGS MODAL ================= -->
+  <div id="modal-ai-settings" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="bg-[#0e1526] border border-white/[0.12] rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-white/[0.08] pb-3">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2"><span>✨</span> Configuration du Mode IA (Gemini)</h3>
+        <button onclick="closeAiSettingsModal()" class="text-slate-400 hover:text-white text-xs px-2.5 py-1 rounded-lg bg-slate-800">✕ Fermer</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <p class="text-slate-300 leading-relaxed">
+          Le <strong>Mode IA</strong> interroge Google Gemini (<code class="text-purple-300">gemini-2.5-flash</code>) uniquement à la demande lorsque vous cliquez sur <em>« Approfondir avec l'IA »</em>.
+        </p>
+
+        <div class="space-y-1.5">
+          <label class="block text-slate-400 text-[11px] font-medium">Clé API Google Gemini :</label>
+          <div class="relative flex items-center">
+            <input type="password" id="input-api-key" placeholder="AIzaSy..." class="w-full bg-slate-950 border border-white/[0.1] rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 font-mono pr-16" />
+            <button type="button" onclick="toggleApiKeyVisibility()" class="absolute right-2 text-slate-400 hover:text-white text-[11px] px-2 py-0.5 rounded bg-slate-800">Voir</button>
+          </div>
+          <button type="button" onclick="openExternalUrl('https://aistudio.google.com/app/apikey')" class="text-purple-400 hover:text-purple-300 text-[11px] underline inline-flex items-center gap-1 pt-1">
+            🔗 Obtenir une clé API gratuite sur Google AI Studio
+          </button>
+        </div>
+
+        <div class="flex items-center justify-between pt-1">
+          <button id="btn-test-api" onclick="testApiKey()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-white/[0.1] flex items-center gap-1.5">
+            <span id="test-spinner" class="hidden animate-spin">⏳</span>
+            <span>Tester la connexion</span>
+          </button>
+          <span id="api-test-status" class="text-[11px] font-medium"></span>
+        </div>
+
+        <div class="bg-purple-950/25 border border-purple-500/25 rounded-xl p-3 space-y-1 text-[11px] text-purple-200">
+          <div class="font-semibold">💡 Stockage local & confidentiel</div>
+          <p class="text-slate-400">Enregistrée dans <code class="text-purple-300 text-[10px]">%LOCALAPPDATA%\CleanerApp\settings.json</code>. L'application reste 100% utilisable hors-ligne.</p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-white/[0.08]">
+        <button onclick="closeAiSettingsModal()" class="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs">Annuler</button>
+        <button onclick="saveAiSettings()" class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs shadow-lg shadow-purple-600/30">💾 Enregistrer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= TOAST CONTAINER ================= -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-2 pointer-events-none"></div>
+
+  <!-- ================= LOGIC & WEBVIEW2 BRIDGE ================= -->
+  <script src="https://cleaner.app/app.js"></script>
+</body>
+</html>
