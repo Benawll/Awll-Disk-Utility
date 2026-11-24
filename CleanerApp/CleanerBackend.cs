@@ -1642,7 +1642,8 @@ namespace CleanerApp
                         foreach (var rf in topLargeRoms)
                         {
                             if (!seenPaths.Add(rf.FullName)) continue;
-                            int rDays = Math.Max(0, (int)(DateTime.Now - rf.LastWriteTime).TotalDays);
+                            var rActivity = GetFileEffectiveActivityDate(rf);
+                            int rDays = Math.Max(0, (int)(DateTime.Now - rActivity).TotalDays);
                             int rRisk = ComputeRiskScore("portable_game", rDays, false, false, false);
                             bool rPromote = rDays >= 180;
                             var rItem = CreateItem(
@@ -1651,9 +1652,9 @@ namespace CleanerApp
                                 "games",
                                 rf.Length,
                                 rRisk,
-                                $"Image jeu / ROM ({rf.Extension.ToUpperInvariant()}) dans {di.Name} ({FormatAgeText(rDays)}).",
+                                $"Image jeu / ROM ({rf.Extension.ToUpperInvariant()}) dans {di.Name} (Activité : {FormatAgeText(rDays)}).",
                                 isFolder: false,
-                                lastModified: rf.LastWriteTime,
+                                lastModified: rActivity,
                                 isExtra: !rPromote
                             );
                             if (rPromote) recommendedItems.Add(rItem);
@@ -1831,7 +1832,7 @@ namespace CleanerApp
             DateTime lastWrite = DateTime.Now;
             if (File.Exists(resolvedPath))
             {
-                lastWrite = new FileInfo(resolvedPath).LastWriteTime;
+                lastWrite = GetFileEffectiveActivityDate(new FileInfo(resolvedPath));
             }
             else if (Directory.Exists(resolvedPath))
             {
@@ -2913,7 +2914,9 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
                         sum += f.Length;
                         count++;
                         var lw = f.LastWriteTime;
-                        if (lw > maxWrite && lw <= nowLimit) maxWrite = lw;
+                        var ct = f.CreationTime;
+                        var eff = (ct > lw && ct <= nowLimit) ? ct : lw;
+                        if (eff > maxWrite && eff <= nowLimit) maxWrite = eff;
                     }
                     catch { }
                 }
@@ -2921,6 +2924,60 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
             catch { }
             if (maxWrite == DateTime.MinValue) maxWrite = DateTime.Now;
             return (sum, count, maxWrite);
+        }
+
+        private static Dictionary<string, DateTime> _recentFilesCache = new(StringComparer.OrdinalIgnoreCase);
+        private static DateTime _recentFilesCacheTime = DateTime.MinValue;
+
+        private static Dictionary<string, DateTime> GetRecentFilesActivityMap()
+        {
+            if (_recentFilesCache.Count > 0 && (DateTime.Now - _recentFilesCacheTime).TotalMinutes < 5)
+                return _recentFilesCache;
+
+            var map = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                var recentDir = Environment.GetFolderPath(Environment.SpecialFolder.Recent);
+                if (Directory.Exists(recentDir))
+                {
+                    foreach (var lnk in Directory.EnumerateFiles(recentDir, "*.lnk", SafeTopOpts))
+                    {
+                        try
+                        {
+                            var fi = new FileInfo(lnk);
+                            var targetName = Path.GetFileNameWithoutExtension(fi.Name);
+                            if (string.IsNullOrWhiteSpace(targetName)) continue;
+                            if (!map.TryGetValue(targetName, out var ex) || fi.LastWriteTime > ex)
+                                map[targetName] = fi.LastWriteTime;
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch { }
+            _recentFilesCache = map;
+            _recentFilesCacheTime = DateTime.Now;
+            return map;
+        }
+
+        private static DateTime GetFileEffectiveActivityDate(FileInfo fi)
+        {
+            DateTime nowLimit = DateTime.Now.AddDays(1);
+            DateTime best = fi.LastWriteTime;
+            try
+            {
+                if (fi.CreationTime > best && fi.CreationTime <= nowLimit)
+                    best = fi.CreationTime;
+
+                var recentMap = GetRecentFilesActivityMap();
+                var baseName = Path.GetFileNameWithoutExtension(fi.Name);
+                if (recentMap.TryGetValue(fi.Name, out var r1) && r1 > best && r1 <= nowLimit)
+                    best = r1;
+                else if (!string.IsNullOrEmpty(baseName) && recentMap.TryGetValue(baseName, out var r2) && r2 > best && r2 <= nowLimit)
+                    best = r2;
+            }
+            catch { }
+            return best;
         }
 
         private static DateTime GetLastWriteTimeSafe(DirectoryInfo di)
