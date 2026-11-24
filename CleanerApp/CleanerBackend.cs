@@ -2487,18 +2487,26 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
                     },
                     generationConfig = new
                     {
-                        temperature = 0.2,
                         responseMimeType = "application/json"
                     }
                 };
 
                 var jsonPayload = JsonSerializer.Serialize(payload);
-                using var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                string[] modelsToTry = { "gemini-3.8-flash", "gemini-2.5-flash" };
+                HttpResponseMessage? response = null;
+                string usedModel = modelsToTry[0];
 
-                string url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={apiKey}";
-                var response = await http.PostAsync(url, content);
+                foreach (var modelName in modelsToTry)
+                {
+                    usedModel = modelName;
+                    using var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                    string url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={apiKey}";
+                    response = await http.PostAsync(url, content);
+                    if (response.IsSuccessStatusCode || (int)response.StatusCode != 404)
+                        break;
+                }
 
-                if (response.IsSuccessStatusCode)
+                if (response != null && response.IsSuccessStatusCode)
                 {
                     var respJson = await response.Content.ReadAsStringAsync();
                     using var doc = JsonDocument.Parse(respJson);
@@ -2526,13 +2534,29 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
                             report.RiskPct = aiRisk;
 
                         report.IsAiEnriched = true;
-                        report.AiModelUsed = "gemini-2.5-flash";
+                        report.AiModelUsed = usedModel;
                         SaveAiCacheEntry(report);
                     }
                 }
                 else
                 {
-                    report.AiModelUsed = $"Erreur API HTTP {(int)response.StatusCode}";
+                    string errDetail = "";
+                    if (response != null)
+                    {
+                        try
+                        {
+                            var errBody = await response.Content.ReadAsStringAsync();
+                            using var errDoc = JsonDocument.Parse(errBody);
+                            if (errDoc.RootElement.TryGetProperty("error", out var errObj) && errObj.TryGetProperty("message", out var msgProp))
+                                errDetail = msgProp.GetString() ?? "";
+                        }
+                        catch { }
+                        report.AiModelUsed = $"Erreur API HTTP {(int)response.StatusCode}{(string.IsNullOrEmpty(errDetail) ? "" : " : " + errDetail)}";
+                    }
+                    else
+                    {
+                        report.AiModelUsed = "Aucune réponse du serveur Gemini.";
+                    }
                 }
             }
             catch (Exception ex)
@@ -2545,27 +2569,40 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
 
         public static async Task<bool> TestGeminiApiKeyAsync(string apiKey)
         {
-            if (string.IsNullOrWhiteSpace(apiKey)) return false;
+            var (ok, _) = await TestGeminiApiKeyDetailedAsync(apiKey);
+            return ok;
+        }
+
+        public static async Task<(bool Success, string Message)> TestGeminiApiKeyDetailedAsync(string apiKey)
+        {
+            if (string.IsNullOrWhiteSpace(apiKey)) return (false, "Veuillez saisir une clé API.");
             try
             {
                 using var http = new HttpClient();
                 http.Timeout = TimeSpan.FromSeconds(10);
-                var payload = new
+                string url = $"https://generativelanguage.googleapis.com/v1beta/models?key={apiKey.Trim()}";
+                var res = await http.GetAsync(url);
+                if (res.IsSuccessStatusCode)
                 {
-                    contents = new[]
+                    return (true, "✓ Clé valide & connectée à Google Gemini !");
+                }
+
+                string errMsg = $"HTTP {(int)res.StatusCode}";
+                try
+                {
+                    var body = await res.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(body);
+                    if (doc.RootElement.TryGetProperty("error", out var errObj) && errObj.TryGetProperty("message", out var msgProp))
                     {
-                        new { parts = new[] { new { text = "ping" } } }
+                        errMsg = $"{errMsg} : {msgProp.GetString()}";
                     }
-                };
-                var json = JsonSerializer.Serialize(payload);
-                using var content = new StringContent(json, Encoding.UTF8, "application/json");
-                string url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={apiKey.Trim()}";
-                var res = await http.PostAsync(url, content);
-                return res.IsSuccessStatusCode;
+                }
+                catch { }
+                return (false, $"✗ {errMsg}");
             }
-            catch
+            catch (Exception ex)
             {
-                return false;
+                return (false, $"✗ Erreur réseau : {ex.Message}");
             }
         }
 

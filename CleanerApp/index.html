@@ -684,6 +684,9 @@
           aiReportCache[(rep.itemPath || rep.ItemPath).toLowerCase()] = rep;
         }
         showResearchModal(rep);
+        if (data.aiError) {
+          showToast(data.aiError, 'warn');
+        }
       } else if (type === 'folderTreeProgress') {
         const pKey = normalizeTreeKey(data.path || data.Path || '');
         if (pKey) {
@@ -712,7 +715,7 @@
         currentSettings = data.settings || data.Settings || { geminiApiKey: '', enableAI: true };
         updateAiHeaderUI();
       } else if (type === 'apiKeyTestResult') {
-        handleApiKeyTestResult(data.success);
+        handleApiKeyTestResult(data.success, data.message);
       } else if (type === 'cleanHistory') {
         renderHistoryView(data.history || data.History || []);
       }
@@ -1692,11 +1695,13 @@
       postToBridge({ action: 'testGeminiApiKey', apiKey: key });
     }
 
-    function handleApiKeyTestResult(success) {
+    function handleApiKeyTestResult(success, message) {
       document.getElementById('test-spinner').classList.add('hidden');
-      document.getElementById('api-test-status').innerHTML = success
-        ? '<span class="text-emerald-400 font-semibold">✓ Clé valide & connectée !</span>'
-        : '<span class="text-rose-400 font-semibold">✗ Clé invalide ou erreur réseau</span>';
+      const statusEl = document.getElementById('api-test-status');
+      const msg = escapeHtml(message || (success ? '✓ Clé valide & connectée !' : '✗ Clé invalide ou erreur réseau'));
+      statusEl.innerHTML = success
+        ? `<span class="text-emerald-400 font-semibold">${msg}</span>`
+        : `<span class="text-rose-400 font-semibold break-all">${msg}</span>`;
     }
 
     function saveAiSettings() {

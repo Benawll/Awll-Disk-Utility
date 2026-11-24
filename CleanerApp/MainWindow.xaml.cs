@@ -200,7 +200,7 @@ namespace CleanerApp
                             customKey = kProp.GetString();
                         }
                         var report = await CleanerBackend.ResearchItemWithAIAsync(name, path, risk, customKey);
-                        SendJson(new { type = "researchResult", report });
+                        SendJson(new { type = "researchResult", report, aiError = report.IsAiEnriched ? "" : report.AiModelUsed });
                         break;
                     }
 
@@ -229,8 +229,8 @@ namespace CleanerApp
                     case "testGeminiApiKey":
                     {
                         var key = root.TryGetProperty("apiKey", out var kProp) ? (kProp.GetString() ?? "") : "";
-                        var ok = await CleanerBackend.TestGeminiApiKeyAsync(key);
-                        SendJson(new { type = "apiKeyTestResult", success = ok });
+                        var (ok, msg) = await CleanerBackend.TestGeminiApiKeyDetailedAsync(key);
+                        SendJson(new { type = "apiKeyTestResult", success = ok, message = msg });
                         break;
                     }
 
