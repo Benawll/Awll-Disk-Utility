@@ -277,15 +277,14 @@ namespace CleanerApp
                 AuditDownloadsUniversal(recommendedItems, targetDrives);
                 foreach (var it in recommendedItems) seenPaths.Add(it.Path);
 
-                // 5. Audit Recommandé : Émulateurs
-                progressCallback?.Invoke("Recherche des émulateurs...", 70);
-                AuditEmulatorsUniversal(recommendedItems, targetDrives, runningProcs);
-                foreach (var it in recommendedItems) seenPaths.Add(it.Path);
-
-                // 6. Inventaire Complet : Autres jeux et logiciels installés
+                // 5. Inventaire Complet : Autres jeux et logiciels installés
                 //    Les éléments inutilisés depuis >= 365 jours (et non critiques) sont promus dans l'Audit Recommandé !
-                progressCallback?.Invoke("Inventaire des jeux et logiciels installés (avec analyse d'inactivité)...", 84);
+                progressCallback?.Invoke("Inventaire des jeux et logiciels installés (avec analyse d'inactivité)...", 72);
                 DiscoverInstalledGamesAndApps(recommendedItems, extraItems, steamLibs, epicGames, seenPaths, seenNames, targetDrives, runningProcs);
+
+                // 6. Découverte Dynamique des Dossiers Racines atypiques sur tous les disques (jeux portables, émulateurs, caches...)
+                progressCallback?.Invoke("Analyse dynamique des dossiers racines multi-disques...", 86);
+                AuditDriveRootsDynamic(recommendedItems, extraItems, seenPaths, targetDrives, runningProcs);
 
                 // 7. Tri par défaut : Recommandés par Risque croissant puis Taille décroissante ; Extra par Taille décroissante
                 var orderedRecommended = recommendedItems
@@ -760,6 +759,42 @@ namespace CleanerApp
                 var file = GetSettingsFilePath();
                 var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(file, json);
+            }
+            catch { }
+        }
+
+        private static string GetAiCacheFilePath()
+        {
+            var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "CleanerApp");
+            Directory.CreateDirectory(folder);
+            return Path.Combine(folder, "ai_cache.json");
+        }
+
+        private static Dictionary<string, ResearchReport> LoadAiCache()
+        {
+            try
+            {
+                var file = GetAiCacheFilePath();
+                if (!File.Exists(file)) return new Dictionary<string, ResearchReport>(StringComparer.OrdinalIgnoreCase);
+                var json = File.ReadAllText(file);
+                var dict = JsonSerializer.Deserialize<Dictionary<string, ResearchReport>>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                return dict != null ? new Dictionary<string, ResearchReport>(dict, StringComparer.OrdinalIgnoreCase) : new Dictionary<string, ResearchReport>(StringComparer.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return new Dictionary<string, ResearchReport>(StringComparer.OrdinalIgnoreCase);
+            }
+        }
+
+        private static void SaveAiCacheEntry(ResearchReport report)
+        {
+            if (report == null || string.IsNullOrWhiteSpace(report.ItemPath)) return;
+            try
+            {
+                var cache = LoadAiCache();
+                cache[report.ItemPath.Trim()] = report;
+                var json = JsonSerializer.Serialize(cache, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(GetAiCacheFilePath(), json);
             }
             catch { }
         }
@@ -1409,10 +1444,10 @@ namespace CleanerApp
                 }
             }
 
-            // D. Scan des dossiers temporaires et caches à la racine sur TOUS les disques sélectionnés
+            // D. Scan des dossiers temporaires et caches standards à la racine sur TOUS les disques sélectionnés
             foreach (var drive in GetTargetDrives(targetDrives))
             {
-                var rootCaches = new[] { "msdownld.tmp", "MSOCache", "MobiSaverCache", "Temp", "Tmp", "TeraBoxDownload", "$Recycle.Bin", ".gradle", ".m2", "node_modules" };
+                var rootCaches = new[] { "msdownld.tmp", "MSOCache", "Temp", "Tmp", "$Recycle.Bin", ".gradle", ".m2", "node_modules" };
                 foreach (var rc in rootCaches)
                 {
                     var p = Path.Combine(drive.Name, rc);
@@ -1497,53 +1532,141 @@ namespace CleanerApp
                     }
                 }
 
-                // 2. Dossiers de builds temporaires dans Downloads
+                // 2. Scan dynamique de TOUS les sous-dossiers volumineux (>= 80 Mo) dans Downloads
                 foreach (var sub in Directory.GetDirectories(dl))
                 {
                     var di = new DirectoryInfo(sub);
-                    if (di.Name.Equals("dist", StringComparison.OrdinalIgnoreCase) ||
-                        di.Name.Equals("build", StringComparison.OrdinalIgnoreCase) ||
-                        di.Name.Equals("test", StringComparison.OrdinalIgnoreCase) ||
-                        di.Name.Contains("r2modman", StringComparison.OrdinalIgnoreCase))
+                    double size = GetDirectorySizeSafe(sub);
+                    if (size < 80 * 1024 * 1024) continue;
+
+                    var last = GetLastWriteTimeSafe(di);
+                    int daysAgo = Math.Max(0, (int)(DateTime.Now - last).TotalDays);
+                    bool isTempName = di.Name.Equals("dist", StringComparison.OrdinalIgnoreCase) ||
+                                      di.Name.Equals("build", StringComparison.OrdinalIgnoreCase) ||
+                                      di.Name.Equals("temp", StringComparison.OrdinalIgnoreCase) ||
+                                      di.Name.Equals("tmp", StringComparison.OrdinalIgnoreCase);
+                    bool hasMatchingArchive = File.Exists(sub + ".zip") || File.Exists(sub + ".rar") || File.Exists(sub + ".7z");
+
+                    if (isTempName || hasMatchingArchive || daysAgo >= 60)
                     {
-                        double size = GetDirectorySizeSafe(sub);
-                        if (size > 50 * 1024 * 1024)
-                        {
-                            var last = GetLastWriteTimeSafe(di);
-                            items.Add(CreateItem($"Dossier Temporaire : {di.Name}", sub, "downloads", size, 0, "Dossier de build temporaire ou décompressé dans Téléchargements.", lastModified: last));
-                        }
+                        int risk = (isTempName || hasMatchingArchive || daysAgo >= 180) ? 0 : 15;
+                        string reason = hasMatchingArchive
+                            ? $"Dossier déjà extrait à côté de son archive ({di.Name}.zip/.rar/.7z)."
+                            : (isTempName
+                                ? "Dossier de build ou temporaire dans Téléchargements."
+                                : $"Dossier téléchargé inactif depuis {FormatAgeText(daysAgo)} ({last:dd/MM/yyyy}).");
+                        items.Add(CreateItem($"Dossier Téléchargé : {di.Name}", sub, "downloads", size, risk, reason, lastModified: last));
                     }
                 }
             }
         }
 
-        private static void AuditEmulatorsUniversal(List<CleanerItem> items, HashSet<string>? targetDrives, HashSet<string> runningProcs)
+        private static void AuditDriveRootsDynamic(
+            List<CleanerItem> recommendedItems,
+            List<CleanerItem> extraItems,
+            HashSet<string> seenPaths,
+            HashSet<string>? targetDrives,
+            HashSet<string> runningProcs)
         {
-            var emuFolderNames = new[] { "Nox", "BlueStacks", "Yuzu", "Jeux dolphin", "Dolphin-x64", "Ryujinx", "LDPlayer", "MEmu" };
+            var skipNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "Windows", "Program Files", "Program Files (x86)", "ProgramData", "Users",
+                "Recovery", "System Volume Information", "PerfLogs", "$Recycle.Bin",
+                "WindowsApps", "WpSystem", "Steam", "SteamLibrary", "Epic Games",
+                "XboxGames", "Riot Games", "GOG Games", "Ubisoft", "Battle.net",
+                "Autres Jeux", "Jeux", "Games", "Old Games", "Téléchargements", "Downloads",
+                "msdownld.tmp", "MSOCache", "Temp", "Tmp", ".gradle", ".m2", "node_modules"
+            };
+
+            string[] romOrGameExts = { ".iso", ".nsp", ".xci", ".wbfs", ".rvz", ".gcz", ".cso", ".pak", ".ucas" };
 
             foreach (var d in GetTargetDrives(targetDrives))
             {
-                foreach (var baseFolder in new[] { @"Program Files", @"Program Files (x86)", "" })
-                {
-                    var root = string.IsNullOrEmpty(baseFolder) ? d.Name : Path.Combine(d.Name, baseFolder);
-                    if (!Directory.Exists(root)) continue;
+                string[] topDirs;
+                try { topDirs = Directory.GetDirectories(d.Name, "*", SafeTopOpts); }
+                catch { continue; }
 
-                    foreach (var ef in emuFolderNames)
+                foreach (var dir in topDirs)
+                {
+                    var di = new DirectoryInfo(dir);
+                    if (skipNames.Contains(di.Name) || di.Name.StartsWith("$") || seenPaths.Contains(dir) || IsPathSanctuarized(dir))
+                        continue;
+
+                    var (bytes, fCount, last) = GetDirectoryStatsSafe(dir);
+                    if (bytes < 100 * 1024 * 1024) continue; // >= 100 Mo
+
+                    int daysAgo = Math.Max(0, (int)(DateTime.Now - last).TotalDays);
+                    bool isRunning = IsLikelyRunning(di.Name, dir, runningProcs);
+                    var nLower = di.Name.ToLowerInvariant();
+
+                    bool looksLikeCacheOrDownload = nLower.Contains("cache") || nLower.Contains("temp") ||
+                                                    nLower.Contains("tmp") || nLower.Contains("download");
+
+                    bool hasExeOrGame = false;
+                    bool hasRom = false;
+                    try
                     {
-                        var target = Path.Combine(root, ef);
-                        if (Directory.Exists(target))
+                        var sampleFiles = di.EnumerateFiles("*", new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = true, MaxRecursionDepth = 2, AttributesToSkip = FileAttributes.ReparsePoint }).Take(80);
+                        foreach (var sf in sampleFiles)
                         {
-                            double size = GetDirectorySizeSafe(target);
-                            if (size > 10 * 1024 * 1024)
-                            {
-                                var last = GetLastWriteTimeSafe(new DirectoryInfo(target));
-                                int daysAgo = Math.Max(0, (int)(DateTime.Now - last).TotalDays);
-                                bool isRunning = IsLikelyRunning(ef, target, runningProcs);
-                                int risk = ComputeRiskScore("emulator", daysAgo, isRunning, false, false);
-                                items.Add(CreateItem($"Émulateur : {ef} ({d.Name.TrimEnd('\\')})", target, "apps", size, risk, $"Émulateur ou ROMs (Activité : {FormatAgeText(daysAgo)}).", lastModified: last));
-                            }
+                            var ext = sf.Extension.ToLowerInvariant();
+                            if (ext == ".exe") hasExeOrGame = true;
+                            if (romOrGameExts.Contains(ext)) hasRom = true;
+                            if (hasExeOrGame && hasRom) break;
                         }
                     }
+                    catch { }
+
+                    if (looksLikeCacheOrDownload)
+                    {
+                        int risk = ComputeRiskScore(daysAgo >= 90 ? "appdata_cache" : "appdata_inactive", daysAgo, isRunning, false, false);
+                        recommendedItems.Add(CreateItem(
+                            $"Dossier Cache / Téléchargement : {di.Name} ({d.Name.TrimEnd('\\')})",
+                            dir,
+                            "system",
+                            bytes,
+                            risk,
+                            $"Dossier racine ({fCount} fichiers, {FormatAgeText(daysAgo)}).",
+                            lastModified: last
+                        ));
+                    }
+                    else if (hasRom || hasExeOrGame)
+                    {
+                        string cat = (hasRom || nLower.Contains("jeu") || nLower.Contains("game") || nLower.Contains("emu") || nLower.Contains("dolphin") || nLower.Contains("yuzu")) ? "games" : "apps";
+                        int risk = ComputeRiskScore("portable_game", daysAgo, isRunning, false, false);
+                        bool promote = daysAgo >= 180 && !isRunning;
+                        var item = CreateItem(
+                            $"{di.Name} ({d.Name.TrimEnd('\\')})",
+                            dir,
+                            cat,
+                            bytes,
+                            risk,
+                            $"Dossier applicatif / jeu détecté à la racine de {d.Name.TrimEnd('\\')} ({fCount} fichiers, {FormatAgeText(daysAgo)}).",
+                            lastModified: last,
+                            isExtra: !promote
+                        );
+                        if (promote) recommendedItems.Add(item);
+                        else extraItems.Add(item);
+                    }
+                    else
+                    {
+                        // Dossier de données divers à la racine du disque
+                        bool promote = daysAgo >= 365 && !isRunning;
+                        int risk = promote ? 20 : 45;
+                        var item = CreateItem(
+                            $"Dossier Racine : {di.Name} ({d.Name.TrimEnd('\\')})",
+                            dir,
+                            "system",
+                            bytes,
+                            risk,
+                            $"Dossier personnalisé à la racine de {d.Name.TrimEnd('\\')} ({fCount} fichiers, {FormatAgeText(daysAgo)}).",
+                            lastModified: last,
+                            isExtra: !promote
+                        );
+                        if (promote) recommendedItems.Add(item);
+                        else extraItems.Add(item);
+                    }
+                    seenPaths.Add(dir);
                 }
             }
         }
@@ -1554,6 +1677,16 @@ namespace CleanerApp
 
         public static ResearchReport ResearchItem(string name, string path, int initialRisk = 5)
         {
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                var aiCache = LoadAiCache();
+                if (aiCache.TryGetValue(path.Trim(), out var cachedReport))
+                {
+                    cachedReport.IsAiEnriched = true;
+                    return cachedReport;
+                }
+            }
+
             var report = new ResearchReport 
             { 
                 ItemName = name, 
@@ -2292,6 +2425,7 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
 
                         report.IsAiEnriched = true;
                         report.AiModelUsed = "gemini-2.5-flash";
+                        SaveAiCacheEntry(report);
                     }
                 }
                 else
