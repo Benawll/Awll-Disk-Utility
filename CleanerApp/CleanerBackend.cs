@@ -1534,6 +1534,7 @@ namespace CleanerApp
                 }
 
                 // 2. Scan dynamique de TOUS les sous-dossiers volumineux (>= 80 Mo) dans Downloads
+                string[] mediaOrDocExts = { ".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".mp4", ".mkv", ".mov", ".avi", ".webm", ".mp3", ".wav", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".psd", ".blend" };
                 foreach (var sub in Directory.GetDirectories(dl))
                 {
                     var di = new DirectoryInfo(sub);
@@ -1545,17 +1546,42 @@ namespace CleanerApp
                     bool isTempName = di.Name.Equals("dist", StringComparison.OrdinalIgnoreCase) ||
                                       di.Name.Equals("build", StringComparison.OrdinalIgnoreCase) ||
                                       di.Name.Equals("temp", StringComparison.OrdinalIgnoreCase) ||
-                                      di.Name.Equals("tmp", StringComparison.OrdinalIgnoreCase);
+                                      di.Name.Equals("tmp", StringComparison.OrdinalIgnoreCase) ||
+                                      di.Name.Equals("__pycache__", StringComparison.OrdinalIgnoreCase);
                     bool hasMatchingArchive = File.Exists(sub + ".zip") || File.Exists(sub + ".rar") || File.Exists(sub + ".7z");
+
+                    bool hasMediaOrDocs = false;
+                    try
+                    {
+                        hasMediaOrDocs = di.EnumerateFiles("*", new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = true, MaxRecursionDepth = 2, AttributesToSkip = FileAttributes.ReparsePoint })
+                            .Take(80)
+                            .Any(f => mediaOrDocExts.Contains(f.Extension.ToLowerInvariant()));
+                    }
+                    catch { }
 
                     if (isTempName || hasMatchingArchive || daysAgo >= 60)
                     {
-                        int risk = (isTempName || hasMatchingArchive || daysAgo >= 180) ? 0 : 15;
+                        int risk;
+                        if ((isTempName || hasMatchingArchive) && !hasMediaOrDocs)
+                        {
+                            risk = 0;
+                        }
+                        else if (hasMediaOrDocs)
+                        {
+                            risk = daysAgo >= 730 ? 10 : (daysAgo >= 365 ? 15 : (daysAgo >= 180 ? 25 : 35));
+                        }
+                        else
+                        {
+                            risk = daysAgo >= 365 ? 5 : (daysAgo >= 180 ? 10 : 20);
+                        }
+
                         string reason = hasMatchingArchive
-                            ? $"Dossier déjà extrait à côté de son archive ({di.Name}.zip/.rar/.7z)."
-                            : (isTempName
-                                ? "Dossier de build ou temporaire dans Téléchargements."
-                                : $"Dossier téléchargé inactif depuis {FormatAgeText(daysAgo)} ({last:dd/MM/yyyy}).");
+                            ? $"Dossier déjà extrait à côté de son archive ({di.Name}.zip/.rar/.7z){(hasMediaOrDocs ? " — contient des médias/documents" : "")}."
+                            : (hasMediaOrDocs
+                                ? $"Contient des images, vidéos ou documents (inactif depuis {FormatAgeText(daysAgo)}, {last:dd/MM/yyyy})."
+                                : (isTempName
+                                    ? "Dossier de build ou temporaire dans Téléchargements."
+                                    : $"Dossier téléchargé inactif depuis {FormatAgeText(daysAgo)} ({last:dd/MM/yyyy})."));
                         items.Add(CreateItem($"Dossier Téléchargé : {di.Name}", sub, "downloads", size, risk, reason, lastModified: last));
                     }
                 }
@@ -1777,9 +1803,9 @@ namespace CleanerApp
 
         #region RECHERCHE FACTUELLE & SUPPRESSION SÉCURISÉE
 
-        public static ResearchReport ResearchItem(string name, string path, int initialRisk = 5)
+        public static ResearchReport ResearchItem(string name, string path, int initialRisk = 5, bool bypassAiCache = false)
         {
-            if (!string.IsNullOrWhiteSpace(path))
+            if (!bypassAiCache && !string.IsNullOrWhiteSpace(path))
             {
                 var aiCache = LoadAiCache();
                 if (aiCache.TryGetValue(path.Trim(), out var cachedReport))
@@ -2437,7 +2463,7 @@ namespace CleanerApp
 
         public static async Task<ResearchReport> ResearchItemWithAIAsync(string name, string path, int initialRisk = 5, string? customApiKey = null)
         {
-            var report = ResearchItem(name, path, initialRisk);
+            var report = ResearchItem(name, path, initialRisk, bypassAiCache: true);
 
             var settings = GetSettings();
             string apiKey = !string.IsNullOrWhiteSpace(customApiKey)

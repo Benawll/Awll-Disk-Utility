@@ -180,7 +180,8 @@ namespace CleanerApp
                         {
                             risk = rProp.GetInt32();
                         }
-                        var report = CleanerBackend.ResearchItem(name, path, risk);
+                        bool bypassAiCache = root.TryGetProperty("bypassAiCache", out var bProp) && bProp.ValueKind == JsonValueKind.True;
+                        var report = CleanerBackend.ResearchItem(name, path, risk, bypassAiCache);
                         SendJson(new { type = "researchResult", report });
                         break;
                     }

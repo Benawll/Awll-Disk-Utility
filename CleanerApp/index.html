@@ -487,12 +487,18 @@
         </div>
       </div>
 
-      <div class="flex items-center justify-between pt-2 border-t border-white/[0.08]">
-        <button id="btn-ai-deep-research" onclick="askAiDeepResearch()" class="px-3.5 py-2 rounded-lg bg-purple-600/20 hover:bg-purple-600/35 border border-purple-500/40 text-purple-300 hover:text-white text-xs font-medium flex items-center gap-1.5">
-          <span id="ai-spinner" class="hidden animate-spin">⏳</span>
-          <span>✨</span>
-          <span id="ai-deep-label">Approfondir avec l'IA</span>
-        </button>
+      <div class="flex items-center justify-between pt-2 border-t border-white/[0.08] gap-2 flex-wrap">
+        <div class="flex items-center gap-2">
+          <button id="btn-ai-deep-research" onclick="askAiDeepResearch()" class="px-3.5 py-2 rounded-lg bg-purple-600/20 hover:bg-purple-600/35 border border-purple-500/40 text-purple-300 hover:text-white text-xs font-medium flex items-center gap-1.5">
+            <span id="ai-spinner" class="hidden animate-spin">⏳</span>
+            <span>✨</span>
+            <span id="ai-deep-label">Approfondir avec l'IA</span>
+          </button>
+          <div id="res-mode-toggle" class="hidden inline-flex rounded-lg bg-slate-950 border border-white/[0.1] p-0.5 text-[11px]">
+            <button id="btn-mode-local" onclick="switchResearchMode('local')" class="px-2.5 py-1 rounded-md font-medium transition-all text-slate-300 hover:text-white">📋 Locale</button>
+            <button id="btn-mode-ai" onclick="switchResearchMode('ai')" class="px-2.5 py-1 rounded-md font-medium transition-all bg-purple-600 text-white">✨ IA Gemini</button>
+          </div>
+        </div>
         <button onclick="closeResearchModal()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs">J'ai compris</button>
       </div>
     </div>
@@ -590,6 +596,7 @@
     let currentSettings = { geminiApiKey: '', enableAI: true };
     let activeResearchItem = null;
     let aiReportCache = {};
+    let localReportCache = {};
     let selectedDeleteIds = new Set();
     let pendingDirectDeleteItems = null; // Utilisé si suppression depuis l'Explorateur d'Espace
 
@@ -680,8 +687,13 @@
         if (allItems.length > 0) refreshAuditUI();
       } else if (type === 'researchResult') {
         const rep = data.report || data.Report;
-        if (rep && (rep.isAiEnriched || rep.IsAiEnriched) && (rep.itemPath || rep.ItemPath)) {
-          aiReportCache[(rep.itemPath || rep.ItemPath).toLowerCase()] = rep;
+        if (rep && (rep.itemPath || rep.ItemPath)) {
+          const rKey = (rep.itemPath || rep.ItemPath).toLowerCase();
+          if (rep.isAiEnriched || rep.IsAiEnriched) {
+            aiReportCache[rKey] = rep;
+          } else {
+            localReportCache[rKey] = rep;
+          }
         }
         showResearchModal(rep);
         if (data.aiError) {
@@ -1627,17 +1639,55 @@
       document.getElementById('res-safety').innerText = rep.safetyImpact || rep.SafetyImpact || '';
 
       document.getElementById('res-ai-badge').classList.toggle('hidden', !isAi);
-      resetAiDeepButton();
+
+      const pathKey = path.toLowerCase();
+      const hasAi = isAi || !!aiReportCache[pathKey];
+      const toggleWrap = document.getElementById('res-mode-toggle');
+      const btnLocal = document.getElementById('btn-mode-local');
+      const btnAi = document.getElementById('btn-mode-ai');
+      if (toggleWrap) {
+        toggleWrap.classList.toggle('hidden', !hasAi);
+        if (hasAi) {
+          btnLocal.className = `px-2.5 py-1 rounded-md font-medium transition-all ${!isAi ? 'bg-blue-600 text-white' : 'text-slate-300 hover:text-white'}`;
+          btnAi.className = `px-2.5 py-1 rounded-md font-medium transition-all ${isAi ? 'bg-purple-600 text-white' : 'text-slate-300 hover:text-white'}`;
+        }
+      }
+
+      resetAiDeepButton(hasAi);
       document.getElementById('modal-research').classList.remove('hidden');
+    }
+
+    function switchResearchMode(mode) {
+      if (!activeResearchItem) return;
+      const key = activeResearchItem.path.toLowerCase();
+      if (mode === 'ai') {
+        if (aiReportCache[key]) {
+          showResearchModal(aiReportCache[key]);
+        } else {
+          askAiDeepResearch();
+        }
+      } else {
+        if (localReportCache[key]) {
+          showResearchModal(localReportCache[key]);
+        } else {
+          postToBridge({
+            action: 'researchItem',
+            name: activeResearchItem.name,
+            path: activeResearchItem.path,
+            riskPct: activeResearchItem.riskPct,
+            bypassAiCache: true
+          });
+        }
+      }
     }
 
     function closeResearchModal() {
       document.getElementById('modal-research').classList.add('hidden');
     }
 
-    function resetAiDeepButton() {
+    function resetAiDeepButton(hasAi = false) {
       document.getElementById('ai-spinner').classList.add('hidden');
-      document.getElementById('ai-deep-label').innerText = "Approfondir avec l'IA";
+      document.getElementById('ai-deep-label').innerText = hasAi ? "Réanalyser avec l'IA" : "Approfondir avec l'IA";
       document.getElementById('btn-ai-deep-research').disabled = false;
     }
 
