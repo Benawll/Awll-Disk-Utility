@@ -15,8 +15,6 @@ Ce document définit les règles impératives, la politique de sécurité et les
 
 ### Niveaux de Risque des Éléments Identifiés
 
-Tout élément identifié doit être catégorisé selon son niveau de risque :
-
 | Niveau | Catégorie | Exemples | Action recommandée |
 | :--- | :--- | :--- | :--- |
 | **🟢 Risque Nul / Faible** | Caches & Fichiers temporaires | `%TEMP%`, `C:\Windows\Temp`, corbeille, caches navigateurs, caches téléchargements Windows Update, caches gestionnaires de paquets (`npm cache`, `pip cache`). | Nettoyage automatisable après validation du volume. |
@@ -26,23 +24,29 @@ Tout élément identifié doit être catégorisé selon son niveau de risque :
 
 ---
 
-## 2. Déroulement d'une Mission d'Audit et de Nettoyage
+## 2. Règles d'Exécution et de Stabilité des Processus (Anti-Blocage)
 
-Chaque intervention doit respecter le cycle suivant :
+### 2.1. Zéro Fenêtre Graphique Bloquante (Headless / Silent Obligatoire)
+- **Interdiction formelle** de lancer des désinstalleurs interactifs qui ouvrent une fenêtre graphique sur le bureau utilisateur et attendent un clic manuel (`-tmp`, interfaces Qt/WPF sans argument silencieux).
+- **Toujours employer les drapeaux silencieux stricts** :
+  - Inno Setup : `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART`
+  - MSI : `msiexec.exe /X{GUID} /qn /norestart`
+  - NSIS : `/S`
+  - InstallShield / AdvancedInstaller : `/s /v"/qn"`
+- **Fallback Direct** : Si une application ne dispose pas de désinstalleur silencieux fiable, stopper les processus associés, supprimer directement ses répertoires (`Program Files`, `ProgramData`, `AppData`) et nettoyer la clé Uninstall du registre.
 
-1. **Cartographie globale** :
-   - Évaluer l'espace total, utilisé et libre sur chaque lecteur (`C:`, `D:`, etc.).
-   - Identifier les lecteurs saturés.
-2. **Identification des gisements d'espace** :
-   - Caches et résidus système Windows.
-   - Caches de développement et d'IA (Hugging Face, Torch, Docker, Pip, Npm, Cargo, Gradle, venv).
-   - Dossiers surdimensionnés dans `%USERPROFILE%` et `AppData` (Local, Roaming, LocalLow).
-   - Fichiers géants (> 500 Mo et > 1 Go) orphelins (fichiers ISO, vidéos oubliées, archives ZIP, installateurs `.exe` / `.msi`).
-   - Logiciels et applications lourdes installées inutilisées ou redondantes.
-3. **Restitution structurée** :
-   - Synthétiser les résultats dans un tableau lisible indiquant le gain potentiel en Go.
-   - Détailler les actions sans risque immédiates.
-   - Proposer une liste de programmes candidats à la désinstallation pour décision de l'utilisateur.
-4. **Exécution contrôlée** :
-   - Traiter en priorité les éléments 🟢 Risque Faible.
-   - Demander confirmation pour chaque groupe d'actions ou désinstallation.
+### 2.2. Surveillance Active et Détection des Tâches Bloquées
+- Toute commande ou tâche de fond doit faire l'objet d'un contrôle proactif.
+- Si un processus ne progresse plus ou dépasse le temps normal attendu pour une désinstallation, **l'interrompre immédiatement (`manage_task kill`)** et appliquer l'alternative headless directe.
+
+### 2.3. Encapsulation dans des Scripts .ps1
+- Toujours écrire les commandes PowerShell complexes dans des scripts dédiés du dossier `scripts/` plutôt que d'injecter des commandes inline dans la console afin d'éviter toute corruption par interpolation des variables `$`.
+
+---
+
+## 3. Déroulement d'une Mission d'Audit et de Nettoyage
+
+1. **Cartographie globale** : Évaluer l'espace total, utilisé et libre sur chaque lecteur (`C:`, `D:`, etc.).
+2. **Identification des gisements d'espace** : Caches système, caches dev, gros fichiers, logiciels obsolètes.
+3. **Restitution structurée** : Synthétiser les résultats dans un tableau avec gain potentiel en Go et niveau de risque.
+4. **Exécution contrôlée** : Demander confirmation avant toute action et appliquer les règles d'exécution headless.
