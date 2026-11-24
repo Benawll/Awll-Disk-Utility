@@ -2453,7 +2453,7 @@ namespace CleanerApp
             try
             {
                 using var http = new HttpClient();
-                http.Timeout = TimeSpan.FromSeconds(20);
+                http.Timeout = TimeSpan.FromSeconds(30);
 
                 var prompt = $@"Tu es un expert système Windows et rétro-ingénierie logicielle. Un utilisateur analyse son PC avec un logiciel de nettoyage et souhaite comprendre exactement ce qu'est cet élément détecté sur son disque :
 
@@ -2492,7 +2492,7 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
                 };
 
                 var jsonPayload = JsonSerializer.Serialize(payload);
-                string[] modelsToTry = { "gemini-3.8-flash", "gemini-2.5-flash" };
+                string[] modelsToTry = { "gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-flash", "gemini-3.5-flash-lite" };
                 HttpResponseMessage? response = null;
                 string usedModel = modelsToTry[0];
 
@@ -2502,8 +2502,15 @@ Réponds EXCLUSIVEMENT sous la forme d'un objet JSON valide respectant cette str
                     using var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
                     string url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={apiKey}";
                     response = await http.PostAsync(url, content);
-                    if (response.IsSuccessStatusCode || (int)response.StatusCode != 404)
+                    if (response.IsSuccessStatusCode)
                         break;
+
+                    int code = (int)response.StatusCode;
+                    // Repli automatique sur un autre modèle si indisponible (404, 429, 500, 502, 503, 504)
+                    if (code != 404 && code != 429 && code < 500)
+                        break;
+
+                    await Task.Delay(350);
                 }
 
                 if (response != null && response.IsSuccessStatusCode)
