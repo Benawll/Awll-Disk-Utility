@@ -274,7 +274,7 @@ namespace CleanerApp
 
                 // 4. Audit Recommandé : Téléchargements et disques secondaires (archives, installeurs)
                 progressCallback?.Invoke("Analyse des fichiers téléchargés et archives...", 58);
-                AuditDownloadsUniversal(recommendedItems, targetDrives);
+                AuditDownloadsUniversal(recommendedItems, extraItems, targetDrives, runningProcs);
                 foreach (var it in recommendedItems) seenPaths.Add(it.Path);
 
                 // 5. Inventaire Complet : Autres jeux et logiciels installés
@@ -314,23 +314,39 @@ namespace CleanerApp
             });
         }
 
+        private static HashSet<string> _runningExePaths = new(StringComparer.OrdinalIgnoreCase);
+
         private static HashSet<string> GetRunningProcessNamesSafe()
         {
             var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var exeSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             try
             {
                 foreach (var p in Process.GetProcesses())
                 {
-                    try { set.Add(p.ProcessName); } catch { }
+                    try
+                    {
+                        set.Add(p.ProcessName);
+                        var file = p.MainModule?.FileName;
+                        if (!string.IsNullOrEmpty(file)) exeSet.Add(file);
+                    }
+                    catch { }
                 }
             }
             catch { }
+            _runningExePaths = exeSet;
             return set;
         }
 
         private static bool IsLikelyRunning(string name, string path, HashSet<string> runningProcs)
         {
             if (runningProcs.Count == 0) return false;
+            if (!string.IsNullOrWhiteSpace(path) && _runningExePaths.Count > 0)
+            {
+                string pNorm = path.TrimEnd('\\');
+                if (_runningExePaths.Any(ep => ep.Equals(pNorm, StringComparison.OrdinalIgnoreCase) || ep.StartsWith(pNorm + "\\", StringComparison.OrdinalIgnoreCase)))
+                    return true;
+            }
             var baseName = Path.GetFileNameWithoutExtension(path);
             if (!string.IsNullOrWhiteSpace(baseName) && baseName.Length >= 3 && runningProcs.Any(p => p.Contains(baseName, StringComparison.OrdinalIgnoreCase)))
                 return true;
@@ -1205,16 +1221,19 @@ namespace CleanerApp
 
                             if (daysAgo >= 120)
                             {
-                                double size = GetDirectorySizeSafe(gameDir);
                                 string appTitle = steamInfo?.Name ?? di.Name;
-                                string label = isPts ? $"Serveur de Test abandonné : {appTitle}" : $"Démo Steam abandonnée : {appTitle}";
-                                string reason = isPts
-                                    ? $"Serveur de test public inutilisé depuis {FormatAgeText(daysAgo)} ({lastActivity:dd/MM/yyyy})."
-                                    : $"Démo jouable inactive depuis {FormatAgeText(daysAgo)} (Dernière partie : {lastActivity:dd/MM/yyyy}).";
-
                                 bool isRunning = IsLikelyRunning(appTitle, gameDir, runningProcs);
-                                int risk = ComputeRiskScore("demo_pts", daysAgo, isRunning, false, false);
-                                items.Add(CreateItem(label, gameDir, "games", size, risk, reason, lastModified: lastActivity));
+                                if (!isRunning)
+                                {
+                                    double size = GetDirectorySizeSafe(gameDir);
+                                    string label = isPts ? $"Serveur de Test abandonné : {appTitle}" : $"Démo Steam abandonnée : {appTitle}";
+                                    string reason = isPts
+                                        ? $"Serveur de test public inutilisé depuis {FormatAgeText(daysAgo)} ({lastActivity:dd/MM/yyyy})."
+                                        : $"Démo jouable inactive depuis {FormatAgeText(daysAgo)} (Dernière partie : {lastActivity:dd/MM/yyyy}).";
+
+                                    int risk = ComputeRiskScore("demo_pts", daysAgo, false, false, false);
+                                    items.Add(CreateItem(label, gameDir, "games", size, risk, reason, lastModified: lastActivity));
+                                }
                             }
                         }
                     }
@@ -1268,16 +1287,19 @@ namespace CleanerApp
                                 if (daysAgo >= 180)
                                 {
                                     bool isRunning = IsLikelyRunning(di.Name, sub, runningProcs);
-                                    int risk = ComputeRiskScore("portable_game", daysAgo, isRunning, false, false);
-                                    items.Add(CreateItem(
-                                        $"{di.Name} (Jeu Portable {drive.Name.TrimEnd('\\')})",
-                                        sub,
-                                        "games",
-                                        size,
-                                        risk,
-                                        $"Jeu portable inactif depuis {FormatAgeText(daysAgo)} ({last:dd/MM/yyyy}).",
-                                        lastModified: last
-                                    ));
+                                    if (!isRunning)
+                                    {
+                                        int risk = ComputeRiskScore("portable_game", daysAgo, false, false, false);
+                                        items.Add(CreateItem(
+                                            $"{di.Name} (Jeu Portable {drive.Name.TrimEnd('\\')})",
+                                            sub,
+                                            "games",
+                                            size,
+                                            risk,
+                                            $"Jeu portable inactif depuis {FormatAgeText(daysAgo)} ({last:dd/MM/yyyy}).",
+                                            lastModified: last
+                                        ));
+                                    }
                                 }
                             }
                         }
@@ -1493,7 +1515,7 @@ namespace CleanerApp
             }
         }
 
-        private static void AuditDownloadsUniversal(List<CleanerItem> items, HashSet<string>? targetDrives)
+        private static void AuditDownloadsUniversal(List<CleanerItem> items, List<CleanerItem> extraItems, HashSet<string>? targetDrives, HashSet<string> runningProcs)
         {
             var user = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             var dlList = new List<string> { Path.Combine(user, "Downloads") };
@@ -1522,17 +1544,21 @@ namespace CleanerApp
                     {
                         if (fi.Length > 5 * 1024 * 1024)
                         {
-                            int risk = ComputeRiskScore("installer", daysAgo, false, false, false);
-                            items.Add(CreateItem(
-                                $"Installeur : {fi.Name}",
+                            bool isRunning = IsLikelyRunning(fi.Name, f, runningProcs);
+                            int risk = ComputeRiskScore("installer", daysAgo, isRunning, false, false);
+                            var item = CreateItem(
+                                isRunning ? $"Exécutable actif : {fi.Name}" : $"Installeur : {fi.Name}",
                                 f,
                                 "downloads",
                                 fi.Length,
                                 risk,
-                                $"Installeur téléchargé {FormatAgeText(daysAgo)} ({effDate:dd/MM/yyyy}). Inutile dès que le logiciel est installé.",
+                                isRunning ? "Programme actuellement en cours d'exécution depuis Téléchargements." : $"Installeur téléchargé {FormatAgeText(daysAgo)} ({effDate:dd/MM/yyyy}). Inutile dès que le logiciel est installé.",
                                 isFolder: false,
-                                lastModified: effDate
-                            ));
+                                lastModified: effDate,
+                                isExtra: isRunning
+                            );
+                            if (isRunning) extraItems.Add(item);
+                            else items.Add(item);
                         }
                     }
                     else if ((ext == ".zip" || ext == ".rar" || ext == ".7z" || ext == ".iso" || ext == ".tar" || ext == ".gz") && fi.Length > 20 * 1024 * 1024)
@@ -1773,16 +1799,21 @@ namespace CleanerApp
 
                     if (looksLikeCacheOrDownload)
                     {
+                        bool isPureCacheName = nLower.Contains("cache") || nLower.Contains("temp") || nLower.Contains("tmp");
                         int risk = ComputeRiskScore(daysAgo >= 90 ? "appdata_cache" : "appdata_inactive", daysAgo, isRunning, false, false);
-                        recommendedItems.Add(CreateItem(
-                            $"Dossier Cache / Téléchargement : {di.Name} ({d.Name.TrimEnd('\\')})",
+                        bool promote = !isRunning || isPureCacheName;
+                        var cItem = CreateItem(
+                            isRunning && !isPureCacheName ? $"Dossier Racine Actif (en cours) : {di.Name} ({d.Name.TrimEnd('\\')})" : $"Dossier Cache / Téléchargement : {di.Name} ({d.Name.TrimEnd('\\')})",
                             dir,
                             "system",
                             bytes,
                             risk,
                             $"Dossier racine ({fCount} fichiers, {FormatAgeText(daysAgo)}).",
-                            lastModified: last
-                        ));
+                            lastModified: last,
+                            isExtra: !promote
+                        );
+                        if (promote) recommendedItems.Add(cItem);
+                        else extraItems.Add(cItem);
                     }
                     else if (hasRom || hasExeOrGame)
                     {
