@@ -424,5 +424,81 @@ namespace Awll.Tests
             Assert.True(report.IsAiEnriched);
             Assert.True(report.RiskPct >= 85);
         }
+
+        [Fact]
+        public void ParseGeminiDuplicateAnalysisJson_EnforcesSafetyAndNeverDeletesAll()
+        {
+            var group = new DuplicateGroup
+            {
+                Hash = "ABC123",
+                SizeMB = 120,
+                Files = new List<DuplicateFileItem>
+                {
+                    new DuplicateFileItem { Name = "app.dll", Path = @"C:\Apps\ToolA\app.dll", Drive = "C:", IsProtected = true },
+                    new DuplicateFileItem { Name = "app.dll", Path = @"D:\Backup\app.dll", Drive = "D:" },
+                    new DuplicateFileItem { Name = "app.dll", Path = @"C:\Users\test\Downloads\app.dll", Drive = "C:" }
+                }
+            };
+
+            var report = new DuplicateGroupAiReport { GroupHash = "ABC123" };
+            var raw = "```json\n{\"summary\":\"Copies d'une DLL applicative.\",\"recommendationType\":\"safe_clean\",\"riskPct\":5,\"files\":[{\"index\":0,\"action\":\"delete\",\"reason\":\"Copie A\"},{\"index\":1,\"action\":\"delete\",\"reason\":\"Copie B\"},{\"index\":2,\"action\":\"delete\",\"reason\":\"Copie C\"}]}\n```";
+
+            bool ok = CleanerBackend.ParseGeminiDuplicateAnalysisJson(raw, group, report);
+            Assert.True(ok);
+            Assert.Equal("keep", report.Decisions[0].Action); // Protected forced to keep
+            Assert.Equal("delete", report.Decisions[1].Action);
+            Assert.Equal("delete", report.Decisions[2].Action);
+            Assert.Equal("safe_clean", report.RecommendationType);
+
+            // Test all-delete fallback with non-protected files
+            var groupUnprotected = new DuplicateGroup
+            {
+                Hash = "DEF456",
+                SizeMB = 200,
+                Files = new List<DuplicateFileItem>
+                {
+                    new DuplicateFileItem { Name = "video.mov", Path = @"D:\Videos\video.mov", Drive = "D:" },
+                    new DuplicateFileItem { Name = "video.mov", Path = @"E:\Backup\video.mov", Drive = "E:" }
+                }
+            };
+            var report2 = new DuplicateGroupAiReport { GroupHash = "DEF456" };
+            var rawAllDel = "{\"summary\":\"Vidéo dupliquée.\",\"recommendationType\":\"safe_clean\",\"riskPct\":10,\"files\":[{\"index\":0,\"action\":\"delete\",\"reason\":\"A\"},{\"index\":1,\"action\":\"delete\",\"reason\":\"B\"}]}";
+            bool ok2 = CleanerBackend.ParseGeminiDuplicateAnalysisJson(rawAllDel, groupUnprotected, report2);
+            Assert.True(ok2);
+            Assert.Equal("keep", report2.Decisions[0].Action);
+            Assert.Equal("delete", report2.Decisions[1].Action);
+            Assert.Equal("safe_clean", report2.RecommendationType);
+        }
+
+        [Fact]
+        public async Task AnalyzeDuplicateGroupWithAIAsync_ReturnsKeepAllForSoftwareCopiesOn200()
+        {
+            var group = new DuplicateGroup
+            {
+                Hash = "SW999",
+                SizeMB = 85,
+                Files = new List<DuplicateFileItem>
+                {
+                    new DuplicateFileItem { Name = "ffmpeg.dll", Path = @"C:\Program Files\AppA\ffmpeg.dll", Drive = "C:" },
+                    new DuplicateFileItem { Name = "ffmpeg.dll", Path = @"C:\Program Files\AppB\ffmpeg.dll", Drive = "C:" }
+                }
+            };
+
+            var handler = new MockHttpHandler(_ =>
+            {
+                var payload = "{\"candidates\":[{\"content\":{\"parts\":[{\"thought\":true,\"text\":\"Analyse...\"},{\"text\":\"{\\\"summary\\\":\\\"Bibliothèque partagée requise par deux logiciels distincts.\\\",\\\"recommendationType\\\":\\\"keep_all\\\",\\\"riskPct\\\":20,\\\"files\\\":[{\\\"index\\\":0,\\\"action\\\":\\\"keep\\\",\\\"reason\\\":\\\"Requis par AppA.\\\"},{\\\"index\\\":1,\\\"action\\\":\\\"keep\\\",\\\"reason\\\":\\\"Requis par AppB.\\\"}]}\"}]}}]}";
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(payload, Encoding.UTF8, "application/json")
+                };
+            });
+
+            var report = await CleanerBackend.AnalyzeDuplicateGroupWithAIAsync(group, "fake-key-for-test", handler);
+            Assert.True(report.IsAiEnriched);
+            Assert.Equal("keep_all", report.RecommendationType);
+            Assert.True(report.RiskPct >= 65);
+            Assert.Equal(2, report.Decisions.Count);
+            Assert.All(report.Decisions, d => Assert.Equal("keep", d.Action));
+        }
     }
 }

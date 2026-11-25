@@ -9,6 +9,9 @@
     let quickFilter = 'all';
     let hideRunning = false;
     let duplicateGroups = [];
+    let dupAiStatusByHash = {};
+    let dupAiErrorByHash = {};
+    let dupAiReportByHash = {};
     let selectedDuplicateIds = new Set();
     let duplicateCustomFolders = [];
     let auditCustomFolders = [];
@@ -253,6 +256,25 @@
           updateNavUnseenBadges();
         }
         showToast(`Doublons : ${duplicateGroups.length} groupe(s) détecté(s).`, 'success');
+      } else if (type === 'duplicateGroupAiResult') {
+        const hash = data.hash || data.Hash || '';
+        const rep = data.report || data.Report;
+        const aiError = data.aiError || data.AiError || '';
+        if (hash) {
+          if (rep && (rep.isAiEnriched || rep.IsAiEnriched)) {
+            dupAiReportByHash[hash] = rep;
+            dupAiStatusByHash[hash] = 'done';
+            delete dupAiErrorByHash[hash];
+            showToast('Analyse IA terminée pour le groupe de doublons.', 'success');
+          } else {
+            dupAiStatusByHash[hash] = 'error';
+            dupAiErrorByHash[hash] = aiError || 'Échec de l’analyse IA.';
+            showToast(`IA Doublons : ${dupAiErrorByHash[hash]}`, 'warn');
+          }
+        }
+        if (currentView === 'duplicates') {
+          renderDuplicatesView();
+        }
       } else if (type === 'foldersPicked') {
         const target = data.target || data.Target || 'duplicates';
         const paths = data.paths || data.Paths || [];
@@ -2131,6 +2153,9 @@
         renderSidebarDrives();
         updateHeaderSubtitle();
       }
+      dupAiStatusByHash = {};
+      dupAiErrorByHash = {};
+      dupAiReportByHash = {};
       selectedDuplicateIds.clear();
       updateSelectionCalc();
       dupInProgress = true;
@@ -2192,6 +2217,78 @@
       });
     }
 
+    function renderDupAiButton(groupHash) {
+      const state = dupAiStatusByHash[groupHash] || (dupAiReportByHash[groupHash] ? 'done' : '');
+      const enc = safeEnc(groupHash);
+      if (state === 'loading') {
+        return `<button disabled title="Analyse IA Gemini en cours..." class="px-2.5 py-1 rounded-lg text-[11px] font-medium inline-flex items-center gap-1 cursor-wait" style="background:var(--app-surface-2); border:1px solid var(--app-border-strong); color:var(--app-text);">${icon('spinner', 'w-3 h-3')} <span>IA...</span></button>`;
+      }
+      if (state === 'done') {
+        return `<button onclick="launchAiForDuplicateGroup('${enc}')" title="Réanalyser ce groupe avec Gemini IA" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold inline-flex items-center gap-1 spring hover:opacity-90" style="background:var(--app-safe-soft); border:1px solid var(--app-safe); color:var(--app-safe);">${icon('sparkles', 'w-3 h-3')} <span>IA</span> ${icon('check', 'w-3 h-3')}</button>`;
+      }
+      if (state === 'error') {
+        return `<button onclick="launchAiForDuplicateGroup('${enc}')" title="${escapeHtml(dupAiErrorByHash[groupHash] || 'Échec de l’analyse IA — cliquer pour réessayer')}" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold inline-flex items-center gap-1 spring" style="background:var(--app-danger-soft); border:1px solid var(--app-danger); color:var(--app-danger);">${icon('alert-triangle', 'w-3 h-3')} <span>IA</span></button>`;
+      }
+      return `<button onclick="launchAiForDuplicateGroup('${enc}')" title="Analyser ce groupe avec Gemini IA (distingue doublons sûrs et fichiers requis par les logiciels)" class="btn-secondary px-2.5 py-1 rounded-lg text-[11px] font-medium inline-flex items-center gap-1">${icon('sparkles', 'w-3 h-3')} <span>Analyser IA</span></button>`;
+    }
+
+    function launchAiForDuplicateGroup(encHash) {
+      if (!currentSettings.geminiApiKey) {
+        showToast('Configurez votre clé API Gemini dans « Mode IA Gemini ».', 'warn');
+        openAiSettingsModal();
+        return;
+      }
+      const hash = decodeURIComponent(encHash);
+      const group = (duplicateGroups || []).find(g => (g.hash || g.Hash || '') === hash);
+      if (!group || dupAiStatusByHash[hash] === 'loading') return;
+
+      dupAiStatusByHash[hash] = 'loading';
+      delete dupAiErrorByHash[hash];
+      renderDuplicatesView();
+      postToBridge({
+        action: 'analyzeDuplicateGroupAI',
+        group,
+        apiKey: currentSettings.geminiApiKey || ''
+      });
+    }
+
+    function applyAiDuplicateRecommendation(encHash) {
+      const hash = decodeURIComponent(encHash);
+      const rep = dupAiReportByHash[hash];
+      const group = (duplicateGroups || []).find(g => (g.hash || g.Hash || '') === hash);
+      if (!rep || !group) return;
+
+      const decByPath = {};
+      (rep.decisions || rep.Decisions || []).forEach(d => {
+        const p = (d.path || d.Path || '').toLowerCase();
+        if (p) decByPath[p] = d;
+      });
+
+      let keepCount = 0;
+      let deleteCount = 0;
+      (group.files || group.Files || []).forEach(f => {
+        const fid = f.id || f.Id;
+        const fpath = (f.path || f.Path || '').toLowerCase();
+        const locked = (f.isSanctuarized ?? f.IsSanctuarized) || (f.isProtected ?? f.IsProtected);
+        const dec = decByPath[fpath];
+        const act = (dec?.action || dec?.Action || 'keep').toLowerCase();
+        if (!locked && act === 'delete') {
+          selectedDuplicateIds.add(fid);
+          deleteCount++;
+        } else {
+          selectedDuplicateIds.delete(fid);
+          keepCount++;
+        }
+      });
+
+      renderDuplicatesView();
+      if (deleteCount === 0) {
+        showToast('Choix IA appliqué : toutes les copies conservées.', 'success');
+      } else {
+        showToast(`Choix IA appliqué : ${keepCount} gardée(s), ${deleteCount} marquée(s) à supprimer.`, 'success');
+      }
+    }
+
     function renderDuplicatesView() {
       const container = document.getElementById('duplicates-container');
       const toolbar = document.getElementById('dup-toolbar');
@@ -2229,12 +2326,55 @@
       document.getElementById('dup-reclaim-total').innerText = `${totalReclaim.toFixed(2)} Go`;
 
       container.innerHTML = filteredGroups.map(g => {
+        const gHash = g.hash || g.Hash || '';
         const files = g.files || g.Files || [];
         const szText = (g.sizeGB ?? g.SizeGB ?? 0) >= 0.1 ? `${(g.sizeGB ?? g.SizeGB ?? 0).toFixed(2)} Go` : `${(g.sizeMB ?? g.SizeMB ?? 0).toFixed(1)} Mo`;
         const recText = (g.reclaimableGB ?? g.ReclaimableGB ?? 0) >= 0.1 ? `${(g.reclaimableGB ?? g.ReclaimableGB ?? 0).toFixed(2)} Go` : `${(g.reclaimableMB ?? g.ReclaimableMB ?? 0).toFixed(1)} Mo`;
         const firstName = files[0]?.name || files[0]?.Name || 'Fichier';
         const distinctNames = new Set(files.map(f => (f.name || f.Name || '').trim().toLowerCase()).filter(Boolean));
         const hasDifferentNames = distinctNames.size > 1;
+        const aiRep = dupAiReportByHash[gHash] || null;
+        const decByPath = {};
+        if (aiRep) {
+          (aiRep.decisions || aiRep.Decisions || []).forEach(d => {
+            const p = (d.path || d.Path || '').toLowerCase();
+            if (p) decByPath[p] = d;
+          });
+        }
+
+        let aiPanelHtml = '';
+        if (aiRep) {
+          const recType = (aiRep.recommendationType || aiRep.RecommendationType || 'keep_all').toLowerCase();
+          const verdictMeta = recType === 'safe_clean'
+            ? { label: 'Nettoyage sûr recommandé', cls: 'verdict-safe', bg: 'var(--app-safe-soft)', color: 'var(--app-safe)' }
+            : (recType === 'partial_clean'
+              ? { label: 'Nettoyage partiel recommandé', cls: 'verdict-partial', bg: 'var(--app-warn-soft)', color: 'var(--app-warn)' }
+              : { label: 'Ne pas supprimer (requis par les logiciels)', cls: 'verdict-keep', bg: 'var(--app-danger-soft)', color: 'var(--app-danger)' });
+          const aiRisk = aiRep.riskPct ?? aiRep.RiskPct ?? 50;
+          const rm = riskMeta(aiRisk);
+          const aiSummary = aiRep.summary || aiRep.Summary || '';
+          aiPanelHtml = `
+            <div class="dup-ai-panel ${verdictMeta.cls} rounded-xl px-3.5 py-2.5 space-y-1.5 text-xs">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full" style="background:${verdictMeta.bg}; color:${verdictMeta.color};">
+                    ${icon('sparkles', 'w-3 h-3')}
+                    <span>${verdictMeta.label}</span>
+                  </span>
+                  <span class="inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full tabular-nums" style="background:${rm.bg}; color:${rm.color};">
+                    <span class="w-1.5 h-1.5 rounded-full" style="background:${rm.color};"></span>
+                    <span>${rm.label}</span>
+                  </span>
+                </div>
+                <button onclick="applyAiDuplicateRecommendation('${safeEnc(gHash)}')" class="btn-safe px-2.5 py-1 rounded-md text-[11px] font-semibold inline-flex items-center gap-1">
+                  ${icon('check', 'w-3 h-3')}
+                  <span>Appliquer le choix IA</span>
+                </button>
+              </div>
+              ${aiSummary ? `<p class="text-[11px] leading-relaxed" style="color:var(--app-text);">${escapeHtml(aiSummary)}</p>` : ''}
+            </div>
+          `;
+        }
 
         const rowsHtml = files.map((f, idx) => {
           const fid = f.id || f.Id;
@@ -2245,18 +2385,25 @@
           const isProt = f.isProtected ?? f.IsProtected ?? false;
           const locked = isSanct || isProt;
           const isDelete = selectedDuplicateIds.has(fid);
+          const dec = decByPath[(fpath || '').toLowerCase()];
+          const decAction = dec ? (dec.action || dec.Action || 'keep').toLowerCase() : '';
+          const decReason = dec ? (dec.reason || dec.Reason || '') : '';
           return `
             <div class="item-row rounded-xl px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs ${isDelete ? 'selected-delete' : ''}">
-              <div class="min-w-0 flex-1">
+              <div class="min-w-0 flex-1 space-y-0.5">
                 <div class="flex items-center gap-2 flex-wrap">
                   <span class="font-semibold truncate" style="color:var(--app-text);">${escapeHtml(f.name || f.Name)}</span>
                   ${fDrive ? `<span class="text-[10px] font-mono px-1.5 py-0.5 rounded" style="background:var(--app-surface-2); color:var(--app-muted);">${escapeHtml(fDrive)}</span>` : ''}
                   ${isOtherDrive ? `<span class="text-[10px] px-1.5 py-0.5 rounded font-medium" style="background:var(--app-surface-2); color:var(--app-muted); border:1px solid var(--app-border);">Autre disque</span>` : ''}
                   ${idx === 0 ? `<span class="text-[10px] px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1" style="background:var(--app-safe-soft); color:var(--app-safe);">${icon('shield-check', 'w-3 h-3')} Original conservé</span>` : ''}
                   ${locked ? `<span class="text-[10px] px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1" style="background:var(--app-warn-soft); color:var(--app-warn);">${icon('lock', 'w-3 h-3')} Protégé</span>` : ''}
+                  ${dec ? (decAction === 'delete'
+                    ? `<span class="text-[10px] px-2 py-0.5 rounded-full font-semibold inline-flex items-center gap-1" style="background:var(--app-danger-soft); color:var(--app-danger);">${icon('sparkles', 'w-2.5 h-2.5')} IA : Supprimer</span>`
+                    : `<span class="text-[10px] px-2 py-0.5 rounded-full font-semibold inline-flex items-center gap-1" style="background:var(--app-safe-soft); color:var(--app-safe);">${icon('sparkles', 'w-2.5 h-2.5')} IA : Garder</span>`) : ''}
                   <span class="text-[10px] font-mono tabular-nums" style="color:var(--app-muted);">${escapeHtml(f.lastModified || f.LastModified || '')}</span>
                 </div>
                 <div class="text-[11px] font-mono truncate opacity-75" style="color:var(--app-muted);">${escapeHtml(fpath)}</div>
+                ${decReason ? `<div class="text-[11px] flex items-center gap-1.5 pt-0.5" style="color:var(--app-muted);">${icon('sparkles', 'w-3 h-3')}<span>${escapeHtml(decReason)}</span></div>` : ''}
               </div>
               <div class="flex items-center gap-2 shrink-0">
                 <button onclick="openFolder('${safeEnc(fpath)}')" title="Ouvrir l'emplacement" class="btn-secondary p-1.5 rounded-lg inline-flex items-center justify-center">
@@ -2283,7 +2430,7 @@
                 <span style="color:var(--app-muted);">${icon('file', 'w-4 h-4')}</span>
                 <span class="text-xs font-bold" style="color:var(--app-text);">${escapeHtml(firstName)}</span>
                 <span class="text-[10px] font-mono tabular-nums px-2 py-0.5 rounded" style="background:var(--app-surface-2); color:var(--app-muted);">${files.length} copies × ${szText}</span>
-                <span class="text-[10px] font-mono opacity-75" style="color:var(--app-muted);">SHA256: ${escapeHtml(g.hash || g.Hash || '')}</span>
+                <span class="text-[10px] font-mono opacity-75" style="color:var(--app-muted);">SHA256: ${escapeHtml(gHash)}</span>
                 ${hasDifferentNames ? `
                   <span title="Ces fichiers portent des noms différents mais leur contenu binaire est 100 % identique (même empreinte SHA-256)." class="dup-diff-names-badge inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full">
                     ${icon('info', 'w-3 h-3')}
@@ -2291,8 +2438,12 @@
                   </span>
                 ` : ''}
               </div>
-              <span class="text-xs font-mono font-bold tabular-nums" style="color:var(--app-safe);">+${recText} récupérables</span>
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs font-mono font-bold tabular-nums" style="color:var(--app-safe);">+${recText} récupérables</span>
+                ${renderDupAiButton(gHash)}
+              </div>
             </div>
+            ${aiPanelHtml}
             <div class="space-y-2">${rowsHtml}</div>
           </div>
         `;

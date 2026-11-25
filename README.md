@@ -3,18 +3,18 @@
 > **Utilitaire Windows 10 / 11 de nettoyage disque, d'analyse d'arborescence (`Space Lens`) et de détection de doublons (`SHA-256`).**
 
 ![Platform](https://img.shields.io/badge/Windows-10%20%2F%2011%20(x64)-181816?style=flat-square)
-![Version](https://img.shields.io/badge/Version-1.0.0-B84B2A?style=flat-square)
+![Version](https://img.shields.io/badge/Version-1.1.0-B84B2A?style=flat-square)
 ![App](https://img.shields.io/badge/.NET%206-WPF%20%2B%20WebView2-2D6A4F?style=flat-square)
 ![Installer](https://img.shields.io/badge/Setup-.NET%204.8%20(~63%20Mo)-5C7080?style=flat-square)
-![Tests](https://img.shields.io/badge/Tests%20xUnit-21%20%2F%2021-2D6A4F?style=flat-square)
+![Tests](https://img.shields.io/badge/Tests%20xUnit-23%20%2F%2023-2D6A4F?style=flat-square)
 
 ---
 
-## Téléchargement (v1.0.0)
+## Téléchargement (v1.1.0)
 
 **[Accéder à la dernière Release sur GitHub](https://github.com/Benawll/Awll-Disk-Utility/releases/latest)**
 
-- **Installeur Windows (recommandé)** : **`Awll-Disk-Utility-Setup-1.0.0.exe`** (~62,8 Mo) — exécutable autonome avec raccourcis, mise à jour en place et désinstalleur intégré.
+- **Installeur Windows (recommandé)** : **`Awll-Disk-Utility-Setup-1.1.0.exe`** (~62,8 Mo) — exécutable autonome avec raccourcis, mise à jour en place et désinstalleur intégré.
 - **Version portable** : **`Awll-Disk-Utility.exe`** (~68,0 Mo) — à lancer directement sans installation.
 
 > **Note Windows SmartScreen :** l'exécutable étant open-source et non signé par une autorité payante, Windows peut afficher *« Windows a protégé votre ordinateur / Éditeur inconnu »* au premier lancement. Cliquez simplement sur **Informations complémentaires → Exécuter quand même**.
@@ -46,7 +46,7 @@
 - Pipeline en **3 étapes** :
   1. Parcours sans allocation filtrant les fichiers sous le seuil (`50 Mo`, `100 Mo`, `500 Mo`).
   2. Pré-empreinte rapide parallèle (début + milieu + fin) sur les collisions de taille.
-  3. Empreinte **SHA-256** complète parallèle uniquement sur les candidats restants, avec suggestion intelligente de la copie à conserver.
+  3. Empreinte **SHA-256** complète parallèle uniquement sur les candidats restants, avec badge automatique lorsque des copies identiques portent des noms différents, filtre d'affichage par disque et analyse IA Gemini par groupe (`Analyser IA` / `Appliquer le choix IA`) pour distinguer les copies requises par les logiciels des doublons supprimables.
 
 ### 4. Enquête forensique locale & Mode IA Gemini (optionnel)
 - **100 % utilisable hors-ligne** : chaque carte dispose d'un bouton **Infos** présentant 4 rubriques factuelles (*Définition*, *Origine*, *Activité & Usage*, *Sécurité & Réversibilité*) à partir du Registre, des métadonnées EXE/DLL et de la structure du dossier.
@@ -64,14 +64,14 @@
 
 | Mode | Fichier généré | Détails |
 | :--- | :--- | :--- |
-| **Installeur Windows** *(recommandé)* | `Awll-Disk-Utility-Setup-1.0.0.exe` (~62,8 Mo) | Exécutable autonome unique (`.NET Framework 4.8` natif Windows 10/11). Installe dans `%LocalAppData%\Programs\Awll Disk Utility`, crée les raccourcis, enregistre la désinstallation (`--uninstall` / `/S`), gère la mise à jour en place et intègre un bouton **Désinstaller** complet. |
+| **Installeur Windows** *(recommandé)* | `Awll-Disk-Utility-Setup-1.1.0.exe` (~62,8 Mo) | Exécutable autonome unique (`.NET Framework 4.8` natif Windows 10/11). Installe dans `%LocalAppData%\Programs\Awll Disk Utility`, crée les raccourcis, enregistre la désinstallation (`--uninstall` / `/S`), gère la mise à jour en place et intègre un bouton **Désinstaller** complet. |
 | **Version Portable** | `Awll-Disk-Utility.exe` (~68,0 Mo) | Binaire single-file `.NET 6` autonome, lançable directement sans installation. |
 
 > Toutes les données runtime (réglages, cache IA, liste protégée, historique, assets WebView2) sont stockées dans `%LocalAppData%\Awll\` (avec migration automatique des anciens `.json` depuis `%LocalAppData%\CleanerApp\`).
 
 ### Désinstallation propre
 - **Méthode Windows standard (recommandée)** : *Menu Démarrer → clic droit sur Awll Disk Utility → Désinstaller* ou *Paramètres Windows → Applications → Applications installées → Awll Disk Utility → Désinstaller*.
-- **Via le Setup** : relancez `Awll-Disk-Utility-Setup-1.0.0.exe` puis cliquez sur **Désinstaller** (avec option pour conserver ou effacer `%LocalAppData%\Awll`).
+- **Via le Setup** : relancez `Awll-Disk-Utility-Setup-1.1.0.exe` puis cliquez sur **Désinstaller** (avec option pour conserver ou effacer `%LocalAppData%\Awll`).
 
 ---
 
@@ -80,7 +80,7 @@
 ```text
 Awll-Disk-Utility/
 ├── Awll/                         # Application principale WPF (.NET 6 + WebView2)
-│   ├── Awll.csproj               # AssemblyName: Awll-Disk-Utility (v1.0.0)
+│   ├── Awll.csproj               # AssemblyName: Awll-Disk-Utility (v1.1.0)
 │   ├── MainWindow.xaml(.cs)      # Bridge WebView2 <-> Backend + sync thème Windows (DWM)
 │   ├── App.xaml(.cs)             # Point d'entrée & support --uninstall (/S)
 │   ├── CleanerBackend.cs         # Orchestration Audit & détection des applications installées
@@ -99,7 +99,7 @@ Awll-Disk-Utility/
 │   │   └── NativeFolderPicker.cs              # Sélecteur multi-dossiers natif
 │   ├── index.html / styles.css / app.js       # Interface Clair / Sombre (sync Windows par défaut)
 │   └── app.ico                                # Icône géométrique vectorielle
-├── Awll.Tests/                   # Suite de tests unitaires xUnit (21 tests)
+├── Awll.Tests/                   # Suite de tests unitaires xUnit (23 tests)
 ├── AwllInstaller/                # Installeur & désinstalleur natif (.NET Framework 4.8)
 └── scripts/
     ├── build-release.ps1         # Tests + publish portable + compression payload + Setup.exe
@@ -125,4 +125,4 @@ dotnet test Awll.Tests\Awll.Tests.csproj --verbosity minimal
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-release.ps1
 ```
-Le script exécute les 21 tests xUnit, publie `Awll-Disk-Utility.exe` à la racine, compresse le payload dans `AwllInstaller/Payload/Awll-Disk-Utility.exe.gz` puis génère `Awll-Disk-Utility-Setup-1.0.0.exe` à la racine.
+Le script exécute les 23 tests xUnit, publie `Awll-Disk-Utility.exe` à la racine, compresse le payload dans `AwllInstaller/Payload/Awll-Disk-Utility.exe.gz` puis génère `Awll-Disk-Utility-Setup-1.1.0.exe` à la racine.

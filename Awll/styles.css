@@ -273,6 +273,16 @@ html, body {
   border: 1px solid var(--app-border);
 }
 
+/* Duplicate Group AI Verdict Panel */
+.dup-ai-panel {
+  background: var(--app-surface-2);
+  border: 1px solid var(--app-border);
+  border-left-width: 3px;
+}
+.dup-ai-panel.verdict-safe { border-left-color: var(--app-safe); }
+.dup-ai-panel.verdict-partial { border-left-color: var(--app-warn); }
+.dup-ai-panel.verdict-keep { border-left-color: var(--app-danger); }
+
 /* Scan Target Drive Gauges & Pills (Clear Active vs Excluded Contrast) */
 .scan-drive-card {
   background: var(--app-bg);

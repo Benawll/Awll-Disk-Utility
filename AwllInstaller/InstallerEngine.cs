@@ -38,7 +38,7 @@ namespace AwllInstaller
                     if (!string.IsNullOrWhiteSpace(v)) return v;
                 }
                 var ver = asm.GetName().Version;
-                return ver != null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "1.0.0";
+                return ver != null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "1.1.0";
             }
         }
 

@@ -157,7 +157,7 @@
 
             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                 <TextBlock Text="Awll Disk Utility" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource InstTextBrush}" Margin="0,-2,0,0"/>
-                <TextBlock x:Name="TxtSubtitle" Text="v1.0.0" FontSize="12" FontFamily="Consolas, Segoe UI" Foreground="{DynamicResource InstMutedBrush}"/>
+                <TextBlock x:Name="TxtSubtitle" Text="v1.1.0" FontSize="12" FontFamily="Consolas, Segoe UI" Foreground="{DynamicResource InstMutedBrush}"/>
             </StackPanel>
 
             <!-- Install vs Upgrade Badge -->
@@ -220,7 +220,7 @@
                                       Data="M 8,14.5 L 12,18.5 L 20,10"/>
                             </Canvas>
                         </Border>
-                        <TextBlock x:Name="TxtCompleteTitle" Text="Awll Disk Utility v1.0.0 est installé" VerticalAlignment="Center" FontSize="15" FontWeight="Bold" Foreground="{DynamicResource InstTextBrush}"/>
+                        <TextBlock x:Name="TxtCompleteTitle" Text="Awll Disk Utility v1.1.0 est installé" VerticalAlignment="Center" FontSize="15" FontWeight="Bold" Foreground="{DynamicResource InstTextBrush}"/>
                     </StackPanel>
 
                     <TextBlock x:Name="TxtCompleteDesc" Text="L'application est prête et enregistrée dans Paramètres Windows → Applications pour une désinstallation propre à tout moment."

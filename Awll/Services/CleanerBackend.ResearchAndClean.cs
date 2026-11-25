@@ -1192,6 +1192,377 @@ Réponds EXCLUSIVEMENT avec un objet JSON valide respectant cette structure exac
             }
         }
 
+        public static async Task<DuplicateGroupAiReport> AnalyzeDuplicateGroupWithAIAsync(DuplicateGroup group, string? customApiKey = null, HttpMessageHandler? httpHandler = null)
+        {
+            var report = new DuplicateGroupAiReport
+            {
+                GroupHash = group?.Hash ?? ""
+            };
+
+            if (group == null || group.Files == null || group.Files.Count < 2)
+            {
+                report.ErrorMessage = "Groupe de doublons invalide (au moins 2 fichiers requis).";
+                return report;
+            }
+
+            var settings = GetSettings();
+            string apiKey = !string.IsNullOrWhiteSpace(customApiKey)
+                ? customApiKey.Trim()
+                : (!string.IsNullOrWhiteSpace(settings.GeminiApiKey) ? settings.GeminiApiKey.Trim() : (Environment.GetEnvironmentVariable("GEMINI_API_KEY") ?? "").Trim());
+
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                report.ErrorMessage = "Clé API Gemini non configurée.";
+                return report;
+            }
+
+            try
+            {
+                using var http = httpHandler != null ? new HttpClient(httpHandler, disposeHandler: false) : new HttpClient();
+                http.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
+
+                string sizeText = group.SizeGB >= 0.1 ? $"{group.SizeGB:F2} Go" : $"{group.SizeMB:F1} Mo";
+                var filesBlock = new StringBuilder();
+                for (int i = 0; i < group.Files.Count; i++)
+                {
+                    var f = group.Files[i];
+                    bool isLocked = f.IsSanctuarized || f.IsProtected || IsPathSanctuarized(f.Path);
+                    string drv = !string.IsNullOrWhiteSpace(f.Drive) ? f.Drive : (f.Path.Length >= 2 && f.Path[1] == ':' ? f.Path[..2].ToUpperInvariant() : "");
+                    filesBlock.AppendLine($"[{i}] Nom: {f.Name} | Chemin: {f.Path} | Disque: {drv} | Modifié le: {f.LastModified} | Protégé: {(isLocked ? "Oui" : "Non")}");
+                }
+
+                var prompt = $@"Tu es un expert système Windows, gestion de stockage et rétro-ingénierie logicielle.
+Un détecteur SHA-256 a trouvé {group.Files.Count} copies strictement identiques ({sizeText}, SHA-256: {group.Hash}) :
+
+{filesBlock}
+
+Analyse ces emplacements pour aider l'utilisateur à savoir s'il peut nettoyer ou s'il s'agit d'un besoin logiciel légitime :
+1. Copies nécessaires à un ou plusieurs logiciels / jeux / systèmes (DLL, pak, runtime Electron/Node/Python/Unity/Unreal, ressources attendues à chaque chemin par des applications distinctes ou un logiciel non dédupliqué) : mets ""action"": ""keep"" pour toutes les copies nécessaires (""recommendationType"": ""keep_all"", riskPct entre 70 et 95) et explique que la suppression risque de casser le logiciel.
+2. Doublons redondants sûrs (téléchargements en double, archives, sauvegardes/exports redondants, vieilles copies) : mets ""action"": ""keep"" sur la meilleure copie canonique (nom clair, dossier actif/propre) et ""action"": ""delete"" sur les autres (""recommendationType"": ""safe_clean"", riskPct entre 0 et 20).
+3. Cas mixte : garde les copies actives d'applications et ne marque ""delete"" que les copies superflues dans Downloads, Temp ou vieilles sauvegardes (""recommendationType"": ""partial_clean"", riskPct entre 20 et 55).
+
+Règles impératives :
+- Ne marque JAMAIS toutes les copies en ""delete"".
+- Ne marque JAMAIS un fichier avec Protégé: Oui en ""delete"".
+- Fournis une décision pour chaque index de 0 à {group.Files.Count - 1}.
+
+Réponds EXCLUSIVEMENT avec un objet JSON valide respectant cette structure exacte :
+{{
+  ""summary"": ""2 à 3 phrases max expliquant le rôle de ces fichiers et pourquoi ils sont dupliqués."",
+  ""recommendationType"": ""safe_clean | partial_clean | keep_all"",
+  ""riskPct"": 15,
+  ""files"": [
+    {{ ""index"": 0, ""action"": ""keep"", ""reason"": ""Raison courte en 1 phrase."" }}
+  ]
+}}";
+
+                var payload = new
+                {
+                    contents = new[]
+                    {
+                        new
+                        {
+                            parts = new[]
+                            {
+                                new { text = prompt }
+                            }
+                        }
+                    },
+                    generationConfig = new
+                    {
+                        responseMimeType = "application/json"
+                    }
+                };
+
+                var jsonPayload = JsonSerializer.Serialize(payload);
+                string[] fallbackModels = { "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite" };
+                HttpResponseMessage? response = null;
+                string usedModel = fallbackModels[0];
+                int[] retryDelaysMs = { 0, 1500, 3500 };
+
+                if (httpHandler == null) await _geminiConcurrency.WaitAsync();
+                try
+                {
+                    string[] modelsToTry = httpHandler == null
+                        ? await DiscoverActiveFlashModelsAsync(http, apiKey, fallbackModels)
+                        : fallbackModels;
+                    usedModel = modelsToTry[0];
+
+                    for (int attempt = 0; attempt < retryDelaysMs.Length; attempt++)
+                    {
+                        if (retryDelaysMs[attempt] > 0)
+                            await Task.Delay(retryDelaysMs[attempt] + Random.Shared.Next(100, 450));
+
+                        foreach (var modelName in modelsToTry)
+                        {
+                            usedModel = modelName;
+                            try
+                            {
+                                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(15));
+                                using var content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+                                string url = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={apiKey}";
+                                response = await http.PostAsync(url, content, cts.Token);
+                                if (response.IsSuccessStatusCode)
+                                    break;
+
+                                int code = (int)response.StatusCode;
+                                if (code != 404 && code != 429 && code < 500)
+                                    break;
+                            }
+                            catch (TaskCanceledException)
+                            {
+                                response = null;
+                            }
+
+                            await Task.Delay(150);
+                        }
+                        if (response != null && response.IsSuccessStatusCode) break;
+                    }
+                }
+                finally
+                {
+                    if (httpHandler == null) _geminiConcurrency.Release();
+                }
+
+                if (response != null && response.IsSuccessStatusCode)
+                {
+                    var respJson = await response.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(respJson);
+                    var candidates = doc.RootElement.GetProperty("candidates");
+                    if (candidates.GetArrayLength() > 0)
+                    {
+                        var text = ExtractCandidateText(candidates[0]);
+                        if (ParseGeminiDuplicateAnalysisJson(text, group, report))
+                        {
+                            report.IsAiEnriched = true;
+                            report.AiModelUsed = usedModel;
+                            report.ErrorMessage = "";
+                        }
+                        else
+                        {
+                            report.ErrorMessage = "Réponse Gemini invalide (format JSON inattendu).";
+                        }
+                    }
+                    else
+                    {
+                        report.ErrorMessage = "Réponse Gemini vide (aucun candidat retourné).";
+                    }
+                }
+                else
+                {
+                    string errDetail = "";
+                    if (response != null)
+                    {
+                        int statusCode = (int)response.StatusCode;
+                        if (statusCode == 503 || statusCode == 429)
+                        {
+                            report.ErrorMessage = $"Serveurs Gemini temporairement saturés (HTTP {statusCode}). Réessayez dans quelques secondes.";
+                        }
+                        else
+                        {
+                            try
+                            {
+                                var errBody = await response.Content.ReadAsStringAsync();
+                                using var errDoc = JsonDocument.Parse(errBody);
+                                if (errDoc.RootElement.TryGetProperty("error", out var errObj) && errObj.TryGetProperty("message", out var msgProp))
+                                    errDetail = msgProp.GetString() ?? "";
+                            }
+                            catch { }
+                            report.ErrorMessage = $"Erreur API HTTP {statusCode}{(string.IsNullOrEmpty(errDetail) ? "" : " : " + errDetail)}";
+                        }
+                    }
+                    else
+                    {
+                        report.ErrorMessage = "Délai dépassé : aucune réponse du serveur Gemini.";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                report.ErrorMessage = $"Erreur : {ex.Message}";
+            }
+
+            return report;
+        }
+
+        internal static bool ParseGeminiDuplicateAnalysisJson(string rawText, DuplicateGroup group, DuplicateGroupAiReport report)
+        {
+            if (string.IsNullOrWhiteSpace(rawText) || group == null || group.Files == null || group.Files.Count == 0)
+                return false;
+
+            try
+            {
+                var cleaned = rawText.Trim();
+                if (cleaned.StartsWith("```"))
+                {
+                    int firstNewline = cleaned.IndexOf('\n');
+                    if (firstNewline >= 0) cleaned = cleaned.Substring(firstNewline + 1);
+                    int lastFence = cleaned.LastIndexOf("```", StringComparison.Ordinal);
+                    if (lastFence >= 0) cleaned = cleaned.Substring(0, lastFence);
+                    cleaned = cleaned.Trim();
+                }
+
+                JsonDocument? parsedAi = null;
+                try
+                {
+                    parsedAi = JsonDocument.Parse(cleaned);
+                }
+                catch
+                {
+                    int objStart = cleaned.IndexOf('{');
+                    int objEnd = cleaned.LastIndexOf('}');
+                    if (objStart >= 0 && objEnd > objStart)
+                    {
+                        string slice = cleaned.Substring(objStart, objEnd - objStart + 1);
+                        parsedAi = JsonDocument.Parse(slice);
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+
+                using (parsedAi)
+                {
+                    var root = parsedAi.RootElement;
+                    if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0)
+                        root = root[0];
+                    if (root.ValueKind != JsonValueKind.Object)
+                        return false;
+
+                    static bool TryGetPropCI(JsonElement obj, string targetName, out JsonElement val)
+                    {
+                        if (obj.ValueKind == JsonValueKind.Object)
+                        {
+                            if (obj.TryGetProperty(targetName, out val)) return true;
+                            foreach (var prop in obj.EnumerateObject())
+                            {
+                                if (prop.Name.Equals(targetName, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    val = prop.Value;
+                                    return true;
+                                }
+                            }
+                        }
+                        val = default;
+                        return false;
+                    }
+
+                    if (!TryGetPropCI(root, "summary", out var sumProp) ||
+                        sumProp.ValueKind != JsonValueKind.String ||
+                        string.IsNullOrWhiteSpace(sumProp.GetString()))
+                    {
+                        return false;
+                    }
+                    report.Summary = sumProp.GetString()!.Trim();
+
+                    if (TryGetPropCI(root, "recommendationType", out var recProp) && recProp.ValueKind == JsonValueKind.String)
+                    {
+                        report.RecommendationType = (recProp.GetString() ?? "keep_all").Trim().ToLowerInvariant();
+                    }
+
+                    if (TryGetPropCI(root, "riskPct", out var riskProp))
+                    {
+                        if (riskProp.ValueKind == JsonValueKind.Number)
+                        {
+                            if (riskProp.TryGetInt32(out int aiRisk))
+                                report.RiskPct = Math.Clamp(aiRisk, 0, 100);
+                            else if (riskProp.TryGetDouble(out double dRisk))
+                                report.RiskPct = Math.Clamp((int)Math.Round(dRisk), 0, 100);
+                        }
+                        else if (riskProp.ValueKind == JsonValueKind.String)
+                        {
+                            var rawNum = (riskProp.GetString() ?? "").Replace("%", "").Trim();
+                            if (int.TryParse(rawNum, out int sRisk))
+                                report.RiskPct = Math.Clamp(sRisk, 0, 100);
+                        }
+                    }
+
+                    var decisions = group.Files.Select(f => new DuplicateFileAiDecision
+                    {
+                        Path = f.Path ?? "",
+                        Action = "keep",
+                        Reason = ""
+                    }).ToList();
+
+                    if (TryGetPropCI(root, "files", out var filesEl) && filesEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in filesEl.EnumerateArray())
+                        {
+                            if (item.ValueKind != JsonValueKind.Object) continue;
+
+                            int targetIdx = -1;
+                            if (TryGetPropCI(item, "index", out var idxProp))
+                            {
+                                if (idxProp.ValueKind == JsonValueKind.Number && idxProp.TryGetInt32(out int parsedIdx))
+                                    targetIdx = parsedIdx;
+                                else if (idxProp.ValueKind == JsonValueKind.String && int.TryParse(idxProp.GetString(), out int sIdx))
+                                    targetIdx = sIdx;
+                            }
+
+                            if (targetIdx < 0 || targetIdx >= decisions.Count)
+                            {
+                                if (TryGetPropCI(item, "path", out var pathProp) && pathProp.ValueKind == JsonValueKind.String)
+                                {
+                                    var targetPath = pathProp.GetString() ?? "";
+                                    targetIdx = group.Files.FindIndex(f => string.Equals(f.Path, targetPath, StringComparison.OrdinalIgnoreCase));
+                                }
+                            }
+
+                            if (targetIdx < 0 || targetIdx >= decisions.Count) continue;
+
+                            string rawAction = "keep";
+                            if (TryGetPropCI(item, "action", out var actProp) && actProp.ValueKind == JsonValueKind.String)
+                                rawAction = (actProp.GetString() ?? "keep").Trim().ToLowerInvariant();
+
+                            decisions[targetIdx].Action = rawAction == "delete" ? "delete" : "keep";
+
+                            if (TryGetPropCI(item, "reason", out var reasonProp) && reasonProp.ValueKind == JsonValueKind.String)
+                                decisions[targetIdx].Reason = (reasonProp.GetString() ?? "").Trim();
+                        }
+                    }
+
+                    // Garde-fous de sécurité : jamais supprimer un fichier protégé/sanctuarisé
+                    for (int i = 0; i < group.Files.Count; i++)
+                    {
+                        var f = group.Files[i];
+                        bool isLocked = f.IsSanctuarized || f.IsProtected || IsPathSanctuarized(f.Path);
+                        if (isLocked && decisions[i].Action == "delete")
+                        {
+                            decisions[i].Action = "keep";
+                            if (string.IsNullOrWhiteSpace(decisions[i].Reason))
+                                decisions[i].Reason = "Conservé par sécurité (emplacement protégé ou sanctuarisé).";
+                        }
+                    }
+
+                    // Garde-fou absolu : ne jamais marquer toutes les copies à supprimer
+                    if (decisions.Count > 0 && decisions.All(d => d.Action == "delete"))
+                    {
+                        decisions[0].Action = "keep";
+                        decisions[0].Reason = string.IsNullOrWhiteSpace(decisions[0].Reason)
+                            ? "Conservé par sécurité (au moins une copie originale doit rester)."
+                            : $"{decisions[0].Reason} (Conservé par sécurité pour préserver un original.)";
+                    }
+
+                    int deleteCount = decisions.Count(d => d.Action == "delete");
+                    int keepCount = decisions.Count - deleteCount;
+                    report.RecommendationType = deleteCount == 0
+                        ? "keep_all"
+                        : (keepCount >= 2 ? "partial_clean" : "safe_clean");
+
+                    if (report.RecommendationType == "keep_all")
+                        report.RiskPct = Math.Max(report.RiskPct, 65);
+
+                    report.Decisions = decisions;
+                    return true;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public static async Task<bool> TestGeminiApiKeyAsync(string apiKey)
         {
             var (ok, _) = await TestGeminiApiKeyDetailedAsync(apiKey);

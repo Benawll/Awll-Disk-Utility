@@ -291,6 +291,29 @@ namespace Awll
                         break;
                     }
 
+                    case "analyzeDuplicateGroupAI":
+                    {
+                        DuplicateGroup? group = null;
+                        if (root.TryGetProperty("group", out var gProp))
+                        {
+                            group = JsonSerializer.Deserialize<DuplicateGroup>(gProp.GetRawText(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        }
+                        string? customKey = null;
+                        if (root.TryGetProperty("apiKey", out var kProp) && !string.IsNullOrWhiteSpace(kProp.GetString()))
+                        {
+                            customKey = kProp.GetString();
+                        }
+                        var report = await CleanerBackend.AnalyzeDuplicateGroupWithAIAsync(group ?? new DuplicateGroup(), customKey);
+                        SendJson(new
+                        {
+                            type = "duplicateGroupAiResult",
+                            hash = group?.Hash ?? report.GroupHash,
+                            report,
+                            aiError = report.IsAiEnriched ? "" : (string.IsNullOrWhiteSpace(report.ErrorMessage) ? report.AiModelUsed : report.ErrorMessage)
+                        });
+                        break;
+                    }
+
                     case "analyzeWinSxS":
                     {
                         var report = await CleanerBackend.AnalyzeWinSxSAsync();

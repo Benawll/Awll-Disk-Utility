@@ -145,6 +145,25 @@ namespace Awll
         public List<DuplicateFileItem> Files { get; set; } = new();
     }
 
+    public class DuplicateFileAiDecision
+    {
+        public string Path { get; set; } = "";
+        public string Action { get; set; } = "keep"; // "keep" | "delete"
+        public string Reason { get; set; } = "";
+    }
+
+    public class DuplicateGroupAiReport
+    {
+        public string GroupHash { get; set; } = "";
+        public string Summary { get; set; } = "";
+        public string RecommendationType { get; set; } = "keep_all"; // "safe_clean" | "partial_clean" | "keep_all"
+        public int RiskPct { get; set; } = 50;
+        public List<DuplicateFileAiDecision> Decisions { get; set; } = new();
+        public bool IsAiEnriched { get; set; }
+        public string AiModelUsed { get; set; } = "";
+        public string ErrorMessage { get; set; } = "";
+    }
+
     public class WinSxSReport
     {
         public bool Success { get; set; }
