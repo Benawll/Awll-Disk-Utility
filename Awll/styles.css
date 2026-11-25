@@ -266,6 +266,13 @@ html, body {
   opacity: 1;
 }
 
+/* Duplicate Group Different Names Badge */
+.dup-diff-names-badge {
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+  border: 1px solid var(--app-border);
+}
+
 /* Scan Target Drive Gauges & Pills (Clear Active vs Excluded Contrast) */
 .scan-drive-card {
   background: var(--app-bg);

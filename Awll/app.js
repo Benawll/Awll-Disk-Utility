@@ -488,7 +488,10 @@
       } else if (currentView === 'explorer') {
         el.innerText = currentTreePath ? `Dossier analysé : ${currentTreePath}` : "Visualisez quels dossiers consomment le plus d'espace";
       } else if (currentView === 'duplicates') {
-        el.innerText = 'Comparaison binaire exacte par empreinte SHA-256';
+        const list = Array.from(activeDrives).sort().join(', ');
+        el.innerText = list
+          ? `Comparaison binaire exacte SHA-256 • Disques affichés : ${list}`
+          : 'Comparaison binaire exacte par empreinte SHA-256';
       } else if (currentView === 'protected') {
         el.innerText = 'Éléments protégés contre toute suppression accidentelle';
       } else if (currentView === 'history') {
@@ -566,6 +569,9 @@
       updateHeaderSubtitle();
       if (allItems.length > 0) {
         refreshAuditUI();
+      }
+      if (duplicateGroups.length > 0) {
+        renderDuplicatesView();
       }
     }
 
@@ -2120,6 +2126,11 @@
       }
       const minMB = parseInt(document.getElementById('dup-min-mb')?.value || '50', 10);
       const drives = Array.from(dupScanDrives);
+      if (duplicateCustomFolders.length === 0) {
+        dupScanDrives.forEach(d => activeDrives.add(d));
+        renderSidebarDrives();
+        updateHeaderSubtitle();
+      }
       selectedDuplicateIds.clear();
       updateSelectionCalc();
       dupInProgress = true;
@@ -2163,11 +2174,30 @@
       renderScanDrivePills('duplicates');
     }
 
+    function getDuplicateFileDrive(f) {
+      const drv = (f.drive || f.Drive || '').trim().toUpperCase();
+      if (drv.length >= 2 && drv[1] === ':') return drv.slice(0, 2);
+      const p = (f.path || f.Path || '').trim();
+      if (p.length >= 2 && p[1] === ':') return p.slice(0, 2).toUpperCase();
+      return '';
+    }
+
+    function getDriveFilteredDuplicateGroups() {
+      return (duplicateGroups || []).filter(g => {
+        const files = g.files || g.Files || [];
+        return files.some(f => {
+          const drv = getDuplicateFileDrive(f);
+          return !drv || activeDrives.has(drv);
+        });
+      });
+    }
+
     function renderDuplicatesView() {
       const container = document.getElementById('duplicates-container');
       const toolbar = document.getElementById('dup-toolbar');
       const badge = document.getElementById('nav-count-duplicates');
-      if (badge) badge.innerText = duplicateGroups.length;
+      const filteredGroups = getDriveFilteredDuplicateGroups();
+      if (badge) badge.innerText = filteredGroups.length;
 
       if (!duplicateGroups || duplicateGroups.length === 0) {
         if (toolbar) toolbar.classList.add('hidden');
@@ -2181,20 +2211,36 @@
         return;
       }
 
+      if (filteredGroups.length === 0) {
+        if (toolbar) toolbar.classList.add('hidden');
+        container.innerHTML = `
+          <div class="surface-card rounded-2xl p-10 text-center space-y-2">
+            <div class="flex justify-center opacity-45" style="color:var(--app-muted);">${icon('layers', 'w-7 h-7')}</div>
+            <p class="text-xs" style="color:var(--app-muted);">Aucun doublon trouvé pour les disques affichés.</p>
+          </div>
+        `;
+        updateSelectionCalc();
+        return;
+      }
+
       if (toolbar) toolbar.classList.remove('hidden');
-      document.getElementById('dup-groups-count').innerText = duplicateGroups.length;
-      const totalReclaim = duplicateGroups.reduce((acc, g) => acc + (g.reclaimableGB ?? g.ReclaimableGB ?? 0), 0);
+      document.getElementById('dup-groups-count').innerText = filteredGroups.length;
+      const totalReclaim = filteredGroups.reduce((acc, g) => acc + (g.reclaimableGB ?? g.ReclaimableGB ?? 0), 0);
       document.getElementById('dup-reclaim-total').innerText = `${totalReclaim.toFixed(2)} Go`;
 
-      container.innerHTML = duplicateGroups.map(g => {
+      container.innerHTML = filteredGroups.map(g => {
         const files = g.files || g.Files || [];
         const szText = (g.sizeGB ?? g.SizeGB ?? 0) >= 0.1 ? `${(g.sizeGB ?? g.SizeGB ?? 0).toFixed(2)} Go` : `${(g.sizeMB ?? g.SizeMB ?? 0).toFixed(1)} Mo`;
         const recText = (g.reclaimableGB ?? g.ReclaimableGB ?? 0) >= 0.1 ? `${(g.reclaimableGB ?? g.ReclaimableGB ?? 0).toFixed(2)} Go` : `${(g.reclaimableMB ?? g.ReclaimableMB ?? 0).toFixed(1)} Mo`;
         const firstName = files[0]?.name || files[0]?.Name || 'Fichier';
+        const distinctNames = new Set(files.map(f => (f.name || f.Name || '').trim().toLowerCase()).filter(Boolean));
+        const hasDifferentNames = distinctNames.size > 1;
 
         const rowsHtml = files.map((f, idx) => {
           const fid = f.id || f.Id;
           const fpath = f.path || f.Path;
+          const fDrive = getDuplicateFileDrive(f);
+          const isOtherDrive = !!(fDrive && !activeDrives.has(fDrive));
           const isSanct = f.isSanctuarized ?? f.IsSanctuarized ?? false;
           const isProt = f.isProtected ?? f.IsProtected ?? false;
           const locked = isSanct || isProt;
@@ -2204,6 +2250,8 @@
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-2 flex-wrap">
                   <span class="font-semibold truncate" style="color:var(--app-text);">${escapeHtml(f.name || f.Name)}</span>
+                  ${fDrive ? `<span class="text-[10px] font-mono px-1.5 py-0.5 rounded" style="background:var(--app-surface-2); color:var(--app-muted);">${escapeHtml(fDrive)}</span>` : ''}
+                  ${isOtherDrive ? `<span class="text-[10px] px-1.5 py-0.5 rounded font-medium" style="background:var(--app-surface-2); color:var(--app-muted); border:1px solid var(--app-border);">Autre disque</span>` : ''}
                   ${idx === 0 ? `<span class="text-[10px] px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1" style="background:var(--app-safe-soft); color:var(--app-safe);">${icon('shield-check', 'w-3 h-3')} Original conservé</span>` : ''}
                   ${locked ? `<span class="text-[10px] px-2 py-0.5 rounded-full font-medium inline-flex items-center gap-1" style="background:var(--app-warn-soft); color:var(--app-warn);">${icon('lock', 'w-3 h-3')} Protégé</span>` : ''}
                   <span class="text-[10px] font-mono tabular-nums" style="color:var(--app-muted);">${escapeHtml(f.lastModified || f.LastModified || '')}</span>
@@ -2231,11 +2279,17 @@
         return `
           <div class="surface-card rounded-2xl p-4 space-y-2.5">
             <div class="flex flex-wrap items-center justify-between gap-2 pb-2" style="border-bottom:1px solid var(--app-border);">
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 flex-wrap">
                 <span style="color:var(--app-muted);">${icon('file', 'w-4 h-4')}</span>
                 <span class="text-xs font-bold" style="color:var(--app-text);">${escapeHtml(firstName)}</span>
                 <span class="text-[10px] font-mono tabular-nums px-2 py-0.5 rounded" style="background:var(--app-surface-2); color:var(--app-muted);">${files.length} copies × ${szText}</span>
                 <span class="text-[10px] font-mono opacity-75" style="color:var(--app-muted);">SHA256: ${escapeHtml(g.hash || g.Hash || '')}</span>
+                ${hasDifferentNames ? `
+                  <span title="Ces fichiers portent des noms différents mais leur contenu binaire est 100 % identique (même empreinte SHA-256)." class="dup-diff-names-badge inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full">
+                    ${icon('info', 'w-3 h-3')}
+                    <span>Noms différents • Contenu identique</span>
+                  </span>
+                ` : ''}
               </div>
               <span class="text-xs font-mono font-bold tabular-nums" style="color:var(--app-safe);">+${recText} récupérables</span>
             </div>
@@ -2260,7 +2314,7 @@
 
     function selectSuggestedDuplicates() {
       selectedDuplicateIds.clear();
-      duplicateGroups.forEach(g => {
+      getDriveFilteredDuplicateGroups().forEach(g => {
         (g.files || g.Files || []).forEach(f => {
           if ((f.suggestedDelete ?? f.SuggestedDelete) && !(f.isSanctuarized ?? f.IsSanctuarized) && !(f.isProtected ?? f.IsProtected)) {
             selectedDuplicateIds.add(f.id || f.Id);
