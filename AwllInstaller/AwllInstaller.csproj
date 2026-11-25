@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Prefer32Bit>false</Prefer32Bit>
+    <RootNamespace>AwllInstaller</RootNamespace>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>Awll-Setup</AssemblyName>
+    <ApplicationTitle>Installation d'Awll</ApplicationTitle>
+    <ApplicationIcon>..\Awll\app.ico</ApplicationIcon>
+    <Version>5.0.0</Version>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="All" />
+    <Resource Include="..\Awll\app.ico" Link="app.ico" />
+    <EmbeddedResource Include="Payload\Awll.exe.gz" LogicalName="AwllInstaller.Payload.Awll.exe.gz" Condition="Exists('Payload\Awll.exe.gz')" />
+  </ItemGroup>
+
+</Project>

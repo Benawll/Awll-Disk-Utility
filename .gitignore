@@ -1,7 +1,15 @@
 
-CleanerApp/bin/
-CleanerApp/obj/
+Awll/bin/
+Awll/obj/
+Awll/publish_tmp/
+Awll.Tests/bin/
+Awll.Tests/obj/
+AwllInstaller/bin/
+AwllInstaller/obj/
+AwllInstaller/Payload/
+AwllInstaller/publish_tmp/
 dist_app/
 *.exe
+*.zip
 *.pdb
 
