@@ -9,6 +9,9 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>Awll-Disk-Utility</AssemblyName>
     <ApplicationTitle>Awll Disk Utility</ApplicationTitle>
+    <Product>Awll Disk Utility</Product>
+    <Company>Benawll</Company>
+    <Authors>Benawll</Authors>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <Version>1.0.0</Version>
     <PublishSingleFile>true</PublishSingleFile>

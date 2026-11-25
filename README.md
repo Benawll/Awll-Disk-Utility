@@ -17,6 +17,8 @@
 - **Installeur Windows (recommandé)** : **`Awll-Disk-Utility-Setup-1.0.0.exe`** (~62,8 Mo) — exécutable autonome avec raccourcis, mise à jour en place et désinstalleur intégré.
 - **Version portable** : **`Awll-Disk-Utility.exe`** (~68,0 Mo) — à lancer directement sans installation.
 
+> **Note Windows SmartScreen :** l'exécutable étant open-source et non signé par une autorité payante, Windows peut afficher *« Windows a protégé votre ordinateur / Éditeur inconnu »* au premier lancement. Cliquez simplement sur **Informations complémentaires → Exécuter quand même**.
+
 ---
 
 **Awll Disk Utility** associe un moteur d'analyse système bas niveau en C# à une interface sobre Clair / Sombre (adaptée automatiquement au thème Windows au premier lancement), propulsée par WPF et WebView2.
@@ -66,6 +68,10 @@
 | **Version Portable** | `Awll-Disk-Utility.exe` (~68,0 Mo) | Binaire single-file `.NET 6` autonome, lançable directement sans installation. |
 
 > Toutes les données runtime (réglages, cache IA, liste protégée, historique, assets WebView2) sont stockées dans `%LocalAppData%\Awll\` (avec migration automatique des anciens `.json` depuis `%LocalAppData%\CleanerApp\`).
+
+### Désinstallation propre
+- **Méthode Windows standard (recommandée)** : *Menu Démarrer → clic droit sur Awll Disk Utility → Désinstaller* ou *Paramètres Windows → Applications → Applications installées → Awll Disk Utility → Désinstaller*.
+- **Via le Setup** : relancez `Awll-Disk-Utility-Setup-1.0.0.exe` puis cliquez sur **Désinstaller** (avec option pour conserver ou effacer `%LocalAppData%\Awll`).
 
 ---
 
