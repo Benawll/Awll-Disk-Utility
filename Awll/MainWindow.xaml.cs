@@ -10,6 +10,7 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
+using Microsoft.Win32;
 
 namespace Awll
 {
@@ -25,8 +26,20 @@ namespace Awll
         public MainWindow()
         {
             InitializeComponent();
-            SourceInitialized += (_, _) => ApplyWindowTheme(false);
+            SourceInitialized += (_, _) => ApplyWindowTheme(IsWindowsDarkMode());
             Loaded += MainWindow_Loaded;
+        }
+
+        private static bool IsWindowsDarkMode()
+        {
+            try
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+                if (key?.GetValue("AppsUseLightTheme") is int val)
+                    return val == 0;
+            }
+            catch { }
+            return false;
         }
 
         private void ApplyWindowTheme(bool isDark)

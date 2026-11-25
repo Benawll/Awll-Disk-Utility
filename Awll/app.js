@@ -91,11 +91,18 @@
 
     /* === GESTION THEME (ATELIER SUISSE / SUISSE NOCTURNE + SYNC WINDOWS) === */
     function initTheme() {
-      let saved = 'atelier-suisse';
+      let saved = '';
       try {
-        saved = localStorage.getItem('awll-theme') || 'atelier-suisse';
+        saved = localStorage.getItem('awll-theme') || '';
       } catch { }
-      applyTheme(saved === 'suisse-nocturne' ? 'suisse-nocturne' : 'atelier-suisse', false);
+
+      if (saved === 'suisse-nocturne' || saved === 'atelier-suisse') {
+        applyTheme(saved, false);
+        return;
+      }
+
+      const prefersDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      applyTheme(prefersDark ? 'suisse-nocturne' : 'atelier-suisse', false);
     }
 
     function applyTheme(themeId, persist = true) {

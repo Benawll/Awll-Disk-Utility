@@ -7,14 +7,37 @@
         Height="490"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
-        Background="#F0EEE7"
+        Background="{DynamicResource InstBgBrush}"
         FontFamily="Segoe UI Variable Text, Segoe UI, sans-serif">
 
     <Window.Resources>
+        <SolidColorBrush x:Key="InstBgBrush" Color="#F0EEE7"/>
+        <SolidColorBrush x:Key="InstSurfaceBrush" Color="#FAF9F5"/>
+        <SolidColorBrush x:Key="InstSurface2Brush" Color="#ECEAE2"/>
+        <SolidColorBrush x:Key="InstSurface2HoverBrush" Color="#E2DFD5"/>
+        <SolidColorBrush x:Key="InstTrackBrush" Color="#E7E4DC"/>
+        <SolidColorBrush x:Key="InstBorderBrush" Color="#1A181816"/>
+        <SolidColorBrush x:Key="InstBorderStrongBrush" Color="#24181816"/>
+        <SolidColorBrush x:Key="InstTextBrush" Color="#181816"/>
+        <SolidColorBrush x:Key="InstMutedBrush" Color="#66635A"/>
+        <SolidColorBrush x:Key="InstAccentBrush" Color="#B84B2A"/>
+        <SolidColorBrush x:Key="InstAccentHoverBrush" Color="#C45331"/>
+        <SolidColorBrush x:Key="InstAccentSoftBrush" Color="#1AB84B2A"/>
+        <SolidColorBrush x:Key="InstSafeBrush" Color="#2D6A4F"/>
+        <SolidColorBrush x:Key="InstSafeSoftBrush" Color="#192D6A4F"/>
+        <SolidColorBrush x:Key="InstDangerBrush" Color="#C5302C"/>
+        <SolidColorBrush x:Key="InstDangerSoftBrush" Color="#14C5302C"/>
+        <SolidColorBrush x:Key="InstDangerHoverBrush" Color="#24C5302C"/>
+
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource InstTextBrush}"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+
         <Style x:Key="SwissSecondaryButton" TargetType="Button">
-            <Setter Property="Background" Value="#ECEAE2"/>
-            <Setter Property="Foreground" Value="#181816"/>
-            <Setter Property="BorderBrush" Value="#24181816"/>
+            <Setter Property="Background" Value="{DynamicResource InstSurface2Brush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource InstTextBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource InstBorderStrongBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="16,9"/>
             <Setter Property="FontSize" Value="12"/>
@@ -33,7 +56,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#E2DFD5"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource InstSurface2HoverBrush}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Bd" Property="Opacity" Value="0.45"/>
@@ -45,7 +68,7 @@
         </Style>
 
         <Style x:Key="SwissPrimaryButton" TargetType="Button">
-            <Setter Property="Background" Value="#B84B2A"/>
+            <Setter Property="Background" Value="{DynamicResource InstAccentBrush}"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="18,9"/>
@@ -63,7 +86,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#C45331"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource InstAccentHoverBrush}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Bd" Property="Opacity" Value="0.45"/>
@@ -75,9 +98,9 @@
         </Style>
 
         <Style x:Key="SwissDangerOutlineButton" TargetType="Button">
-            <Setter Property="Background" Value="#14C5302C"/>
-            <Setter Property="Foreground" Value="#C5302C"/>
-            <Setter Property="BorderBrush" Value="#C5302C"/>
+            <Setter Property="Background" Value="{DynamicResource InstDangerSoftBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource InstDangerBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource InstDangerBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="14,9"/>
             <Setter Property="FontSize" Value="12"/>
@@ -96,7 +119,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#24C5302C"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource InstDangerHoverBrush}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Bd" Property="Opacity" Value="0.45"/>
@@ -115,7 +138,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- HEADER ATELIER SUISSE -->
+        <!-- HEADER -->
         <Grid Grid.Row="0" Margin="0,0,0,18">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
@@ -124,7 +147,7 @@
             </Grid.ColumnDefinitions>
 
             <!-- Geometric A Monogram Tile -->
-            <Border Grid.Column="0" Width="44" Height="44" CornerRadius="12" Background="#B84B2A" Margin="0,0,14,0">
+            <Border Grid.Column="0" Width="44" Height="44" CornerRadius="12" Background="{DynamicResource InstAccentBrush}" Margin="0,0,14,0">
                 <Canvas Width="44" Height="44">
                     <Path Stroke="#FAF9F5" StrokeThickness="2.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
                           Data="M 13,31 L 22,12 L 31,31"/>
@@ -133,39 +156,39 @@
             </Border>
 
             <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                <TextBlock Text="Awll" FontSize="20" FontWeight="Bold" Foreground="#181816" Margin="0,-2,0,0"/>
-                <TextBlock x:Name="TxtSubtitle" Text="Disk Utility — v5.0.0" FontSize="12" FontFamily="Consolas, Segoe UI" Foreground="#66635A"/>
+                <TextBlock Text="Awll" FontSize="20" FontWeight="Bold" Foreground="{DynamicResource InstTextBrush}" Margin="0,-2,0,0"/>
+                <TextBlock x:Name="TxtSubtitle" Text="Disk Utility — v5.0.0" FontSize="12" FontFamily="Consolas, Segoe UI" Foreground="{DynamicResource InstMutedBrush}"/>
             </StackPanel>
 
             <!-- Install vs Upgrade Badge -->
-            <Border x:Name="BadgeBorder" Grid.Column="2" VerticalAlignment="Center" CornerRadius="12" Padding="10,5" Background="#192D6A4F" BorderBrush="#2D6A4F" BorderThickness="1">
-                <TextBlock x:Name="TxtStatusBadge" Text="Nouvelle installation" FontSize="11" FontWeight="SemiBold" Foreground="#2D6A4F"/>
+            <Border x:Name="BadgeBorder" Grid.Column="2" VerticalAlignment="Center" CornerRadius="12" Padding="10,5" Background="{DynamicResource InstSafeSoftBrush}" BorderBrush="{DynamicResource InstSafeBrush}" BorderThickness="1">
+                <TextBlock x:Name="TxtStatusBadge" Text="Nouvelle installation" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource InstSafeBrush}"/>
             </Border>
         </Grid>
 
-        <!-- MAIN CARD (#FAF9F5) -->
-        <Border Grid.Row="1" Background="#FAF9F5" BorderBrush="#1A181816" BorderThickness="1" CornerRadius="14" Padding="20">
+        <!-- MAIN CARD -->
+        <Border Grid.Row="1" Background="{DynamicResource InstSurfaceBrush}" BorderBrush="{DynamicResource InstBorderBrush}" BorderThickness="1" CornerRadius="14" Padding="20">
             <Grid>
                 <!-- PANEL 1: READY / OPTIONS -->
                 <StackPanel x:Name="PanelReady" VerticalAlignment="Center">
-                    <TextBlock x:Name="TxtReadyDesc" TextWrapping="Wrap" FontSize="12.5" LineHeight="19" Foreground="#181816" Margin="0,0,0,14"
+                    <TextBlock x:Name="TxtReadyDesc" TextWrapping="Wrap" FontSize="12.5" LineHeight="19" Foreground="{DynamicResource InstTextBrush}" Margin="0,0,0,14"
                                Text="Installe Awll dans votre espace utilisateur Windows, sans droits administrateur ni configuration complexe."/>
 
-                    <TextBlock Text="Emplacement cible" FontSize="11" FontWeight="SemiBold" Foreground="#66635A" Margin="0,0,0,6"/>
-                    <Border Background="#ECEAE2" BorderBrush="#1A181816" BorderThickness="1" CornerRadius="8" Padding="11,8" Margin="0,0,0,16">
-                        <TextBlock x:Name="TxtInstallPath" Text="%LocalAppData%\Programs\Awll" FontFamily="Consolas" FontSize="11.5" Foreground="#181816" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="Emplacement cible" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource InstMutedBrush}" Margin="0,0,0,6"/>
+                    <Border Background="{DynamicResource InstSurface2Brush}" BorderBrush="{DynamicResource InstBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="11,8" Margin="0,0,0,16">
+                        <TextBlock x:Name="TxtInstallPath" Text="%LocalAppData%\Programs\Awll" FontFamily="Consolas" FontSize="11.5" Foreground="{DynamicResource InstTextBrush}" TextTrimming="CharacterEllipsis"/>
                     </Border>
 
                     <CheckBox x:Name="ChkStartMenu" IsChecked="True" Margin="0,0,0,8" Content="Créer un raccourci dans le Menu Démarrer"/>
                     <CheckBox x:Name="ChkDesktop" IsChecked="True" Content="Créer un raccourci sur le Bureau"/>
 
                     <StackPanel x:Name="PanelUninstallOption" Visibility="Collapsed" Margin="0,12,0,0">
-                        <CheckBox x:Name="ChkRemoveUserData" IsChecked="False" Foreground="#66635A"
+                        <CheckBox x:Name="ChkRemoveUserData" IsChecked="False" Foreground="{DynamicResource InstMutedBrush}"
                                   Content="Lors de la désinstallation, supprimer aussi mes réglages (%LocalAppData%\Awll)"/>
                     </StackPanel>
 
-                    <Border x:Name="ErrorBox" Visibility="Collapsed" Margin="0,12,0,0" Background="#14C5302C" BorderBrush="#C5302C" BorderThickness="1" CornerRadius="8" Padding="10,8">
-                        <TextBlock x:Name="TxtError" TextWrapping="Wrap" FontSize="11.5" Foreground="#C5302C"/>
+                    <Border x:Name="ErrorBox" Visibility="Collapsed" Margin="0,12,0,0" Background="{DynamicResource InstDangerSoftBrush}" BorderBrush="{DynamicResource InstDangerBrush}" BorderThickness="1" CornerRadius="8" Padding="10,8">
+                        <TextBlock x:Name="TxtError" TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource InstDangerBrush}"/>
                     </Border>
                 </StackPanel>
 
@@ -176,32 +199,32 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="TxtProgressStep" Grid.Column="0" Text="Préparation..." FontSize="12.5" FontWeight="SemiBold" Foreground="#181816"/>
-                        <TextBlock x:Name="TxtProgressPct" Grid.Column="1" Text="0%" FontFamily="Consolas" FontSize="12.5" FontWeight="Bold" Foreground="#B84B2A"/>
+                        <TextBlock x:Name="TxtProgressStep" Grid.Column="0" Text="Préparation..." FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource InstTextBrush}"/>
+                        <TextBlock x:Name="TxtProgressPct" Grid.Column="1" Text="0%" FontFamily="Consolas" FontSize="12.5" FontWeight="Bold" Foreground="{DynamicResource InstAccentBrush}"/>
                     </Grid>
 
-                    <Border Height="8" CornerRadius="4" Background="#E7E4DC" ClipToBounds="True" Margin="0,0,0,12">
-                        <Border x:Name="ProgressFill" HorizontalAlignment="Left" Width="0" Height="8" CornerRadius="4" Background="#B84B2A"/>
+                    <Border Height="8" CornerRadius="4" Background="{DynamicResource InstTrackBrush}" ClipToBounds="True" Margin="0,0,0,12">
+                        <Border x:Name="ProgressFill" HorizontalAlignment="Left" Width="0" Height="8" CornerRadius="4" Background="{DynamicResource InstAccentBrush}"/>
                     </Border>
 
                     <TextBlock x:Name="TxtProgressNote" Text="Si une ancienne version était ouverte, elle est fermée et remplacée proprement. Vos paramètres IA et votre liste protégée restent intacts."
-                               TextWrapping="Wrap" FontSize="11.5" Foreground="#66635A" LineHeight="17"/>
+                               TextWrapping="Wrap" FontSize="11.5" Foreground="{DynamicResource InstMutedBrush}" LineHeight="17"/>
                 </StackPanel>
 
                 <!-- PANEL 3: COMPLETE -->
                 <StackPanel x:Name="PanelComplete" Visibility="Collapsed" VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                        <Border Width="28" Height="28" CornerRadius="14" Background="#2D6A4F" Margin="0,0,10,0">
+                        <Border Width="28" Height="28" CornerRadius="14" Background="{DynamicResource InstSafeBrush}" Margin="0,0,10,0">
                             <Canvas Width="28" Height="28">
                                 <Path Stroke="#FFFFFF" StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
                                       Data="M 8,14.5 L 12,18.5 L 20,10"/>
                             </Canvas>
                         </Border>
-                        <TextBlock x:Name="TxtCompleteTitle" Text="Awll v5.0.0 est installé" VerticalAlignment="Center" FontSize="15" FontWeight="Bold" Foreground="#181816"/>
+                        <TextBlock x:Name="TxtCompleteTitle" Text="Awll v5.0.0 est installé" VerticalAlignment="Center" FontSize="15" FontWeight="Bold" Foreground="{DynamicResource InstTextBrush}"/>
                     </StackPanel>
 
                     <TextBlock x:Name="TxtCompleteDesc" Text="L'application est prête et enregistrée dans Paramètres Windows → Applications pour une désinstallation propre à tout moment."
-                               TextWrapping="Wrap" FontSize="12" LineHeight="18" Foreground="#66635A" Margin="0,0,0,16"/>
+                               TextWrapping="Wrap" FontSize="12" LineHeight="18" Foreground="{DynamicResource InstMutedBrush}" Margin="0,0,0,16"/>
 
                     <CheckBox x:Name="ChkLaunchNow" IsChecked="True" Content="Lancer Awll maintenant"/>
                 </StackPanel>
@@ -217,7 +240,7 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Benawll • Awll" FontSize="11" FontFamily="Consolas, Segoe UI" Foreground="#66635A"/>
+            <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Benawll • Awll" FontSize="11" FontFamily="Consolas, Segoe UI" Foreground="{DynamicResource InstMutedBrush}"/>
             <Button x:Name="BtnUninstall" Grid.Column="1" Visibility="Collapsed" Style="{StaticResource SwissDangerOutlineButton}" Content="Désinstaller" Click="BtnUninstall_Click" Margin="0,0,10,0"/>
             <Button x:Name="BtnCancel" Grid.Column="2" Style="{StaticResource SwissSecondaryButton}" Content="Annuler" Click="BtnCancel_Click" Margin="0,0,10,0"/>
             <Button x:Name="BtnAction" Grid.Column="3" Style="{StaticResource SwissPrimaryButton}" Content="Installer Awll" Click="BtnAction_Click"/>

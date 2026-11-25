@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
+using Microsoft.Win32;
 
 namespace AwllInstaller
 {
@@ -23,25 +24,58 @@ namespace AwllInstaller
         public MainWindow()
         {
             InitializeComponent();
-            SourceInitialized += (_, _) => ApplySwissTitlebar();
+            SourceInitialized += (_, _) => ApplyInstallerTheme(IsWindowsDarkMode());
             Loaded += (_, _) => InitializeInstallerUi();
         }
 
-        private void ApplySwissTitlebar()
+        private static bool IsWindowsDarkMode()
         {
             try
             {
+                using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+                if (key?.GetValue("AppsUseLightTheme") is int val)
+                    return val == 0;
+            }
+            catch { }
+            return false;
+        }
+
+        private void ApplyInstallerTheme(bool isDark)
+        {
+            try
+            {
+                if (isDark)
+                {
+                    Resources["InstBgBrush"] = new SolidColorBrush(Color.FromRgb(0x14, 0x14, 0x12));
+                    Resources["InstSurfaceBrush"] = new SolidColorBrush(Color.FromRgb(0x20, 0x20, 0x1D));
+                    Resources["InstSurface2Brush"] = new SolidColorBrush(Color.FromRgb(0x29, 0x29, 0x25));
+                    Resources["InstSurface2HoverBrush"] = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x2E));
+                    Resources["InstTrackBrush"] = new SolidColorBrush(Color.FromArgb(0x1A, 0xEF, 0xEC, 0xE5));
+                    Resources["InstBorderBrush"] = new SolidColorBrush(Color.FromArgb(0x14, 0xEF, 0xEC, 0xE5));
+                    Resources["InstBorderStrongBrush"] = new SolidColorBrush(Color.FromArgb(0x2E, 0xEF, 0xEC, 0xE5));
+                    Resources["InstTextBrush"] = new SolidColorBrush(Color.FromRgb(0xEF, 0xEC, 0xE5));
+                    Resources["InstMutedBrush"] = new SolidColorBrush(Color.FromRgb(0x9A, 0x96, 0x8C));
+                    Resources["InstAccentBrush"] = new SolidColorBrush(Color.FromRgb(0xDF, 0x6E, 0x46));
+                    Resources["InstAccentHoverBrush"] = new SolidColorBrush(Color.FromRgb(0xE8, 0x7A, 0x52));
+                    Resources["InstAccentSoftBrush"] = new SolidColorBrush(Color.FromArgb(0x26, 0xDF, 0x6E, 0x46));
+                    Resources["InstSafeBrush"] = new SolidColorBrush(Color.FromRgb(0x5B, 0x9A, 0x7D));
+                    Resources["InstSafeSoftBrush"] = new SolidColorBrush(Color.FromArgb(0x24, 0x5B, 0x9A, 0x7D));
+                    Resources["InstDangerBrush"] = new SolidColorBrush(Color.FromRgb(0xD1, 0x58, 0x50));
+                    Resources["InstDangerSoftBrush"] = new SolidColorBrush(Color.FromArgb(0x24, 0xD1, 0x58, 0x50));
+                    Resources["InstDangerHoverBrush"] = new SolidColorBrush(Color.FromArgb(0x36, 0xD1, 0x58, 0x50));
+                }
+
                 var hwnd = new WindowInteropHelper(this).Handle;
                 if (hwnd == IntPtr.Zero) return;
 
-                int darkVal = 0;
+                int darkVal = isDark ? 1 : 0;
                 if (DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref darkVal, sizeof(int)) != 0)
                 {
                     DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE_OLD, ref darkVal, sizeof(int));
                 }
 
-                // Windows COLORREF (0x00BBGGRR) for Atelier Suisse sidebar tone #E7E4DC
-                int captionColor = 0x00DCE4E7;
+                // Windows COLORREF (0x00BBGGRR): #1B1B18 dark / #E7E4DC light
+                int captionColor = isDark ? 0x00181B1B : 0x00DCE4E7;
                 DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, ref captionColor, sizeof(int));
             }
             catch { }
@@ -57,9 +91,9 @@ namespace AwllInstaller
             if (!string.IsNullOrWhiteSpace(_existingVersion))
             {
                 TxtStatusBadge.Text = $"Mise à jour v{_existingVersion} → v{targetVer}";
-                TxtStatusBadge.Foreground = new SolidColorBrush(Color.FromRgb(0xB8, 0x4B, 0x2A));
-                BadgeBorder.Background = new SolidColorBrush(Color.FromArgb(0x1A, 0xB8, 0x4B, 0x2A));
-                BadgeBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(0xB8, 0x4B, 0x2A));
+                TxtStatusBadge.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "InstAccentBrush");
+                BadgeBorder.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "InstAccentSoftBrush");
+                BadgeBorder.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "InstAccentBrush");
 
                 TxtReadyDesc.Text = $"Une installation existante (v{_existingVersion}) a été détectée. Vous pouvez la mettre à jour tout en conservant vos réglages locaux, ou la désinstaller complètement.";
                 BtnAction.Content = $"Mettre à jour vers v{targetVer}";
