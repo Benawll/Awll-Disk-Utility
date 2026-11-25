@@ -7,7 +7,7 @@ $cleanerPublishTmp = Join-Path $repoRoot "Awll\publish_tmp"
 $testsCsproj = Join-Path $repoRoot "Awll.Tests\Awll.Tests.csproj"
 $installerCsproj = Join-Path $repoRoot "AwllInstaller\AwllInstaller.csproj"
 $payloadDir = Join-Path $repoRoot "AwllInstaller\Payload"
-$payloadGz = Join-Path $payloadDir "Awll.exe.gz"
+$payloadGz = Join-Path $payloadDir "Awll-Disk-Utility.exe.gz"
 $publishTmp = Join-Path $repoRoot "AwllInstaller\publish_tmp"
 $legacyDistDir = Join-Path $repoRoot "dist_app"
 
@@ -17,7 +17,7 @@ if ([string]::IsNullOrWhiteSpace($version)) {
     throw "Impossible de lire <Version> dans $cleanerCsproj"
 }
 $version = $version.Trim()
-Write-Output "=== Release Build Awll v$version (Root Layout) ==="
+Write-Output "=== Release Build Awll Disk Utility v$version (Root Layout) ==="
 
 Write-Output "[1/4] Exécution des tests unitaires..."
 dotnet test $testsCsproj --verbosity minimal
@@ -25,14 +25,16 @@ if ($LASTEXITCODE -ne 0) {
     throw "Échec des tests unitaires ($LASTEXITCODE)."
 }
 
-Write-Output "[2/4] Publication d'Awll.exe à la racine..."
+Write-Output "[2/4] Publication d'Awll-Disk-Utility.exe à la racine..."
 if (Test-Path $legacyDistDir) {
     Remove-Item -Path $legacyDistDir -Recurse -Force
 }
 if (Test-Path $cleanerPublishTmp) {
     Remove-Item -Path $cleanerPublishTmp -Recurse -Force
 }
-Get-ChildItem -Path $repoRoot -Filter "Awll-Setup-*.exe" -File | Remove-Item -Force -ErrorAction SilentlyContinue
+foreach ($pattern in @("Awll.exe", "Awll-Setup-*.exe", "Awll-Disk-Utility.exe", "Awll-Disk-Utility-Setup-*.exe")) {
+    Get-ChildItem -Path $repoRoot -Filter $pattern -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+}
 
 dotnet publish $cleanerCsproj `
     -c Release `
@@ -46,25 +48,23 @@ dotnet publish $cleanerCsproj `
     -o $cleanerPublishTmp
 
 if ($LASTEXITCODE -ne 0) {
-    throw "Échec de publication d'Awll ($LASTEXITCODE)."
+    throw "Échec de publication d'Awll Disk Utility ($LASTEXITCODE)."
 }
 
-$publishedExe = Join-Path $cleanerPublishTmp "Awll.exe"
+$publishedExe = Join-Path $cleanerPublishTmp "Awll-Disk-Utility.exe"
 if (-not (Test-Path $publishedExe)) {
-    throw "Awll.exe introuvable dans $cleanerPublishTmp"
+    throw "Awll-Disk-Utility.exe introuvable dans $cleanerPublishTmp"
 }
 
-$awllExe = Join-Path $repoRoot "Awll.exe"
+$awllExe = Join-Path $repoRoot "Awll-Disk-Utility.exe"
 Move-Item -Path $publishedExe -Destination $awllExe -Force
 if (Test-Path $cleanerPublishTmp) {
     Remove-Item -Path $cleanerPublishTmp -Recurse -Force
 }
 
-Write-Output "[3/4] Compression GZip de Awll.exe dans Payload..."
+Write-Output "[3/4] Compression GZip de Awll-Disk-Utility.exe dans Payload..."
 New-Item -ItemType Directory -Path $payloadDir -Force | Out-Null
-if (Test-Path $payloadGz) {
-    Remove-Item -Path $payloadGz -Force
-}
+Get-ChildItem -Path $payloadDir -Filter "*.gz" -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 
 $inStream = [System.IO.File]::OpenRead($awllExe)
 $outStream = [System.IO.File]::Create($payloadGz)
@@ -77,7 +77,7 @@ try {
     $inStream.Dispose()
 }
 
-Write-Output "[4/4] Publication de Awll-Setup-$version.exe à la racine..."
+Write-Output "[4/4] Publication de Awll-Disk-Utility-Setup-$version.exe à la racine..."
 if (Test-Path $publishTmp) {
     Remove-Item -Path $publishTmp -Recurse -Force
 }
@@ -93,12 +93,12 @@ if ($LASTEXITCODE -ne 0) {
     throw "Échec de publication d'AwllInstaller ($LASTEXITCODE)."
 }
 
-$setupSrc = Join-Path $publishTmp "Awll-Setup.exe"
+$setupSrc = Join-Path $publishTmp "Awll-Disk-Utility-Setup.exe"
 if (-not (Test-Path $setupSrc)) {
-    throw "Awll-Setup.exe introuvable dans $publishTmp"
+    throw "Awll-Disk-Utility-Setup.exe introuvable dans $publishTmp"
 }
 
-$setupDest = Join-Path $repoRoot "Awll-Setup-$version.exe"
+$setupDest = Join-Path $repoRoot "Awll-Disk-Utility-Setup-$version.exe"
 Move-Item -Path $setupSrc -Destination $setupDest -Force
 
 if (Test-Path $publishTmp) {

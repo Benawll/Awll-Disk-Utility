@@ -23,8 +23,8 @@ namespace Awll
                 if (!silent)
                 {
                     var res = System.Windows.MessageBox.Show(
-                        "Voulez-vous désinstaller Awll ?\n\nVos préférences locales (clé IA, liste protégée, historique) dans AppData\\Local\\Awll sont conservées.",
-                        "Désinstaller Awll",
+                        "Voulez-vous désinstaller Awll Disk Utility ?\n\nVos préférences locales (clé IA, liste protégée, historique) dans AppData\\Local\\Awll sont conservées.",
+                        "Désinstaller Awll Disk Utility",
                         MessageBoxButton.YesNo,
                         MessageBoxImage.Question);
                     if (res != MessageBoxResult.Yes)
@@ -39,8 +39,8 @@ namespace Awll
                 if (!silent)
                 {
                     System.Windows.MessageBox.Show(
-                        "Awll a été désinstallé avec succès.",
-                        "Désinstaller Awll",
+                        "Awll Disk Utility a été désinstallé avec succès.",
+                        "Désinstaller Awll Disk Utility",
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
                 }
@@ -57,7 +57,7 @@ namespace Awll
         private static void PerformUninstall()
         {
             int currentPid = Environment.ProcessId;
-            foreach (var procName in new[] { "Awll", "WorkspaceCleanerPro" })
+            foreach (var procName in new[] { "Awll-Disk-Utility", "Awll", "WorkspaceCleanerPro" })
             {
                 try
                 {
@@ -92,6 +92,8 @@ namespace Awll
 
                 foreach (var lnk in new[]
                 {
+                    Path.Combine(startMenuDir, "Awll Disk Utility.lnk"),
+                    Path.Combine(desktopDir, "Awll Disk Utility.lnk"),
                     Path.Combine(startMenuDir, "Awll.lnk"),
                     Path.Combine(desktopDir, "Awll.lnk"),
                     Path.Combine(startMenuDir, "Workspace Cleaner Pro.lnk"),
@@ -105,6 +107,7 @@ namespace Awll
 
             try
             {
+                Registry.CurrentUser.DeleteSubKeyTree(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\AwllDiskUtility", false);
                 Registry.CurrentUser.DeleteSubKeyTree(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\Awll", false);
             }
             catch { }
@@ -128,24 +131,28 @@ namespace Awll
 
             try
             {
-                var expectedInstallDir = Path.Combine(
+                var localPrograms = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "Programs", "Awll").TrimEnd('\\');
+                    "Programs");
                 var exePath = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName ?? "";
                 var currentDir = (Path.GetDirectoryName(exePath) ?? "").TrimEnd('\\');
 
-                if (!string.IsNullOrEmpty(currentDir) &&
-                    currentDir.Equals(expectedInstallDir, StringComparison.OrdinalIgnoreCase))
+                foreach (var dirName in new[] { "Awll Disk Utility", "Awll" })
                 {
-                    var psi = new ProcessStartInfo
+                    var expectedInstallDir = Path.Combine(localPrograms, dirName).TrimEnd('\\');
+                    if (!string.IsNullOrEmpty(currentDir) &&
+                        currentDir.Equals(expectedInstallDir, StringComparison.OrdinalIgnoreCase))
                     {
-                        FileName = "cmd.exe",
-                        Arguments = $"/c ping 127.0.0.1 -n 3 >nul & rmdir /s /q \"{expectedInstallDir}\"",
-                        CreateNoWindow = true,
-                        UseShellExecute = false,
-                        WindowStyle = ProcessWindowStyle.Hidden
-                    };
-                    Process.Start(psi);
+                        var psi = new ProcessStartInfo
+                        {
+                            FileName = "cmd.exe",
+                            Arguments = $"/c ping 127.0.0.1 -n 3 >nul & rmdir /s /q \"{expectedInstallDir}\"",
+                            CreateNoWindow = true,
+                            UseShellExecute = false,
+                            WindowStyle = ProcessWindowStyle.Hidden
+                        };
+                        Process.Start(psi);
+                    }
                 }
             }
             catch { }

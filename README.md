@@ -1,14 +1,25 @@
-# Awll — Disk Utility
+# Awll Disk Utility
 
-> **Utilitaire d'audit disque multi-lecteurs, explorateur d'arborescence et détecteur de doublons pour Windows 10 / 11.**
+> **Utilitaire Windows 10 / 11 de nettoyage disque, d'analyse d'arborescence (`Space Lens`) et de détection de doublons (`SHA-256`).**
 
 ![Platform](https://img.shields.io/badge/Windows-10%20%2F%2011%20(x64)-181816?style=flat-square)
-![Version](https://img.shields.io/badge/Version-5.0.0-B84B2A?style=flat-square)
+![Version](https://img.shields.io/badge/Version-1.0.0-B84B2A?style=flat-square)
 ![App](https://img.shields.io/badge/.NET%206-WPF%20%2B%20WebView2-2D6A4F?style=flat-square)
 ![Installer](https://img.shields.io/badge/Setup-.NET%204.8%20(~63%20Mo)-5C7080?style=flat-square)
-![Tests](https://img.shields.io/badge/Tests%20xUnit-18%20%2F%2018-2D6A4F?style=flat-square)
+![Tests](https://img.shields.io/badge/Tests%20xUnit-21%20%2F%2021-2D6A4F?style=flat-square)
 
-**Awll** combine un moteur d'analyse système bas niveau en C# avec une interface **Atelier Suisse** (Clair `#F0EEE7` / Sombre Nocturne `#141412`, zéro emoji, typographie tabulaire, icônes SVG géométriques) propulsée par WPF et WebView2.
+---
+
+## Téléchargement (v1.0.0)
+
+**[Accéder à la dernière Release sur GitHub](https://github.com/Benawll/Awll-Disk-Utility/releases/latest)**
+
+- **Installeur Windows (recommandé)** : **`Awll-Disk-Utility-Setup-1.0.0.exe`** (~62,8 Mo) — exécutable autonome avec raccourcis, mise à jour en place et désinstalleur intégré.
+- **Version portable** : **`Awll-Disk-Utility.exe`** (~68,0 Mo) — à lancer directement sans installation.
+
+---
+
+**Awll Disk Utility** associe un moteur d'analyse système bas niveau en C# à une interface sobre Clair / Sombre (adaptée automatiquement au thème Windows au premier lancement), propulsée par WPF et WebView2.
 
 ---
 
@@ -51,8 +62,8 @@
 
 | Mode | Fichier généré | Détails |
 | :--- | :--- | :--- |
-| **Installeur Windows** *(recommandé)* | `Awll-Setup-5.0.0.exe` (~62,8 Mo) | Exécutable autonome unique (`.NET Framework 4.8` natif Windows 10/11). Installe dans `%LocalAppData%\Programs\Awll`, crée les raccourcis, enregistre la désinstallation (`Awll.exe --uninstall` / `/S`) et gère la mise à jour in-place en conservant les réglages JSON. |
-| **Version Portable** | `Awll.exe` (~68,0 Mo) | Binaire single-file `.NET 6` autonome, lançable directement sans installation. |
+| **Installeur Windows** *(recommandé)* | `Awll-Disk-Utility-Setup-1.0.0.exe` (~62,8 Mo) | Exécutable autonome unique (`.NET Framework 4.8` natif Windows 10/11). Installe dans `%LocalAppData%\Programs\Awll Disk Utility`, crée les raccourcis, enregistre la désinstallation (`--uninstall` / `/S`), gère la mise à jour en place et intègre un bouton **Désinstaller** complet. |
+| **Version Portable** | `Awll-Disk-Utility.exe` (~68,0 Mo) | Binaire single-file `.NET 6` autonome, lançable directement sans installation. |
 
 > Toutes les données runtime (réglages, cache IA, liste protégée, historique, assets WebView2) sont stockées dans `%LocalAppData%\Awll\` (avec migration automatique des anciens `.json` depuis `%LocalAppData%\CleanerApp\`).
 
@@ -61,10 +72,10 @@
 ## Architecture du projet
 
 ```text
-Awll/
+Awll-Disk-Utility/
 ├── Awll/                         # Application principale WPF (.NET 6 + WebView2)
-│   ├── Awll.csproj               # AssemblyName: Awll, RootNamespace: Awll (v5.0.0)
-│   ├── MainWindow.xaml(.cs)      # Bridge WebView2 <-> Backend + sync thème barre Windows (DWM)
+│   ├── Awll.csproj               # AssemblyName: Awll-Disk-Utility (v1.0.0)
+│   ├── MainWindow.xaml(.cs)      # Bridge WebView2 <-> Backend + sync thème Windows (DWM)
 │   ├── App.xaml(.cs)             # Point d'entrée & support --uninstall (/S)
 │   ├── CleanerBackend.cs         # Orchestration Audit & détection des applications installées
 │   ├── Models/
@@ -80,12 +91,12 @@ Awll/
 │   │   ├── CleanerBackend.WinSxS.cs           # Analyse DISM lecture seule
 │   │   ├── ExecutionHistoryService.cs         # Lecture BAM / UserAssist Windows
 │   │   └── NativeFolderPicker.cs              # Sélecteur multi-dossiers natif
-│   ├── index.html / styles.css / app.js       # Interface Atelier Suisse & Suisse Nocturne
+│   ├── index.html / styles.css / app.js       # Interface Clair / Sombre (sync Windows par défaut)
 │   └── app.ico                                # Icône géométrique vectorielle
-├── Awll.Tests/                   # Suite de tests unitaires xUnit (18 tests)
-├── AwllInstaller/                # Installeur natif Atelier Suisse (.NET Framework 4.8)
+├── Awll.Tests/                   # Suite de tests unitaires xUnit (21 tests)
+├── AwllInstaller/                # Installeur & désinstalleur natif (.NET Framework 4.8)
 └── scripts/
-    ├── build-release.ps1         # Tests + publish Awll.exe + compression payload + Setup.exe
+    ├── build-release.ps1         # Tests + publish portable + compression payload + Setup.exe
     └── generate-icon.ps1         # Générateur multi-résolutions d'app.ico
 ```
 
@@ -108,4 +119,4 @@ dotnet test Awll.Tests\Awll.Tests.csproj --verbosity minimal
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-release.ps1
 ```
-Le script exécute les 18 tests xUnit, publie `Awll.exe` à la racine, compresse le payload dans `AwllInstaller/Payload/Awll.exe.gz` puis génère `Awll-Setup-5.0.0.exe` à la racine.
+Le script exécute les 21 tests xUnit, publie `Awll-Disk-Utility.exe` à la racine, compresse le payload dans `AwllInstaller/Payload/Awll-Disk-Utility.exe.gz` puis génère `Awll-Disk-Utility-Setup-1.0.0.exe` à la racine.

@@ -12,15 +12,19 @@ namespace AwllInstaller
 {
     public static class InstallerEngine
     {
-        public const string ResourceName = "AwllInstaller.Payload.Awll.exe.gz";
-        private const string UninstallRegPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Awll";
+        public const string ResourceName = "AwllInstaller.Payload.Awll-Disk-Utility.exe.gz";
+        private const string UninstallRegPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\AwllDiskUtility";
+        private const string LegacyUninstallRegPath = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Awll";
 
-        public static string InstallDir => Path.Combine(
+        private static string LocalProgramsDir => Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Programs",
-            "Awll");
+            "Programs");
 
-        public static string InstalledExePath => Path.Combine(InstallDir, "Awll.exe");
+        public static string InstallDir => Path.Combine(LocalProgramsDir, "Awll Disk Utility");
+
+        public static string LegacyInstallDir => Path.Combine(LocalProgramsDir, "Awll");
+
+        public static string InstalledExePath => Path.Combine(InstallDir, "Awll-Disk-Utility.exe");
 
         public static string InstallerVersion
         {
@@ -34,44 +38,51 @@ namespace AwllInstaller
                     if (!string.IsNullOrWhiteSpace(v)) return v;
                 }
                 var ver = asm.GetName().Version;
-                return ver != null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "5.0.0";
+                return ver != null ? $"{ver.Major}.{ver.Minor}.{ver.Build}" : "1.0.0";
             }
         }
 
         public static string? DetectExistingVersion()
         {
-            try
-            {
-                using var key = Registry.CurrentUser.OpenSubKey(UninstallRegPath);
-                var regVer = key?.GetValue("DisplayVersion") as string;
-                if (!string.IsNullOrWhiteSpace(regVer))
-                {
-                    if (File.Exists(InstalledExePath))
-                    {
-                        return regVer.Trim();
-                    }
-                    // Si la clé existe mais l'exe est absent ailleurs
-                    var loc = key?.GetValue("InstallLocation") as string;
-                    if (!string.IsNullOrWhiteSpace(loc) && File.Exists(Path.Combine(loc, "Awll.exe")))
-                    {
-                        return regVer.Trim();
-                    }
-                }
-            }
-            catch { }
-
-            if (File.Exists(InstalledExePath))
+            foreach (var regPath in new[] { UninstallRegPath, LegacyUninstallRegPath })
             {
                 try
                 {
-                    var fvi = FileVersionInfo.GetVersionInfo(InstalledExePath);
-                    if (!string.IsNullOrWhiteSpace(fvi.ProductVersion))
+                    using var key = Registry.CurrentUser.OpenSubKey(regPath);
+                    var regVer = key?.GetValue("DisplayVersion") as string;
+                    if (!string.IsNullOrWhiteSpace(regVer))
                     {
-                        return fvi.ProductVersion.Split('+')[0].Trim();
+                        if (File.Exists(InstalledExePath))
+                        {
+                            return regVer.Trim();
+                        }
+                        var loc = key?.GetValue("InstallLocation") as string;
+                        if (!string.IsNullOrWhiteSpace(loc) &&
+                            (File.Exists(Path.Combine(loc, "Awll-Disk-Utility.exe")) ||
+                             File.Exists(Path.Combine(loc, "Awll.exe"))))
+                        {
+                            return regVer.Trim();
+                        }
                     }
                 }
                 catch { }
-                return "existante";
+            }
+
+            foreach (var candidateExe in new[] { InstalledExePath, Path.Combine(LegacyInstallDir, "Awll.exe") })
+            {
+                if (File.Exists(candidateExe))
+                {
+                    try
+                    {
+                        var fvi = FileVersionInfo.GetVersionInfo(candidateExe);
+                        if (!string.IsNullOrWhiteSpace(fvi.ProductVersion))
+                        {
+                            return fvi.ProductVersion.Split('+')[0].Trim();
+                        }
+                    }
+                    catch { }
+                    return "existante";
+                }
             }
 
             return null;
@@ -89,6 +100,16 @@ namespace AwllInstaller
 
                 reportProgress("Préparation du dossier d'installation...", 25);
                 Directory.CreateDirectory(InstallDir);
+
+                // Nettoyer l'ancien dossier d'installation s'il existait sous l'ancien nom Awll
+                try
+                {
+                    if (Directory.Exists(LegacyInstallDir))
+                    {
+                        Directory.Delete(LegacyInstallDir, true);
+                    }
+                }
+                catch { }
 
                 // Nettoyer l'ancien cache UI extrait tout en conservant les préférences JSON
                 try
@@ -108,8 +129,8 @@ namespace AwllInstaller
                 }
                 catch { }
 
-                reportProgress("Extraction d'Awll...", 35);
-                ExtractPayload(pct => reportProgress("Extraction d'Awll...", pct));
+                reportProgress("Extraction d'Awll Disk Utility...", 35);
+                ExtractPayload(pct => reportProgress("Extraction d'Awll Disk Utility...", pct));
 
                 reportProgress("Création des raccourcis...", 88);
                 UpdateShortcuts(createStartMenu, createDesktop);
@@ -125,7 +146,7 @@ namespace AwllInstaller
         {
             return Task.Run(() =>
             {
-                reportProgress("Fermeture des instances d'Awll en cours...", 15);
+                reportProgress("Fermeture des instances en cours...", 15);
                 CloseRunningProcesses();
 
                 reportProgress("Suppression des raccourcis...", 35);
@@ -138,6 +159,8 @@ namespace AwllInstaller
 
                     foreach (var lnk in new[]
                     {
+                        Path.Combine(startMenuDir, "Awll Disk Utility.lnk"),
+                        Path.Combine(desktopDir, "Awll Disk Utility.lnk"),
                         Path.Combine(startMenuDir, "Awll.lnk"),
                         Path.Combine(desktopDir, "Awll.lnk"),
                         Path.Combine(startMenuDir, "Workspace Cleaner Pro.lnk"),
@@ -150,23 +173,29 @@ namespace AwllInstaller
                 catch { }
 
                 reportProgress("Nettoyage du Registre Windows...", 55);
-                try
-                {
-                    Registry.CurrentUser.DeleteSubKeyTree(UninstallRegPath, false);
-                }
-                catch { }
-
-                reportProgress("Suppression du programme installé...", 75);
-                if (Directory.Exists(InstallDir))
+                foreach (var regPath in new[] { UninstallRegPath, LegacyUninstallRegPath })
                 {
                     try
                     {
-                        Directory.Delete(InstallDir, true);
+                        Registry.CurrentUser.DeleteSubKeyTree(regPath, false);
                     }
-                    catch
+                    catch { }
+                }
+
+                reportProgress("Suppression du programme installé...", 75);
+                foreach (var dir in new[] { InstallDir, LegacyInstallDir })
+                {
+                    if (Directory.Exists(dir))
                     {
-                        Thread.Sleep(400);
-                        Directory.Delete(InstallDir, true);
+                        try
+                        {
+                            Directory.Delete(dir, true);
+                        }
+                        catch
+                        {
+                            Thread.Sleep(400);
+                            if (Directory.Exists(dir)) Directory.Delete(dir, true);
+                        }
                     }
                 }
 
@@ -206,7 +235,7 @@ namespace AwllInstaller
             int selfPid = Process.GetCurrentProcess().Id;
             bool closedAny = false;
 
-            foreach (var procName in new[] { "Awll", "WorkspaceCleanerPro" })
+            foreach (var procName in new[] { "Awll-Disk-Utility", "Awll", "WorkspaceCleanerPro" })
             {
                 try
                 {
@@ -248,7 +277,7 @@ namespace AwllInstaller
                 throw new InvalidOperationException($"Ressource embarquée introuvable : {ResourceName}. Recompilez via scripts/build-release.ps1.");
             }
 
-            string tempExePath = Path.Combine(InstallDir, "Awll.exe.new");
+            string tempExePath = Path.Combine(InstallDir, "Awll-Disk-Utility.exe.new");
             if (File.Exists(tempExePath))
             {
                 File.Delete(tempExePath);
@@ -293,12 +322,14 @@ namespace AwllInstaller
                 "Microsoft", "Windows", "Start Menu", "Programs");
             var desktopDir = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
 
-            var awllStartLnk = Path.Combine(startMenuDir, "Awll.lnk");
-            var awllDeskLnk = Path.Combine(desktopDir, "Awll.lnk");
+            var startLnk = Path.Combine(startMenuDir, "Awll Disk Utility.lnk");
+            var deskLnk = Path.Combine(desktopDir, "Awll Disk Utility.lnk");
 
-            // Nettoyer d'éventuels anciens raccourcis Workspace Cleaner Pro
+            // Nettoyer d'éventuels anciens raccourcis
             foreach (var legacy in new[]
             {
+                Path.Combine(startMenuDir, "Awll.lnk"),
+                Path.Combine(desktopDir, "Awll.lnk"),
                 Path.Combine(startMenuDir, "Workspace Cleaner Pro.lnk"),
                 Path.Combine(desktopDir, "Workspace Cleaner Pro.lnk")
             })
@@ -308,11 +339,11 @@ namespace AwllInstaller
 
             if (createStartMenu)
             {
-                CreateShortcut(awllStartLnk, InstalledExePath, InstallDir, "Awll — Disk Utility");
+                CreateShortcut(startLnk, InstalledExePath, InstallDir, "Awll Disk Utility");
             }
             if (createDesktop)
             {
-                CreateShortcut(awllDeskLnk, InstalledExePath, InstallDir, "Awll — Disk Utility");
+                CreateShortcut(deskLnk, InstalledExePath, InstallDir, "Awll Disk Utility");
             }
         }
 
@@ -356,6 +387,12 @@ namespace AwllInstaller
 
         private static void WriteUninstallRegistry()
         {
+            try
+            {
+                Registry.CurrentUser.DeleteSubKeyTree(LegacyUninstallRegPath, false);
+            }
+            catch { }
+
             using var key = Registry.CurrentUser.CreateSubKey(UninstallRegPath);
             if (key == null) return;
 
@@ -366,7 +403,7 @@ namespace AwllInstaller
             }
             catch { }
 
-            key.SetValue("DisplayName", "Awll — Disk Utility", RegistryValueKind.String);
+            key.SetValue("DisplayName", "Awll Disk Utility", RegistryValueKind.String);
             key.SetValue("DisplayVersion", InstallerVersion, RegistryValueKind.String);
             key.SetValue("Publisher", "Benawll", RegistryValueKind.String);
             key.SetValue("InstallLocation", InstallDir, RegistryValueKind.String);

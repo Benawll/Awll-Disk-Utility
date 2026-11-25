@@ -1,7 +1,7 @@
 <Window x:Class="AwllInstaller.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Installation d'Awll"
+        Title="Installation d'Awll Disk Utility"
         Icon="app.ico"
         Width="520"
         Height="490"
@@ -156,8 +156,8 @@
             </Border>
 
             <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                <TextBlock Text="Awll" FontSize="20" FontWeight="Bold" Foreground="{DynamicResource InstTextBrush}" Margin="0,-2,0,0"/>
-                <TextBlock x:Name="TxtSubtitle" Text="Disk Utility — v5.0.0" FontSize="12" FontFamily="Consolas, Segoe UI" Foreground="{DynamicResource InstMutedBrush}"/>
+                <TextBlock Text="Awll Disk Utility" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource InstTextBrush}" Margin="0,-2,0,0"/>
+                <TextBlock x:Name="TxtSubtitle" Text="v1.0.0" FontSize="12" FontFamily="Consolas, Segoe UI" Foreground="{DynamicResource InstMutedBrush}"/>
             </StackPanel>
 
             <!-- Install vs Upgrade Badge -->
@@ -172,11 +172,11 @@
                 <!-- PANEL 1: READY / OPTIONS -->
                 <StackPanel x:Name="PanelReady" VerticalAlignment="Center">
                     <TextBlock x:Name="TxtReadyDesc" TextWrapping="Wrap" FontSize="12.5" LineHeight="19" Foreground="{DynamicResource InstTextBrush}" Margin="0,0,0,14"
-                               Text="Installe Awll dans votre espace utilisateur Windows, sans droits administrateur ni configuration complexe."/>
+                               Text="Installe Awll Disk Utility dans votre espace utilisateur Windows, sans droits administrateur ni configuration complexe."/>
 
                     <TextBlock Text="Emplacement cible" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource InstMutedBrush}" Margin="0,0,0,6"/>
                     <Border Background="{DynamicResource InstSurface2Brush}" BorderBrush="{DynamicResource InstBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="11,8" Margin="0,0,0,16">
-                        <TextBlock x:Name="TxtInstallPath" Text="%LocalAppData%\Programs\Awll" FontFamily="Consolas" FontSize="11.5" Foreground="{DynamicResource InstTextBrush}" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock x:Name="TxtInstallPath" Text="%LocalAppData%\Programs\Awll Disk Utility" FontFamily="Consolas" FontSize="11.5" Foreground="{DynamicResource InstTextBrush}" TextTrimming="CharacterEllipsis"/>
                     </Border>
 
                     <CheckBox x:Name="ChkStartMenu" IsChecked="True" Margin="0,0,0,8" Content="Créer un raccourci dans le Menu Démarrer"/>
@@ -220,13 +220,13 @@
                                       Data="M 8,14.5 L 12,18.5 L 20,10"/>
                             </Canvas>
                         </Border>
-                        <TextBlock x:Name="TxtCompleteTitle" Text="Awll v5.0.0 est installé" VerticalAlignment="Center" FontSize="15" FontWeight="Bold" Foreground="{DynamicResource InstTextBrush}"/>
+                        <TextBlock x:Name="TxtCompleteTitle" Text="Awll Disk Utility v1.0.0 est installé" VerticalAlignment="Center" FontSize="15" FontWeight="Bold" Foreground="{DynamicResource InstTextBrush}"/>
                     </StackPanel>
 
                     <TextBlock x:Name="TxtCompleteDesc" Text="L'application est prête et enregistrée dans Paramètres Windows → Applications pour une désinstallation propre à tout moment."
                                TextWrapping="Wrap" FontSize="12" LineHeight="18" Foreground="{DynamicResource InstMutedBrush}" Margin="0,0,0,16"/>
 
-                    <CheckBox x:Name="ChkLaunchNow" IsChecked="True" Content="Lancer Awll maintenant"/>
+                    <CheckBox x:Name="ChkLaunchNow" IsChecked="True" Content="Lancer Awll Disk Utility maintenant"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -240,10 +240,10 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Benawll • Awll" FontSize="11" FontFamily="Consolas, Segoe UI" Foreground="{DynamicResource InstMutedBrush}"/>
+            <TextBlock Grid.Column="0" VerticalAlignment="Center" Text="Benawll • Awll Disk Utility" FontSize="11" FontFamily="Consolas, Segoe UI" Foreground="{DynamicResource InstMutedBrush}"/>
             <Button x:Name="BtnUninstall" Grid.Column="1" Visibility="Collapsed" Style="{StaticResource SwissDangerOutlineButton}" Content="Désinstaller" Click="BtnUninstall_Click" Margin="0,0,10,0"/>
             <Button x:Name="BtnCancel" Grid.Column="2" Style="{StaticResource SwissSecondaryButton}" Content="Annuler" Click="BtnCancel_Click" Margin="0,0,10,0"/>
-            <Button x:Name="BtnAction" Grid.Column="3" Style="{StaticResource SwissPrimaryButton}" Content="Installer Awll" Click="BtnAction_Click"/>
+            <Button x:Name="BtnAction" Grid.Column="3" Style="{StaticResource SwissPrimaryButton}" Content="Installer Awll Disk Utility" Click="BtnAction_Click"/>
         </Grid>
     </Grid>
 </Window>

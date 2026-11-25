@@ -84,7 +84,7 @@ namespace AwllInstaller
         private void InitializeInstallerUi()
         {
             string targetVer = InstallerEngine.InstallerVersion;
-            TxtSubtitle.Text = $"Disk Utility — v{targetVer}";
+            TxtSubtitle.Text = $"v{targetVer}";
             TxtInstallPath.Text = InstallerEngine.InstallDir;
 
             _existingVersion = InstallerEngine.DetectExistingVersion();
@@ -97,15 +97,15 @@ namespace AwllInstaller
 
                 TxtReadyDesc.Text = $"Une installation existante (v{_existingVersion}) a été détectée. Vous pouvez la mettre à jour tout en conservant vos réglages locaux, ou la désinstaller complètement.";
                 BtnAction.Content = $"Mettre à jour vers v{targetVer}";
-                TxtCompleteTitle.Text = $"Awll mis à jour vers v{targetVer}";
+                TxtCompleteTitle.Text = $"Awll Disk Utility mis à jour vers v{targetVer}";
                 BtnUninstall.Visibility = Visibility.Visible;
                 PanelUninstallOption.Visibility = Visibility.Visible;
             }
             else
             {
                 TxtStatusBadge.Text = "Nouvelle installation";
-                BtnAction.Content = "Installer Awll";
-                TxtCompleteTitle.Text = $"Awll v{targetVer} est installé";
+                BtnAction.Content = "Installer Awll Disk Utility";
+                TxtCompleteTitle.Text = $"Awll Disk Utility v{targetVer} est installé";
                 BtnUninstall.Visibility = Visibility.Collapsed;
                 PanelUninstallOption.Visibility = Visibility.Collapsed;
             }
@@ -121,8 +121,8 @@ namespace AwllInstaller
                 : "Vos réglages locaux (clé IA, liste protégée, historique) seront conservés.";
 
             var confirm = MessageBox.Show(
-                $"Voulez-vous vraiment désinstaller Awll de ce PC ?\n\n{extraNote}",
-                "Désinstaller Awll",
+                $"Voulez-vous vraiment désinstaller Awll Disk Utility de ce PC ?\n\n{extraNote}",
+                "Désinstaller Awll Disk Utility",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
             if (confirm != MessageBoxResult.Yes) return;
@@ -131,7 +131,7 @@ namespace AwllInstaller
             ErrorBox.Visibility = Visibility.Collapsed;
             PanelReady.Visibility = Visibility.Collapsed;
             PanelProgress.Visibility = Visibility.Visible;
-            TxtProgressNote.Text = "Fermeture d'Awll, suppression des raccourcis, du dossier programme et de l'entrée Windows Applications...";
+            TxtProgressNote.Text = "Fermeture d'Awll Disk Utility, suppression des raccourcis, du dossier programme et de l'entrée Windows Applications...";
             BtnUninstall.IsEnabled = false;
             BtnCancel.IsEnabled = false;
             BtnAction.IsEnabled = false;
@@ -157,7 +157,7 @@ namespace AwllInstaller
                 _stage = UiStage.Complete;
                 PanelProgress.Visibility = Visibility.Collapsed;
                 PanelComplete.Visibility = Visibility.Visible;
-                TxtCompleteTitle.Text = "Awll a été désinstallé";
+                TxtCompleteTitle.Text = "Awll Disk Utility a été désinstallé";
                 TxtCompleteDesc.Text = removeUserData
                     ? "L'application, ses raccourcis, son entrée Windows et toutes ses données locales ont été supprimés."
                     : "L'application, ses raccourcis et son entrée Windows ont été supprimés. Vos réglages locaux ont été conservés.";
