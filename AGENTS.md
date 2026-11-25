@@ -1,89 +1,56 @@
-# Règles Générales de Nettoyage et d'Audit Système — Workspace Cleaner
+# Règles & Architecture — Awll Disk Utility
 
-Ce document définit les règles impératives, la politique de sécurité et les méthodologies d'analyse pour le projet d'audit et de nettoyage d'espace disque sous Windows.
-
----
-
-## 1. Principes Absolus de Sécurité et Préférences Utilisateur
-
-### Règle d'or : Zéro suppression non autorisée
-- **Mode Audit / Dry-Run par défaut** : Aucune suppression, modification ou désinstallation n'est exécutée sans analyse préalable, mesure du volume à libérer et confirmation explicite de l'utilisateur.
-- **Sanctuarisation permanente (Sauf demande contraire explicite)** :
-  - **`C:\New Doc`** : Sauvegardes de téléphones et projets personnels (strictement conservé).
-  - **`C:\Users\benja\Videos`** : Dossier de vidéos et replays de 286 Go (conservé).
-  - **NVIDIA NGX / DLSS** : Modèles d'accélération graphique IA conservés car l'utilisateur utilise le DLSS.
-  - **Java Runtimes** : Conservation stricte de **Java 17 (LTS)** et **Java 24**.
-  - **Unity / C#** : Visual Studio Community n'est pas nécessaire (l'utilisateur et Antigravity interagissent via le MCP Unity et VS Code).
+Ce fichier définit les conventions techniques, UX/UI, de sécurité et de publication pour le projet **Awll Disk Utility** (`https://github.com/Benawll/Awll-Disk-Utility`).
 
 ---
 
-## 2. Déroulement d'un Audit Approfondi & Restitution
+## 1. Architecture du dépôt
 
-### 2.1. Audit Récursif Multi-Niveaux et Découverte Dynamique
-Tout audit doit inspecter dynamiquement et exhaustivement :
-1. **Principe de Symétrie Totale Multi-Disques (C:, D:, E:)** :
-   - **Aucun skill n'est réservé à un disque spécifique**. Chaque moteur d'analyse (développeur, logiciels, jeux, téléchargements, caches temporaires) doit s'exécuter de manière **rigoureusement identique sur TOUS les disques connectés**.
-   - **La seule et unique exception exclusive à C:** est le dossier système d'exploitation Windows (`C:\Windows\System32`, `SoftwareDistribution`).
-   - Pour tout le reste, vérifier systématiquement sur chaque disque (C:, D:, E:) :
-     - Les logiciels résiduels et installeurs dans `Program Files`, `Program Files (x86)` et dossiers racines.
-     - Les bibliothèques de jeux (Steam, Epic, Ubisoft, XboxGames / WindowsApps).
-     - Les caches de build et développeur (.gradle, .m2, venv, Unity, Unreal).
-     - Les dossiers temporaires (`Temp`, `Tmp`, `$Recycle.Bin`, caches de logiciels tiers).
-2. **Zéro Oubli par Scan Dynamique au Seuil (>= 150 Mo)** : Interdiction absolue de se limiter à une liste codée en dur de logiciels ou de caches. Le script doit scanner dynamiquement chaque sous-dossier de `AppData\Local`, `AppData\Roaming`, `AppData\LocalLow` et du profil `C:\Users\benja`.
-3. **Couverture Exhaustive Obligatoire** :
-   - Caches internes Steam cachés : `steamapps\downloading` (téléchargements corrompus/bloqués souvent géants), `steamapps\workshop`, `shadercache`.
-   - Doublons de jeux cross-plateformes : Jeux installés simultanément sur Steam, Epic Games ou Xbox (ex: Rocket League).
-   - Serveurs de test publics (PTS) et démos abandonnées : Ex: `paladins pts`, démos temporaires de festivals Steam.
-   - Émulateurs tiers et ROMs orphelines : NoxPlayer (`D:\Program Files\Nox`), ROMs Switch Yuzu (`E:\Yuzu`), Dolphin (`C:\Jeux dolphin`).
-   - Dossiers Téléchargements (Downloads) :
-     - `C:\Users\benja\Downloads` et `D:\Téléchargements` pour les vieux installeurs (.exe, .msi, .AppImage), archives doublons (ex: .zip existant à côté du dossier extrait) et builds temporaires.
-     - **Règle d'isolation en onglet dédié** : Si le volume d'éléments détectés dans Downloads est important, le regrouper obligatoirement dans son propre onglet dédié (`📥 Téléchargements`) au sein des widgets pour ne pas encombrer la vue système / disques.
-   - Vieux jeux portables inactifs : `D:\Autres Jeux` ou `E:\Jeux` non touchés depuis plus d'un an.
-   - Moteurs RGB et overlays de jeu : `VortxEngine`, `WhirlwindFX`, `Overwolf`, `Medal.tv`, `VoicemodV3`.
-   - Messageries et communications : `Slack`, `Microsoft Teams`, `Discord`, `Rocket.Chat`.
-   - Mod managers, jeux et sauvegardes : `Thunderstore Mod Manager`, `r2modman`, `Dry Cactus` (Poly Bridge), `Lunar Client`, `CurseForge`.
-   - VPN et outils réseau : `Pulse Secure`, `Radmin VPN`.
-   - Caches de développement & build : `.gradle`, `.m2`, `npm-cache`, `pip`, `ms-playwright`.
-   - Updaters résiduels Electron : `*-updater` dans LocalAppData.
-4. Les applications du Windows Store (`WindowsApps`) qui cachent souvent des jeux géants.
-5. Les logiciels résiduels dans `Program Files` et `Program Files (x86)` sur tous les disques.
-6. Les répertoires racine atypiques de `C:\`, `D:\` et `E:\`.
-
-### 2.2. Format de Restitution Interactif Obligatoire
-- Présenter les résultats sous forme de **tableau de bord interactif HTML** (`cleaner-checklist.html`) avec :
-  - Vrais boutons cliquables (**Supprimer**, **Garder**, **❓ Infos**).
-  - Calculateur dynamique en direct de l'espace à libérer en Go.
-  - Champ de texte de secours affiché immédiatement au clic pour copier la sélection (`Ctrl+C`) en cas de restriction de presse-papier de l'iframe sandbox.
-- **Doublonner systématiquement** avec une liste numérotée claire en texte brut dans le chat (ex: `[1]`, `[2]`, `[3]`) pour permettre à l'utilisateur de répondre avec de simples numéros s'il le préfère.
-
-### 2.3. Traitement Systématique de l'Option « ❓ Plus d'infos »
-Pour chaque élément où l'utilisateur demande des informations avant de décider :
-1. **Lancer le script d'enquête** (`research-item.ps1`) pour vérifier :
-   - La date de dernière modification / accès aux fichiers.
-   - Si un processus ou service Windows associé est actuellement actif en mémoire.
-   - La clé de registre d'installation d'origine.
-2. **Répondre clairement selon 4 points indispensables** :
-   - **Définition** : Qu'est-ce que c'est simplement ?
-   - **Origine** : Pourquoi a-t-il été installé et par quoi ?
-   - **Fréquence d'usage** : Est-ce utilisé récemment ou totalement inactif ?
-   - **Sécurité** : Peut-on le désinstaller sans aucun impact négatif sur le système ?
+- **`Awll/`** — Application principale WPF (.NET 6 + WebView2, `AssemblyName: Awll-Disk-Utility`) :
+  - `MainWindow.xaml(.cs)` : bridge JSON WebView2 ↔ backend + synchronisation thème Windows (DWM).
+  - `App.xaml(.cs)` : point d'entrée & support désinstallation silencieuse (`--uninstall` / `/S`).
+  - `CleanerBackend.cs` & `Scanners/` : audit multi-disques symétrique, Space Lens (`SpaceLens.cs`) et détecteur de doublons SHA-256 (`Duplicates.cs`).
+  - `Services/` : enquête locale & IA Gemini (`ResearchAndClean.cs`), persistance `%LocalAppData%\Awll\` (`Persistence.cs`), snapshots (`Snapshots.cs`), WinSxS DISM (`WinSxS.cs`), historique BAM/UserAssist (`ExecutionHistoryService.cs`), sélecteur de dossiers (`NativeFolderPicker.cs`).
+  - `index.html`, `styles.css`, `app.js`, `tailwindcss.min.js` : ressources embarquées chargées via `https://cleaner.app/`.
+- **`Awll.Tests/`** — Suite de tests unitaires xUnit (`GlobalRulesTests.cs`).
+- **`AwllInstaller/`** — Installeur & désinstalleur autonome (.NET Framework 4.8) embarquant `Payload\Awll-Disk-Utility.exe.gz`.
+- **`scripts/`** — Uniquement les scripts d'outillage du projet :
+  - `scripts/build-release.ps1` : tests xUnit + publication single-file + compression GZip + compilation du Setup.
+  - `scripts/generate-icon.ps1` : génération de `Awll/app.ico`.
 
 ---
 
-## 3. Règles d'Exécution et de Stabilité des Processus (Anti-Blocage Stricte)
+## 2. Design System & Règles UI/UX
 
-### 3.1. Zéro Fenêtre Graphique Bloquante (Headless / Silent Obligatoire)
-- **Interdiction formelle** de lancer des désinstalleurs interactifs qui ouvrent une fenêtre graphique sur le bureau utilisateur et attendent un clic manuel (`-tmp`, interfaces Qt/WPF sans argument silencieux).
-- **Toujours employer les drapeaux silencieux stricts** :
-  - Inno Setup : `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART`
-  - MSI : `msiexec.exe /X{GUID} /qn /norestart`
-  - NSIS : `/S`
-  - InstallShield / AdvancedInstaller : `/s /v"/qn"`
-- **Fallback Direct** : Si une application ne dispose pas de désinstalleur silencieux fiable, stopper les processus associés, supprimer directement ses répertoires (`Program Files`, `ProgramData`, `AppData`) et nettoyer la clé Uninstall du registre.
+- **Thèmes** : **Atelier Suisse** (clair `#F0EEE7` / `#FAF9F5` / `#B84B2A`) et **Suisse Nocturne** (sombre `#141412` / `#20201D` / `#DF6E46`).
+  - Au premier lancement (sans préférence utilisateur enregistrée), l'application et l'installeur adoptent automatiquement le thème Windows Clair ou Sombre.
+  - Utiliser exclusivement les variables CSS `--app-*` (jamais de couleurs codées en dur qui casseraient un thème, aucun effet néon).
+- **Zéro emoji** dans l'interface WebView2 (`index.html`, `app.js`), l'installeur (`AwllInstaller`) et les chaînes C# affichées à l'utilisateur ; utiliser les icônes SVG vectorielles géométriques (`icon(...)`).
+- **Clarté & cohérence** : les vues multi-disques (`Audit Intelligent`, `Détecteur de Doublons`) respectent le filtre d'affichage latéral (`activeDrives`) et séparent explicitement les dossiers personnels des éléments recommandés.
 
-### 3.2. Surveillance Active et Détection des Tâches Bloquées
-- Toute commande ou tâche de fond doit faire l'objet d'un contrôle proactif.
-- Si un processus ne progresse plus ou dépasse le temps normal attendu pour une désinstallation, **l'interrompre immédiatement (`manage_task kill`)** et appliquer l'alternative headless directe.
+---
 
-### 3.3. Encapsulation dans des Scripts .ps1
-- Toujours écrire les commandes PowerShell complexes dans des scripts dédiés du dossier `scripts/` plutôt que d'injecter des commandes inline dans la console afin d'éviter toute corruption par interpolation des variables `$`.
+## 3. Sécurité, Nettoyage & Garde-fous IA
+
+- **Mode Dry-Run obligatoire** : aucune suppression ni désinstallation n'est lancée sans confirmation explicite dans la modale récapitulative.
+- **Corbeille Windows par défaut** (`useRecycleBin: true`), suppression définitive uniquement sur choix explicite de l'utilisateur.
+- **Protections & Sanctuarisation** :
+  - Respect permanent de la **Liste Protégée** utilisateur (`protected_items.json`) et des emplacements critiques système/runtimes (`System32`, `NVIDIA\NGX`, `Java`, etc.).
+  - Ne jamais écrire de chemins personnels ou spécifiques à une machine en dur dans le code du dépôt.
+- **Désinstallation silencieuse (Headless)** : utiliser `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART` (Inno), `/qn /norestart` (MSI), `/S` (NSIS) — jamais de désinstalleur graphique bloquant.
+- **Garde-fous Gemini IA** :
+  - Toute recommandation IA conserve un plancher de risque pour les composants système/runtimes/actifs et pour les emplacements protégés.
+  - Sur les groupes de doublons, l'IA ne doit jamais recommander de supprimer un fichier protégé ni l'ensemble des copies d'un groupe.
+
+---
+
+## 4. Versioning & Publication Release (SemVer)
+
+À chaque mise à jour publiée, incrémenter la version **proportionnellement à l'ampleur du changement** (`PATCH` pour correctifs ciblés, `MINOR` pour nouvelles fonctionnalités, `MAJOR` pour refontes/ruptures) dans les 5 emplacements suivants :
+1. `Awll/Awll.csproj` (`<Version>`)
+2. `AwllInstaller/AwllInstaller.csproj` (`<Version>`)
+3. `AwllInstaller/InstallerEngine.cs` (version de repli)
+4. `AwllInstaller/MainWindow.xaml` (`TxtSubtitle`, `TxtCompleteTitle`)
+5. `README.md` (badge Version, section Téléchargement, arborescence et notes)
+
+Puis exécuter `powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1` pour valider les tests xUnit et générer `Awll-Disk-Utility.exe` et `Awll-Disk-Utility-Setup-<Version>.exe`.
